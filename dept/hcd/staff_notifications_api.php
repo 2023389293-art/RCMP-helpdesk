@@ -1,5 +1,5 @@
 <?php
-// dept/hcd/staff_notifications_api.php
+// dept/hcd/staff_notifications_api.php  
 // Returns JSON: { notifications: [...] }
 //
 // Notification types:
@@ -177,9 +177,8 @@ $stmt->execute();
 $res = $stmt->get_result();
 
 while ($row = $res->fetch_assoc()) {
-    $slaStartStr = !empty($row['sla_start_at']) ? $row['sla_start_at'] : $row['created_at'];
-$slaStart    = new DateTime($slaStartStr);
-    $elapsedMin  = businessMinutesElapsed($slaStart, $now);
+    $slaStart   = new DateTime($row['created_at']);
+$elapsedMin = businessMinutesElapsed($slaStart, $now);
 
     // Only add as a plain "assigned" notification if it's NOT already going
     // to appear as an SLA alert — we'll handle SLA separately below.
@@ -258,15 +257,15 @@ $sql = "
         LIMIT 1
     )
     WHERE c.dept_id     = ?
-      AND c.assigned_to = ?
-      AND (assigner.staff_id IS NULL OR assigner.staff_id != ?)
-      AND c.created_at >= NOW() - INTERVAL 30 DAY
-      AND EXISTS (
-          SELECT 1 FROM ticket_logs tl3
-          WHERE tl3.ticket_id    = c.ticket_id
-            AND tl3.field_changed = 'assigned'
-            AND tl3.changed_by_id != 0
-      )
+  AND c.assigned_to = ?
+  AND (assigner.staff_id IS NULL OR assigner.staff_id != ?)
+  AND c.created_at >= NOW() - INTERVAL 30 DAY
+  AND EXISTS (
+      SELECT 1 FROM ticket_logs tl3
+      WHERE tl3.ticket_id    = c.ticket_id
+        AND tl3.field_changed = 'assigned'
+        AND tl3.changed_by_id != 0
+  )
     ORDER BY c.created_at DESC
     LIMIT 30
 ";
@@ -279,14 +278,27 @@ while ($row = $res->fetch_assoc()) {
     $assigner = $row['assigner_name'] ?? 'System';  // keep for message only
     $eventAt  = $row['last_log_at']   ?? $row['created_at'];
 
-    $notifications[] = [
+    // Fetch remarks from the latest 'assigned' log for this ticket
+        $remarksStmt = $conn->prepare("
+            SELECT remarks FROM ticket_logs
+            WHERE ticket_id = ? AND field_changed = 'assigned'
+            ORDER BY changed_at DESC LIMIT 1
+        ");
+        $remarksStmt->bind_param("s", $row['ticket_id']);
+        $remarksStmt->execute();
+        $remarksRow  = $remarksStmt->get_result()->fetch_assoc();
+        $remarksStmt->close();
+        $assignRemarks = $remarksRow['remarks'] ?? '';
+
+        $notifications[] = [
         'notif_key'    => 'ASGN-' . $row['ticket_id'],
         'notif_type'   => 'assignment',
         'ticket_id'    => $row['ticket_id'],
         'ticket_title' => $row['ticket_title'],
-        'sender_name'  => 'New Ticket',                              // ← fixed
+        'sender_name'  => 'New Ticket',
         'sender_role'  => 'staff',
         'message' => $assigner . ' assigned this ticket to you',
+        'remarks'      => $assignRemarks,
         'event_at'     => $eventAt,
         'status'       => $row['status'],
         'priority'     => $row['priority'],
@@ -331,9 +343,10 @@ $sql = "
     LEFT JOIN staff   st  ON c.submitter_type != 'student' AND c.submitter_id = st.staff_id
     LEFT JOIN staff assigned_staff ON assigned_staff.staff_id = c.assigned_to   -- ✅ NEW join
     WHERE c.dept_id     = ?
-      AND c.assigned_to = ?
-      AND c.status      IN ('open', 'in_progress')
-    ORDER BY c.created_at ASC
+  AND c.assigned_to = ?
+  AND c.status      IN ('open', 'in_progress')
+  AND c.first_response_at IS NULL
+ORDER BY c.created_at ASC
 ";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $deptId, $staffId);
@@ -343,10 +356,10 @@ $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     // ✅ Use sla_start_at — it is reset when a ticket is reopened.
     // This matches the logic in ticket_detail.php and sla_helper.php.
-    $slaStartStr  = !empty($row['sla_start_at']) ? $row['sla_start_at'] : $row['created_at'];
-    $slaStart     = new DateTime($slaStartStr);
-    $elapsedMin   = businessMinutesElapsed($slaStart, $now);
-    $remainingMin = SLA_TOTAL_MIN - $elapsedMin;
+   $slaStartStr  = $row['created_at'];
+$slaStart     = new DateTime($slaStartStr);
+$elapsedMin   = businessMinutesElapsed($slaStart, $now);
+$remainingMin = SLA_TOTAL_MIN - $elapsedMin;
 
     if ($elapsedMin >= SLA_TOTAL_MIN) {
         // ── OVERDUE ──
@@ -366,7 +379,7 @@ $notifications[] = [
     'ticket_title' => $row['ticket_title'],
     'sender_name'  => $row['assigned_staff_name'] ?? 'Unknown Staff',  // ✅ CHANGED
     'sender_role'  => 'staff',                                          // ✅ CHANGED
-    'message'      => trim($label) . ' — SLA breached (8 business hours)',
+    'message'      => trim($label) . ' — SLA breached (8 business hours) · ' . ucfirst($row['status']),
     'event_at'     => $slaStartStr,
     'status'       => $row['status'],
     'priority'     => $row['priority'],
@@ -392,7 +405,7 @@ $notifications[] = [
     'ticket_title' => $row['ticket_title'],
     'sender_name'  => $row['assigned_staff_name'] ?? 'Unknown Staff',  // ✅ CHANGED
     'sender_role'  => 'staff',                                          // ✅ CHANGED
-    'message'      => trim($label) . ' — SLA deadline approaching (1 hour left)',
+    'message'      => trim($label) . ' — SLA deadline approaching (1 hour left) · ' . ucfirst($row['status']),
     'event_at'     => $slaStartStr,
     'status'       => $row['status'],
     'priority'     => $row['priority'],

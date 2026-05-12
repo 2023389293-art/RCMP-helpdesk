@@ -1,19 +1,17 @@
 <?php
 // dept/hcd/_layout.php
-
 $inProgressCount = $inProgressCount ?? 0;
-$openCount       = $openCount       ?? 0;
-$closedCount     = $closedCount     ?? 0;
-
-$nav = $activeNav ?? 'dashboard';
+$openCount   = $openCount   ?? 0;
+$closedCount = $closedCount ?? 0;
+$nav         = $activeNav   ?? 'dashboard';
 ?>
-<link rel="stylesheet" href="css/sidebar_layout.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="css/sidebarr_layout.css?v=<?php echo time(); ?>">
 
-<?php
-$ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress', 'tickets-closed']);
-?>
+<?php $ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress', 'tickets-closed']); ?>
 
-<!-- ── Logout Confirmation Modal ── -->
+<!-- ══════════════════════════════════════════════════
+     LOGOUT MODAL
+     ══════════════════════════════════════════════════ -->
 <div class="logout-overlay" id="logoutOverlay">
   <div class="logout-modal">
     <div class="logout-icon-wrap">
@@ -26,152 +24,201 @@ $ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress
     <h3>Sign out?</h3>
     <p>You will be logged out and returned to the staff login page.</p>
     <div class="logout-modal-btns">
-      <button class="btn-cancel" onclick="closeLogoutModal()">Cancel</button>
+      <button class="btn-cancel"  onclick="closeLogoutModal()">Cancel</button>
       <button class="btn-signout" onclick="confirmLogout()">Sign out</button>
     </div>
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════
+     SIDEBAR
+     ══════════════════════════════════════════════════ -->
 <aside class="sidebar" id="mainSidebar">
+
   <div class="sb-brand">
     <a class="brand-logo" href="dashboard.php">
       <div class="brand-icon">
-  <img src="../../img/RCMP.png" alt="UniKL Logo">
-</div>
-<div class="brand-text">
-  <div class="top">UniKL RCMP Help Desk</div>
-  <div class="bot">Human Capital Dept</div>
-</div>
+        <img src="../../img/RCMP.png" alt="UniKL Logo">
+      </div>
+      <div class="brand-text">
+        <div class="top">UniKL RCMP Help Desk</div>
+        <div class="bot">Human Capital Dept</div>
+      </div>
     </a>
-    </div>
+  </div>
+
   <span class="dept-badge"><?php echo htmlspecialchars($staffEmail); ?></span>
 
   <nav class="sb-nav">
     <div class="nav-lbl">Main</div>
 
-    <!-- Dashboard -->
-    <a href="dashboard.php" class="nav-item <?php echo $nav==='dashboard'?'active':''; ?>">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <a href="dashboard.php"
+       class="nav-item <?php echo $nav === 'dashboard' ? 'active' : ''; ?>"
+       data-tooltip="Dashboard">
+      <svg viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7"/>
+        <rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+      </svg>
       <span>Dashboard</span>
     </a>
 
-    <!-- All Tickets -->
     <div class="nav-group">
-      <div class="nav-group-header <?php echo $ticketsNavOpen?'has-active':''; ?>">
+      <div class="nav-group-header <?php echo $ticketsNavOpen ? 'has-active' : ''; ?>"
+           data-tooltip="All Tickets">
         <a href="tickets.php" class="nav-group-link">
-          <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <svg class="icon" viewBox="0 0 24 24">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
           <span class="link-label">All Tickets</span>
-          <?php if($openCount > 0): ?>
-            <span class="n-badge"><?php echo $openCount ?></span>
-          <?php endif ?>
+          <?php if ($openCount > 0): ?>
+            <span class="n-badge"><?php echo $openCount; ?></span>
+          <?php endif; ?>
         </a>
-        <button class="nav-group-chevron <?php echo $ticketsNavOpen?'open':''; ?>" onclick="toggleTicketsNav(this)" type="button" title="Expand">
+        <button class="nav-group-chevron <?php echo $ticketsNavOpen ? 'open' : ''; ?>"
+                onclick="toggleTicketsNav(this)" type="button">
           <svg viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
         </button>
       </div>
-      <div class="nav-sub <?php echo $ticketsNavOpen?'open':''; ?>" id="tickets-sub">
-        <a href="tickets.php?status=open" class="nav-sub-item <?php echo $nav==='tickets-open'?'active':''; ?>">
-  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-  Open
-  <?php if($openCount > 0): ?>
-    <span class="sub-badge sub-badge-open"><?php echo $openCount ?></span>
-  <?php endif ?>
-</a>
-<a href="tickets.php?status=in_progress" class="nav-sub-item <?php echo $nav==='tickets-inprogress'?'active':''; ?>">
-  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
-  In Progress
-  <?php if(($inProgressCount ?? 0) > 0): ?>
-    <span class="sub-badge sub-badge-inprogress"><?php echo $inProgressCount ?></span>
-  <?php endif ?>
-</a>
-<a href="tickets.php?status=closed" class="nav-sub-item <?php echo $nav==='tickets-closed'?'active':''; ?>">
-  <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
-  Closed
-  <?php if($closedCount > 0): ?>
-    <span class="sub-badge sub-badge-closed"><?php echo $closedCount ?></span>
-  <?php endif ?>
-</a>
+
+      <div class="nav-sub <?php echo $ticketsNavOpen ? 'open' : ''; ?>" id="tickets-sub">
+        <a href="tickets.php?status=open"
+           class="nav-sub-item <?php echo $nav === 'tickets-open' ? 'active' : ''; ?>">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Open
+          <?php if ($openCount > 0): ?>
+            <span class="sub-badge sub-badge-open"><?php echo $openCount; ?></span>
+          <?php endif; ?>
+        </a>
+
+        <a href="tickets.php?status=in_progress"
+           class="nav-sub-item <?php echo $nav === 'tickets-inprogress' ? 'active' : ''; ?>">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12,6 12,12 16,14"/>
+          </svg>
+          In Progress
+          <?php if (($inProgressCount ?? 0) > 0): ?>
+            <span class="sub-badge sub-badge-inprogress"><?php echo $inProgressCount; ?></span>
+          <?php endif; ?>
+        </a>
+
+        <a href="tickets.php?status=closed"
+           class="nav-sub-item <?php echo $nav === 'tickets-closed' ? 'active' : ''; ?>">
+          <svg viewBox="0 0 24 24">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22,4 12,14.01 9,11.01"/>
+          </svg>
+          Closed
+          <?php if ($closedCount > 0): ?>
+            <span class="sub-badge sub-badge-closed"><?php echo $closedCount; ?></span>
+          <?php endif; ?>
+        </a>
       </div>
     </div>
 
     <div class="nav-lbl">Manage</div>
 
-    <!-- Categories -->
-    <a href="categories.php" class="nav-item <?php echo $nav==='categories'?'active':''; ?>">
-      <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    <a href="categories.php"
+       class="nav-item <?php echo $nav === 'categories' ? 'active' : ''; ?>"
+       data-tooltip="Categories">
+      <svg viewBox="0 0 24 24">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      </svg>
       <span>Categories</span>
     </a>
 
-   
   </nav>
 
   <div class="sb-footer">
     <div class="staff-card">
-      <div class="s-avatar"><?php echo mb_strtoupper(mb_substr($staffName,0,1)); ?></div>
+      <div class="s-avatar"><?php echo mb_strtoupper(mb_substr($staffName, 0, 1)); ?></div>
       <div class="s-info">
         <div class="name"><?php echo htmlspecialchars($staffName); ?></div>
         <div class="role"><?php echo htmlspecialchars($staffRole); ?></div>
       </div>
       <a href="#" class="logout-btn" title="Logout" onclick="showLogoutModal(event)">
-        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <svg viewBox="0 0 24 24">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16,17 21,12 16,7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
       </a>
     </div>
   </div>
+
 </aside>
 
+<!-- ══════════════════════════════════════════════════
+     MAIN WRAPPER
+     ══════════════════════════════════════════════════ -->
 <main class="main" id="mainContent">
+
   <div class="topbar">
-  <button class="sb-hamburger" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar">
-    <div class="hbars"><span></span><span></span><span></span></div>
-  </button>
-  <div class="topbar-titles">
-    <h1><?php echo htmlspecialchars($pageTitle ?? 'Dashboard'); ?></h1>
-    <p><?php echo htmlspecialchars($pageSubtitle ?? ('Welcome back, ' . $staffName)); ?></p>
-  </div>
-  <div class="topbar-right">
-    <div class="notif-wrapper" id="staffNotifWrapper">
-      <button class="notif-btn" id="staffNotifBtn" onclick="staffToggleNotif(event)" aria-label="Notifications">
-        <svg viewBox="0 0 24 24">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-        </svg>
-        <span class="notif-badge" id="staffNotifBadge">0</span>
-      </button>
-      <div class="notif-dropdown" id="staffNotifDropdown">
-        <div class="nd-header">
-          <h3>Notifications</h3>
-          <div class="nd-header-right">
-            <span class="nd-count-pill" id="staffNdCountPill">0 new</span>
-            <button class="nd-mark-read" onclick="staffMarkAllRead()">Mark all read</button>
-          </div>
-        </div>
-        <div class="nd-tabs">
-          <button class="nd-tab active" onclick="staffSetTab('all', this)">All</button>
-          <button class="nd-tab" onclick="staffSetTab('assignment', this)">Assigned to Me</button>
-          <button class="nd-tab nd-tab-sla" onclick="staffSetTab('sla_alert', this)">
-            Deadlines
-            <span class="nd-tab-dot nd-tab-dot-sla" id="ndTabDotSla" style="display:none"></span>
-          </button>
-        </div>
-        <div class="nd-list" id="staffNdList">
-          <?php for ($s = 0; $s < 3; $s++): ?>
-          <div class="nd-skeleton">
-            <div class="nd-skel-avatar"></div>
-            <div class="nd-skel-lines">
-              <div class="nd-skel-line"></div>
-              <div class="nd-skel-line short"></div>
-              <div class="nd-skel-line shorter"></div>
+
+    <button class="sb-hamburger" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar">
+      <div class="hbars"><span></span><span></span><span></span></div>
+    </button>
+
+    <div class="topbar-titles">
+      <h1><?php echo htmlspecialchars($pageTitle ?? 'Dashboard'); ?></h1>
+      <p><?php echo htmlspecialchars($pageSubtitle ?? ('Welcome back, ' . $staffName)); ?></p>
+    </div>
+
+    <div class="topbar-right">
+      <div class="notif-wrapper" id="staffNotifWrapper">
+        <button class="notif-btn" id="staffNotifBtn" onclick="staffToggleNotif(event)" aria-label="Notifications">
+          <svg viewBox="0 0 24 24">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="notif-badge" id="staffNotifBadge">0</span>
+        </button>
+        <div class="notif-dropdown" id="staffNotifDropdown">
+          <div class="nd-header">
+            <h3>Notifications</h3>
+            <div class="nd-header-right">
+              <span class="nd-count-pill" id="staffNdCountPill">0 new</span>
+              <button class="nd-mark-read" onclick="staffMarkAllRead()">Mark all read</button>
             </div>
           </div>
-          <?php endfor; ?>
+          <div class="nd-tabs">
+            <button class="nd-tab active" onclick="staffSetTab('all', this)">All</button>
+            <button class="nd-tab" onclick="staffSetTab('assignment', this)">Assigned to Me</button>
+            <button class="nd-tab nd-tab-sla" onclick="staffSetTab('sla_alert', this)">
+              Deadlines
+              <span class="nd-tab-dot nd-tab-dot-sla" id="ndTabDotSla" style="display:none"></span>
+            </button>
+          </div>
+          <div class="nd-list" id="staffNdList">
+            <?php for ($s = 0; $s < 3; $s++): ?>
+            <div class="nd-skeleton">
+              <div class="nd-skel-avatar"></div>
+              <div class="nd-skel-lines">
+                <div class="nd-skel-line"></div>
+                <div class="nd-skel-line short"></div>
+                <div class="nd-skel-line shorter"></div>
+              </div>
+            </div>
+            <?php endfor; ?>
+          </div>
         </div>
       </div>
+      <span class="topbar-date"><?php echo date('D, d M Y'); ?></span>
     </div>
-    <span class="topbar-date"><?php echo date('D, d M Y'); ?></span>
   </div>
-</div>
+
   <div class="content">
-   <!-- ══════════════════════════════════════════════════
+
+<!-- ══════════════════════════════════════════════════
      NEW TICKET TOAST POPUP
      ══════════════════════════════════════════════════ -->
 <style>
@@ -239,6 +286,13 @@ $ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress
   cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s,color .15s;
 }
 .ntt-dismiss-btn:hover { border-color:#CDD3DF;color:#3D4560; }
+.ntt-remarks {
+  font-size:11px; color:#5B21B6;
+  background:#EDE9FE; border-left:2px solid #7C3AED;
+  padding:5px 10px; border-radius:0 5px 5px 0;
+  margin-bottom:10px; line-height:1.5;
+  word-break:break-word;
+}
 .ntt-progress { height:3px;width:100%;transform-origin:left;transition:transform linear; }
 </style>
 
@@ -323,7 +377,9 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
         +'<div class="nd-content"><div class="nd-top"><span class="nd-sender">'+esc(trunc(n.sender_name,22))+'</span>'
         +'<span class="nd-type-chip '+chipClass+'">'+chipLabel+'</span></div>'
         +'<div class="nd-ticket-id">'+esc(n.ticket_id)+'</div>'
-        +'<div class="nd-message">'+esc(trunc(n.message,70))+'</div>'
+        +'<div class="nd-message">'+esc(trunc(n.message,80))+'</div>'
++(n.notif_type==='sla_alert'&&n.status?'<div style="margin-top:3px"><span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;'+(n.status==='open'?'background:#FEF3C7;color:#D97706;':'background:#DBEAFE;color:#2563EB;')+'">'+esc(n.status==='in_progress'?'In Progress':n.status.charAt(0).toUpperCase()+n.status.slice(1))+'</span></div>':'')
+        +(n.notif_type==='assignment'&&n.remarks?'<div class="nd-remarks">'+esc(trunc(n.remarks,80))+'</div>':'')
         +'<div class="nd-time">'+esc(trunc(n.ticket_title,34))+' &bull; '+timeAgo(n.event_at)+'</div>'
         +'</div>'+(u?'<div class="nd-unread-dot"></div>':'')+'</a>';
     });
@@ -446,6 +502,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
             +esc(truncate(submitter, 24))
           +'</span>'
         +'</div>'
+        +(data.remarks ? '<div class="ntt-remarks">'+esc(truncate(data.remarks,100))+'</div>' : '')
         +'<div class="ntt-actions">'
           +'<a class="ntt-view-btn" href="'+esc(DETAIL_URL+'?id='+encodeURIComponent(data.ticket_id||''))+'">'
             +'View Ticket'

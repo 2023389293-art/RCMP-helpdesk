@@ -100,7 +100,7 @@
   background: #d8deea;
   position: relative; overflow: hidden;
   padding: 28px 48px 28px;
-  height: calc(100vh - 76px - 38px);
+  min-height: calc(100vh - 76px - 38px);
   display: flex; flex-direction: column; justify-content: center;
 }
     .hero::before {
@@ -356,16 +356,49 @@
       .dept-cards { grid-template-columns: repeat(3, 1fr); }
     }
     @media (max-width: 860px) {
-      .gov-banner, nav, .depts-section, footer { padding-left: 20px; padding-right: 20px; }
-      .hero { padding: 40px 20px 36px; }
-      .hero-top, .hero-bottom { grid-template-columns: 1fr; }
-      .dept-cards { grid-template-columns: 1fr 1fr; }
+.gov-banner { display: none; }
+nav { padding: 0 14px; height: 60px; }
+.nav-logo img { width: 44px; height: 44px; }
+.nav-org { font-size: 10px; }
+.nav-title { font-size: 12px; }
+.nav-divider { display: none; }
+      .btn-ghost { 
+  font-size: 11px; 
+  padding: 7px 12px; 
+  gap: 5px;
+}
+.btn-ghost svg { width: 12px; height: 12px; }
+      .btn-navy-solid { font-size: 11px; padding: 7px 10px; gap: 5px; }
+.btn-navy-solid svg { width: 12px; height: 12px; }
+.nav-actions { gap: 6px; }
+      .hero {
+        padding: 28px 16px 32px;
+        min-height: auto;
+        justify-content: flex-start;
+      }
+      .hero-top { grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px; }
+      .hero-top .fade-up.d2 { padding-top: 0 !important; }
+      .hero-bottom { grid-template-columns: 1fr; gap: 16px; }
+.hero-heading { font-size: clamp(26px, 7vw, 34px); }
+.hero-sub { font-size: 13px; margin-bottom: 18px; }
+.hero-badge { font-size: 10px; padding: 4px 10px; }
+      .dept-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .dept-card { padding: 10px 12px; gap: 10px; }
+      .dept-icon { width: 38px; height: 38px; border-radius: 10px; }
+      .dept-name { font-size: 12px; }
+      .dept-tag { font-size: 10px; }
       .hero-stats { flex-direction: column; }
-      .hero-stat { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
+      .hero-stat { border-right: none; border-bottom: 1px solid rgba(30,58,95,0.08); }
       .hero-stat:last-child { border-bottom: none; }
+      footer { padding: 0 16px; height: auto; min-height: 52px; flex-direction: column; gap: 8px; padding-top: 10px; padding-bottom: 10px; }
+      .footer-chips { flex-wrap: wrap; gap: 4px; }
+      .footer-right { font-size: 10px; }
     }
-    @media (max-width: 540px) {
-      .dept-cards { grid-template-columns: 1fr; }
+    @media (max-width: 480px) {
+      .dept-grid { grid-template-columns: 1fr; }
+      .dept-card.wide { grid-column: auto; }
+      .hero-badge { font-size: 11px; }
+      .btn-gold { font-size: 12px; padding: 10px 20px; }
     }
   </style>
 </head>

@@ -1,5 +1,5 @@
 <?php
-// FILE LOCATION: uniKL/complaint/new_ticket_popup_api.php  
+// FILE LOCATION: uniKL/complaint/new_ticket_popup_api.php  (popup for staff)
 // (same folder as db_connect.php)
 
 if (session_status() === PHP_SESSION_NONE) {

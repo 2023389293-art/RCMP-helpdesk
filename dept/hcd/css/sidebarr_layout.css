@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   dept/it/css/sidebar_layout.css — styles for sidebar + main layout, topbar, and notification bell/dropdown
+   dept/hcd/css/sidebar_layout.css — styles for sidebar + main layout, topbar, and notification bell/dropdown
    ═══════════════════════════════════════════════════════════ */
  
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
@@ -7,20 +7,20 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --accent:         #059669;
+  --accent:         #0E7490;
   --accent-light:   color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-border:  color-mix(in srgb, var(--accent) 28%, transparent);
-  --off:            #F4FBF8;
-  --g100:           #E6F4EE;
-  --g200:           #C9E6D8;
-  --g300:           #A8D4BC;
-  --g500:           #4A8C6A;
-  --g700:           #1F5C3E;
-  --g900:           #0D3326;
+  --off:            #F4FAFB;
+  --g100:           #E8F4F7;
+  --g200:           #C8DDE5;
+  --g300:           #A0C4D0;
+  --g500:           #4D7A87;
+  --g700:           #1E4A57;
+  --g900:           #0C2E38;
   --text:           #111827;
-  --sidebar:        #082218;
-  --sidebar-hover:  rgba(255,255,255,.06);
-  --sidebar-active: rgba(5,150,105,.18);
+  --sidebar:        #0C3040;
+  --sidebar-hover:  rgba(255,255,255,.07);
+  --sidebar-active: rgba(14,116,144,.22);
   --sb-width-open:   260px;
   --sb-width-closed:  68px;
   --sb-transition:   0.28s cubic-bezier(0.4, 0, 0.2, 1);
@@ -257,7 +257,7 @@ body {
 .sub-badge { margin-left: auto; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 20px; }
 .sub-badge-open   { background: rgba(217,119,6,.25); color: #FBBF24; }
 .sub-badge-closed { background: rgba(5,150,105,.2);  color: #34D399; }
-.sub-badge-inprogress { background: rgba(5,150,105,.2); color: #34D399; }
+.sub-badge-inprogress { background: rgba(59,130,246,.2); color: #3B82F6; }
 
 /* ── Footer ── */
 .sb-footer {
@@ -517,6 +517,14 @@ body.sidebar-collapsed .hbars span:nth-child(3) { width: 17px; }
   line-height: 1.4; margin-bottom: 4px;
 }
 .nd-time { font-size: 11px; color: var(--g300); }
+.nd-remarks {
+  font-size: 11px; color: #7C3AED;
+  background: #EDE9FE; border-left: 2px solid #7C3AED;
+  padding: 3px 7px; border-radius: 0 4px 4px 0;
+  margin: 3px 0 3px; line-height: 1.45;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 260px;
+}
 
 /* ── Chip colours — all types ── */
 .nd-type-chip {
