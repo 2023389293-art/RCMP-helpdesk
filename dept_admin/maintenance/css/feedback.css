@@ -1,0 +1,474 @@
+/* =============================================================
+   feedback.css  —  Maintenance Dept Admin · Feedback Tab (Redesigned)
+   KPI boxes: face icon beside label text at BOTTOM of card
+   Table: no large face icon in rating cell (clean number+label)
+   ============================================================= */
+
+/* ══ Single Chart Card ══ */
+#tab-feedback .fb2-chart-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.4rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+
+#tab-feedback .fb2-chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-bottom: 1.35rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+#tab-feedback .fb2-chart-title {
+  font-size: .95rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 .2rem;
+}
+#tab-feedback .fb2-chart-sub {
+  font-size: .72rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+#tab-feedback .fb2-chart-legend {
+  display: flex;
+  gap: .9rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+#tab-feedback .fb2-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+  font-size: .72rem;
+  font-weight: 600;
+  color: #475569;
+  line-height: 1;
+}
+
+#tab-feedback .fb2-chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 240px;
+}
+
+#tab-feedback .fb2-chart-footer {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: .85rem;
+  border-top: 1px solid #f1f5f9;
+  font-size: .76rem;
+  color: #64748b;
+}
+#tab-feedback .fb2-chart-footer strong {
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+#tab-feedback .fb2-divider { color: #cbd5e1; }
+
+/* ══ Filter Panel ══ */
+#tab-feedback .fb2-filter-panel {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.1rem 1.4rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+
+#tab-feedback .fb2-filter-title {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .82rem;
+  font-weight: 800;
+  color: #574476;
+  margin-bottom: .95rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+#tab-feedback .fb2-filter-title svg { width: 14px; height: 14px; fill: #574476; }
+
+#tab-feedback .fb2-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+#tab-feedback .fb2-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  min-width: 0;
+}
+
+#tab-feedback .fb2-filter-label {
+  font-size: .68rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+#tab-feedback .fb2-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right .75rem center;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  padding: .42rem 2.2rem .42rem .75rem;
+  font-size: .8rem;
+  font-weight: 600;
+  color: #334155;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 155px;
+  transition: border-color .15s, box-shadow .15s;
+  outline: none;
+}
+#tab-feedback .fb2-filter-select:focus { border-color: #574476; box-shadow: 0 0 0 3px rgba(87,68,118,.12); }
+#tab-feedback .fb2-filter-select:hover { border-color: #94a3b8; }
+
+#tab-feedback .fb2-filter-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .42rem 1rem;
+  border-radius: 9px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  white-space: nowrap;
+}
+#tab-feedback .fb2-filter-reset-btn:hover { border-color: #574476; color: #574476; background: #F8F7FC; }
+#tab-feedback .fb2-filter-reset-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.2; }
+
+#tab-feedback .fb2-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-top: .85rem;
+  padding-top: .85rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
+/* ══════════════════════════════════════════════
+   FEEDBACK KPI ROW — REDESIGNED
+   Big number on top, face icon BESIDE label at bottom
+══════════════════════════════════════════════ */
+#tab-feedback .chart-kpi-row .chart-kpi-box {
+  border-radius: 10px !important;
+  padding: 1.1rem 1.15rem .95rem;
+  text-align: left;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  transition: box-shadow .15s, transform .12s;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+#tab-feedback .chart-kpi-row .chart-kpi-box:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,.1);
+  transform: translateY(-1px);
+}
+
+/* Remove the old fb-kpi-face top icon — no longer used */
+.fb-kpi-face {
+  display: none !important;
+}
+
+/* Big number — top of card */
+#tab-feedback .chart-kpi-row .chart-kpi-val {
+  font-size: 2.1rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -.03em;
+  display: block;
+  margin-bottom: .75rem;
+}
+
+/* Label row — face icon + text side by side */
+#tab-feedback .chart-kpi-row .chart-kpi-lbl {
+  font-size: .67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1;
+}
+
+/* The face SVG inside the label — small & tight */
+#tab-feedback .chart-kpi-row .chart-kpi-lbl svg {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* ══ Table Card ══ */
+#tab-feedback .fb2-table-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.35rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+
+#tab-feedback .fb2-table-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: .9rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+#tab-feedback .fb2-table-title {
+  font-size: .95rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 .2rem;
+}
+#tab-feedback .fb2-table-sub {
+  font-size: .72rem;
+  color: #94a3b8;
+  margin: 0;
+}
+#tab-feedback .fb2-table-actions {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ── Formal Table ── */
+#tab-feedback .fb2-formal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .83rem;
+}
+#tab-feedback .fb2-formal-table thead tr {
+  border-bottom: 2px solid #e2e8f0;
+}
+#tab-feedback .fb2-formal-table thead th {
+  text-align: left;
+  padding: .6rem 1rem;
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #64748b;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  background: #fff;
+}
+#tab-feedback .fb2-formal-table thead th:hover { color: #334155; }
+#tab-feedback .fb2-formal-table thead th.sorted .sort-icon { opacity: 1; color: #574476; }
+#tab-feedback .fb2-formal-table thead th .sort-icon {
+  opacity: .35;
+  margin-left: 3px;
+  font-size: .62rem;
+}
+
+#tab-feedback .fb2-formal-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background .1s;
+}
+#tab-feedback .fb2-formal-table tbody tr:last-child { border-bottom: none; }
+#tab-feedback .fb2-formal-table tbody tr:hover td { background: #fafbff; }
+#tab-feedback .fb2-formal-table tbody td {
+  padding: .72rem 1rem;
+  color: #334155;
+  vertical-align: middle;
+}
+#tab-feedback .fb2-formal-table tbody tr:nth-child(even) td { background: #fcfcfd; }
+#tab-feedback .fb2-formal-table tbody tr:nth-child(even):hover td { background: #fafbff; }
+
+/* ── Cells ── */
+.fb2-td-title {
+  font-weight: 600;
+  color: #1e293b;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fb2-td-date {
+  font-size: .78rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════════
+   TABLE RATING CELL — CLEAN (no large face icon)
+   Shows: colored number/5 + label text
+   Mini strip is kept but small and tasteful
+══════════════════════════════════════════════ */
+.fb-rating-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.fb-rating-top {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.fb-rating-num {
+  font-weight: 900;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.fb-rating-denom {
+  font-size: .72rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.fb-rating-label-text {
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+
+/* ── Mini 5-dot strip (replaces face strip — simple dots) ── */
+.fb-dot-strip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.fb-dot-strip span {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  transition: background .12s, transform .12s;
+}
+
+.fb-dot-strip span.fb-dot-active {
+  transform: scale(1.35);
+}
+
+/* Dot colors per rating when active */
+.fb-dot-strip[data-rating="5"] span.fb-dot-active { background: #16A34A; }
+.fb-dot-strip[data-rating="4"] span.fb-dot-active { background: #22C55E; }
+.fb-dot-strip[data-rating="3"] span.fb-dot-active { background: #EAB308; }
+.fb-dot-strip[data-rating="2"] span.fb-dot-active { background: #F97316; }
+.fb-dot-strip[data-rating="1"] span.fb-dot-active { background: #EF4444; }
+
+/* ── Sentiment badge ── */
+.fb2-sent-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: .67rem;
+  font-weight: 800;
+  padding: .18rem .55rem;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.fb2-sent-pos { background: #F0FDF4; color: #16A34A; }
+.fb2-sent-neu { background: #FFFBEB; color: #D97706; }
+.fb2-sent-neg { background: #FEF2F2; color: #DC2626; }
+
+/* ── Type badges ── */
+.fb2-auto-badge {
+  font-size: .65rem;
+  font-weight: 700;
+  color: #94a3b8;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: .1rem .45rem;
+  border-radius: 99px;
+}
+.fb2-manual-badge {
+  font-size: .65rem;
+  font-weight: 700;
+  color: #16A34A;
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  padding: .1rem .45rem;
+  border-radius: 99px;
+}
+
+/* ── Comment cell ── */
+.fb2-comment {
+  font-size: .79rem;
+  color: #475569;
+  font-style: italic;
+  max-width: 300px;
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.fb2-comment-empty { font-size: .78rem; color: #cbd5e1; }
+
+/* ── Summary strip ── */
+#tab-feedback .fb2-summary-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-top: 1rem;
+  padding-top: .85rem;
+  border-top: 1px solid #f1f5f9;
+  font-size: .76rem;
+  color: #64748b;
+}
+#tab-feedback .fb2-summary-strip strong {
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+/* ── Tab badge: face + number ── */
+.tab-badge.rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: middle;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  #tab-feedback .chart-kpi-row.fb-kpi-row { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 700px) {
+  #tab-feedback .fb2-chart-header { flex-direction: column; }
+  #tab-feedback .fb2-chart-wrap { height: 200px; }
+  #tab-feedback .chart-kpi-row.fb-kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  #tab-feedback .chart-kpi-row.fb-kpi-row { grid-template-columns: repeat(2, 1fr); }
+}

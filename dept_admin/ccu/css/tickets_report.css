@@ -1,0 +1,828 @@
+/* =============================================================
+   tickets-report.css  —  IT Dept Admin · Tickets Section
+   ============================================================= */
+ 
+  
+/* ── Page Header ── */ 
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+.page-eyebrow {
+  font-size: .72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em;
+  color: #574476; margin-bottom: .2rem;
+}
+.page-title { font-size: 1.45rem; font-weight: 800; color: #0f172a; margin: 0; }
+
+/* ── Tab Panel animation ── */
+.tab-panel { animation: fadeUp .22s ease both; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* ══════════════════════════════════════════════
+   FILTER PANEL
+══════════════════════════════════════════════ */
+.filter-panel {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.1rem 1.4rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.filter-panel-title {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: .82rem; font-weight: 800; color: #574476;
+  margin-bottom: .95rem;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.filter-panel-title svg { width: 14px; height: 14px; fill: #574476; }
+
+.filter-panel-row {
+  display: flex; align-items: flex-end;
+  gap: 1rem; flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex; flex-direction: column;
+  gap: .3rem; min-width: 0;
+}
+.filter-group-label {
+  font-size: .68rem; font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+
+/* ══════════════════════════════════════════════
+   PERIOD SELECT
+══════════════════════════════════════════════ */
+.period-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.period-select-icon {
+  position: absolute;
+  left: .75rem;
+  width: 14px; height: 14px;
+  stroke: #574476; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  pointer-events: none;
+  z-index: 1;
+}
+.period-select {
+  padding-left: 2.2rem !important;
+  min-width: 160px;
+  background-color: #F8F7FC !important;
+  border-color: #D4C8E8 !important;
+  color: #574476 !important;
+  font-weight: 700 !important;
+}
+.period-select:focus {
+  border-color: #574476 !important;
+  box-shadow: 0 0 0 3px rgba(87,68,118,.14) !important;
+}
+
+/* ── Custom date inputs ── */
+.filter-date-input {
+  appearance: none; -webkit-appearance: none;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  padding: .42rem .75rem;
+  font-size: .8rem; font-weight: 600; color: #334155;
+  font-family: inherit; cursor: pointer;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  background: #fff;
+}
+.filter-date-input:focus {
+  border-color: #574476;
+  box-shadow: 0 0 0 3px rgba(87,68,118,.12);
+}
+.filter-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer; opacity: .5;
+}
+.filter-date-input:hover { border-color: #94a3b8; }
+
+/* ══════════════════════════════════════════════
+   Status & Priority dropdowns
+══════════════════════════════════════════════ */
+.filter-select {
+  appearance: none; -webkit-appearance: none;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right .75rem center;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  padding: .42rem 2.2rem .42rem .75rem;
+  font-size: .8rem; font-weight: 600; color: #334155;
+  font-family: inherit; cursor: pointer;
+  min-width: 145px;
+  transition: border-color .15s, box-shadow .15s;
+  outline: none;
+}
+.filter-select:focus { border-color: #574476; box-shadow: 0 0 0 3px rgba(87,68,118,.12); }
+.filter-select:hover { border-color: #94a3b8; }
+
+/* ── Reset button ── */
+.filter-reset-btn {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .42rem 1rem;
+  border-radius: 9px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc; color: #64748b;
+  font-size: .78rem; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+  transition: all .15s; white-space: nowrap;
+}
+.filter-reset-btn:hover { border-color: #574476; color: #574476; background: #F8F7FC; }
+.filter-reset-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.2; }
+
+/* ══════════════════════════════════════════════
+   ACTIVE FILTER SUMMARY PILLS
+══════════════════════════════════════════════ */
+.active-filter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-top: .85rem;
+  padding-top: .85rem;
+  border-top: 1px dashed #e2e8f0;
+}
+.filter-pill {
+  display: inline-flex; align-items: center;
+  background: #F3F0F9;
+  border: 1px solid #D4C8E8;
+  color: #574476;
+  font-size: .73rem; font-weight: 600;
+  padding: .22rem .75rem;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.filter-pill strong { font-weight: 800; }
+
+/* ══════════════════════════════════════════════
+   KPI GRID  (category tab cards)
+══════════════════════════════════════════════ */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.kpi-card {
+  background: #fff; border-radius: 14px;
+  padding: 1.1rem 1.2rem;
+  box-shadow: 0 1px 5px rgba(0,0,0,.07);
+  display: flex; align-items: center; gap: .85rem;
+  transition: box-shadow .18s, transform .18s;
+}
+.kpi-card:hover { box-shadow: 0 4px 16px rgba(87,68,118,.12); transform: translateY(-2px); }
+.kpi-icon {
+  width: 42px; height: 42px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.kpi-icon svg { width: 19px; height: 19px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.kpi-icon.purple  { background: #574476; }
+.kpi-icon.amber   { background: #F5A623; }
+.kpi-icon.indigo  { background: #6366F1; }
+.kpi-icon.teal    { background: #1DC9B7; }
+.kpi-icon.rose    { background: #F43F5E; }
+.kpi-icon.sky     { background: #0EA5E9; }
+.kpi-icon.red     { background: #DC2626; }
+.kpi-icon.orange  { background: #F97316; }
+.kpi-icon.green   { background: #16A34A; }
+.kpi-val   { font-size: 1.65rem; font-weight: 900; color: #0f172a; line-height: 1; }
+.kpi-label { font-size: .7rem; color: #64748b; margin-top: 3px; font-weight: 500; }
+.trend-badge { display:inline-flex; align-items:center; gap:2px; font-size:.65rem; font-weight:700; padding:2px 6px; border-radius:99px; margin-top:4px; }
+.trend-up   { background:#FEF2F2; color:#DC2626; }
+.trend-down { background:#F0FDF4; color:#16A34A; }
+.trend-same { background:#F1F5F9; color:#64748b; }
+.kpi-card.breach-card { border:1.5px solid #FECACA; }
+.kpi-card.breach-card .kpi-val { color:#DC2626; }
+
+/* ══════════════════════════════════════════════
+   CHART CARD
+══════════════════════════════════════════════ */
+.chart-card {
+  background: #fff; border-radius: 16px;
+  padding: 1.6rem 1.75rem;
+  box-shadow: 0 1px 5px rgba(0,0,0,.07);
+  margin-bottom: 1.5rem;
+}
+.chart-card-header {
+  display: flex; align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.4rem; flex-wrap: wrap; gap: .5rem;
+}
+.chart-title  { font-size: 1rem; font-weight: 800; color: #1e293b; margin: 0; }
+.chart-subtitle-text { font-size: .78rem; color: #94a3b8; font-weight: 500; margin-top: .25rem; }
+
+.chart-legend-group {
+  display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center;
+}
+.legend-section-label {
+  font-size: .65rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .07em;
+  color: #94a3b8; margin-right: -.25rem;
+}
+.legend-pill {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .73rem; font-weight: 600; color: #475569;
+}
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+.chart-canvas-wrap { position: relative; height: 340px; }
+
+/* ══════════════════════════════════════════════
+   KPI ROW  ——  FORMAL WHITE RECTANGLE STYLE
+══════════════════════════════════════════════ */
+.chart-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: .85rem;
+}
+
+/* Staff tab: 4 cards — force single row */
+#tab-staff .chart-kpi-row {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* When placed ABOVE the chart */
+.chart-kpi-row.kpi-above-chart {
+  margin-bottom: 1.35rem;
+}
+
+/* When inside chart card (legacy — kept safe) */
+.chart-card .chart-kpi-row {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #F1F5F9;
+}
+
+/* Feedback tab: 6 columns */
+.chart-kpi-row.fb-kpi-row {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+/* ── The card itself — sharp rectangle, no curve ── */
+.chart-kpi-box {
+  background: #ffffff;
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0;
+  border-top: 1px solid #e2e8f0 !important;
+  border-radius: 0;
+  padding: 1.1rem 1.1rem 1rem;
+  text-align: left;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+  transition: box-shadow .15s;
+}
+
+.chart-kpi-box:hover {
+  box-shadow: 0 3px 12px rgba(0, 0, 0, .09);
+}
+
+/* ── Large formal number ── */
+.chart-kpi-val {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #0f172a !important;
+  line-height: 1;
+  letter-spacing: -.02em;
+  display: block;
+  padding-bottom: .55rem;
+  margin-bottom: .55rem;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+
+/* ── Label — subdued, uppercase ── */
+.chart-kpi-lbl {
+  font-size: .67rem;
+  font-weight: 700;
+  color: #94a3b8 !important;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  line-height: 1.3;
+}
+
+/* ══════════════════════════════════════════════
+   TABLE CARD
+══════════════════════════════════════════════ */
+.table-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.35rem 1.5rem;
+  box-shadow: 0 1px 5px rgba(0,0,0,.07);
+}
+.table-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+.table-title {
+  font-size: .92rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+}
+.table-actions {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ══════════════════════════════════════════════
+   SEARCH BAR — BASE STYLE (tickets_report default)
+══════════════════════════════════════════════ */
+.tbl-search {
+  padding: .32rem .75rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: .82rem;
+  color: #334155;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  width: 180px;
+  font-family: inherit;
+  background: #fff;
+}
+.tbl-search:focus { border-color: #574476; box-shadow: 0 0 0 3px rgba(87,68,118,.10); }
+.tbl-search:hover { border-color: #94a3b8; }
+.tbl-search::placeholder { color: #94a3b8; font-size: .8rem; }
+
+/* ══════════════════════════════════════════════
+   SEARCH BAR — FEEDBACK STYLE OVERRIDE
+   Applied to tickets, staff, and category tabs
+   via class .tbl-search-fb — no icon, clean border
+══════════════════════════════════════════════ */
+.tbl-search-fb {
+  padding: .4rem .9rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  font-size: .82rem;
+  font-weight: 500;
+  color: #334155;
+  background: #fff;
+  outline: none;
+  width: 195px;
+  transition: border-color .18s, box-shadow .18s;
+  font-family: inherit;
+}
+.tbl-search-fb:focus {
+  border-color: #574476;
+  box-shadow: 0 0 0 3px rgba(87,68,118,.12);
+}
+.tbl-search-fb:hover { border-color: #b0a1c8; }
+.tbl-search-fb::placeholder {
+  color: #b0bec5;
+  font-size: .8rem;
+  font-weight: 400;
+}
+
+.dl-btn {
+  display: inline-flex; align-items: center; gap: .38rem;
+  padding: .34rem .9rem;
+  border-radius: 8px;
+  font-size: .78rem; font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.dl-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.dl-btn.pdf { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
+.dl-btn.pdf:hover { background: #DC2626; color: #fff; border-color: #DC2626; }
+.dl-btn.csv { background: #F0FDF4; color: #16A34A; border-color: #BBF7D0; }
+.dl-btn.csv:hover { background: #16A34A; color: #fff; border-color: #16A34A; }
+
+/* ── Formal Data Table ── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .84rem;
+}
+
+.data-table thead tr {
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.data-table thead th {
+  text-align: left;
+  padding: .65rem 1rem;
+  font-size: .7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #64748b;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  background: #fff;
+}
+.data-table thead th:hover { color: #334155; }
+.data-table thead th .sort-icon { opacity: .35; margin-left: 3px; font-size: .65rem; }
+.data-table thead th.sorted .sort-icon { opacity: 1; color: #574476; }
+.col-hint { font-size: .72rem; cursor: help; margin-left: 2px; }
+
+.data-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background .1s;
+}
+.data-table tbody tr:last-child { border-bottom: none; }
+.data-table tbody tr:hover td { background: #fafbff; }
+
+.data-table tbody td {
+  padding: .75rem 1rem;
+  color: #334155;
+  vertical-align: middle;
+  font-size: .84rem;
+}
+
+/* ── Ticket ID: monospaced, understated ── */
+.ticket-id {
+  font-family: 'Courier New', monospace;
+  font-size: .75rem;
+  color: #64748b;
+  letter-spacing: .01em;
+}
+
+/* ── Formal Status ── */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .76rem;
+  font-weight: 600;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+.status-pill::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sp-open::before        { background: #94a3b8; }
+.sp-open                { color: #475569; }
+
+.sp-in_progress::before { background: #574476; }
+.sp-in_progress         { color: #574476; }
+
+.sp-closed::before      { background: #16A34A; }
+.sp-closed              { color: #16A34A; }
+
+/* ── Formal Priority ── */
+.priority-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+
+.priority-flag-icon {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-right: 3px;
+  position: relative;
+  top: -1px;
+}
+.pp-high   .priority-flag-icon { fill: #DC2626; stroke: #DC2626; }
+.pp-medium .priority-flag-icon { fill: #EAB308; stroke: #EAB308; }
+.pp-low    .priority-flag-icon { fill: #3B82F6; stroke: #3B82F6; }
+
+/* ── SLA ── */
+.overdue-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #b91c1c;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+td .sla-ok {
+  font-size: .75rem;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+/* ── First Response Badges ── */
+.fr-badge {
+  display: inline-block;
+  font-size: .76rem;
+  font-weight: 600;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  white-space: nowrap;
+}
+
+
+/* ── Row-level breach highlight ── */
+tr:has(.overdue-badge) td {
+  background: #fffbfb;
+}
+tr:has(.overdue-badge):hover td {
+  background: #fff5f5;
+}
+
+/* ── Zebra banding ── */
+.data-table tbody tr:nth-child(even) td {
+  background: #fcfcfd;
+}
+.data-table tbody tr:nth-child(even):hover td {
+  background: #fafbff;
+}
+
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: .85rem;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.page-info { font-size: .78rem; color: #94a3b8; }
+.page-btns { display: flex; gap: .3rem; }
+.page-btn {
+  padding: .28rem .65rem;
+  border-radius: 7px;
+  font-size: .78rem; font-weight: 600;
+  border: 1.5px solid #e2e8f0;
+  background: #fff; color: #475569;
+  cursor: pointer;
+  transition: all .13s;
+}
+.page-btn:hover:not(:disabled) { border-color: #574476; color: #574476; }
+.page-btn.active { background: #574476; color: #fff; border-color: #574476; }
+.page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Summary Strip ── */
+.summary-strip {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: .65rem 1rem;
+  background: #f8fafc;
+  border-radius: 10px;
+  margin-top: .75rem;
+  border: 1px solid #f1f5f9;
+}
+.ss-item { font-size: .8rem; color: #64748b; font-weight: 500; }
+.ss-item strong { color: #0f172a; font-weight: 700; }
+
+/* ── Summary strip inline notes ── */
+.ss-note {
+  display: flex;
+  align-items: flex-start;
+  gap: .4rem;
+  font-size: .74rem;
+  color: #64748b;
+  line-height: 1.5;
+  width: 100%;
+  padding-top: .5rem;
+  border-top: 1px dashed #e2e8f0;
+  margin-top: .1rem;
+}
+.ss-note-icon {
+  flex-shrink: 0;
+  font-size: .85rem;
+  margin-top: 1px;
+}
+.ss-note strong { color: #374151; font-weight: 700; }
+.ss-note code {
+  font-family: monospace;
+  font-size: .72rem;
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #64748b;
+}
+
+.empty-state { text-align: center; padding: 2.5rem 1rem; color: #94a3b8; font-size: .88rem; }
+
+/* ── Performance bars ── */
+.perf-bar-bg  { flex: 1; height: 7px; background: #F1F5F9; border-radius: 99px; overflow: hidden; max-width: 100px; }
+.perf-bar-fill{ height: 100%; border-radius: 99px; transition: width .4s ease; }
+
+
+/* ══ Staff chart card ══ */
+#tab-staff .chart-card { padding: 2rem 2.25rem 2.5rem; }
+#tab-staff .chart-card-header { margin-bottom: 2rem; }
+#staffChartWrap { position: relative; }
+
+/* ══ Staff filter ══ */
+#staffFilterName { min-width: 200px; }
+
+/* ══ Staff table ══ */
+.rank-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #F3F0F9; color: #574476;
+  font-size: .82rem; font-weight: 800;
+  border: 1.5px solid #D4C8E8;
+}
+.rank-num.rank-1 { background: #574476; color: #fff; border-color: #574476; }
+.rank-num.rank-2 { background: #7C6A9A; color: #fff; border-color: #7C6A9A; }
+.rank-num.rank-3 { background: #A08CB8; color: #fff; border-color: #A08CB8; }
+
+/* ══════════════════════════════════════════════
+   RESOLUTION RATE CALCULATION PANEL
+   Shown below the category table
+══════════════════════════════════════════════ */
+.cat-resolution-calc {
+  margin-top: 1rem;
+  margin-bottom: .75rem;
+  background: #FAFBFF;
+  border: 1.5px solid #E8E4F3;
+  border-left: 4px solid #574476;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+
+.cat-resolution-calc-title {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  font-size: .78rem;
+  font-weight: 800;
+  color: #574476;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  margin-bottom: .85rem;
+}
+.cat-resolution-calc-title svg {
+  width: 15px; height: 15px;
+  stroke: #574476; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.cat-resolution-calc-body {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+/* ── Fraction formula ── */
+.cat-resolution-formula {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  flex-shrink: 0;
+}
+.cat-resolution-formula-lhs,
+.cat-resolution-formula-rhs {
+  font-size: .84rem;
+  font-weight: 700;
+  color: #334155;
+}
+.cat-resolution-formula-eq {
+  font-size: .92rem;
+  font-weight: 700;
+  color: #574476;
+}
+.cat-resolution-formula-frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.cat-resolution-formula-num,
+.cat-resolution-formula-den {
+  font-size: .8rem;
+  font-weight: 600;
+  color: #475569;
+  line-height: 1;
+  padding: 0 .25rem;
+}
+.cat-resolution-formula-num { color: #16A34A; }
+.cat-resolution-formula-den { color: #6366f1; }
+.cat-resolution-formula-line {
+  display: block;
+  width: 100%;
+  height: 1.5px;
+  background: #334155;
+  margin: 1px 0;
+}
+
+/* ── Legend dots ── */
+.cat-resolution-legend {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.cat-res-leg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .72rem;
+  font-weight: 600;
+  color: #475569;
+}
+.cat-res-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Overall live calc row ── */
+.cat-resolution-overall {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin-top: .85rem;
+  padding-top: .75rem;
+  border-top: 1px dashed #e2e8f0;
+  font-size: .8rem;
+  flex-wrap: wrap;
+}
+.cat-resolution-overall-label {
+  font-size: .72rem;
+  font-weight: 800;
+  color: #574476;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  flex-shrink: 0;
+}
+.cat-resolution-overall-val {
+  font-size: .82rem;
+  font-weight: 600;
+  color: #475569;
+}
+.cat-resolution-overall-val strong {
+  font-size: .95rem;
+  font-weight: 800;
+}
+
+/* ── Responsive ── */
+@media (max-width:768px) {
+  .filter-panel-row { gap: .6rem; }
+  .chart-kpi-row { grid-template-columns: repeat(3,1fr); }
+  .chart-canvas-wrap { height: 250px; }
+  .tbl-search-fb { width: 145px; }
+  .cat-resolution-calc-body { flex-direction: column; align-items: flex-start; gap: .75rem; }
+}
+@media (max-width:640px) {
+  .kpi-grid { grid-template-columns: repeat(2,1fr); }
+  .table-card-header { flex-direction: column; align-items: flex-start; }
+  .tbl-search, .tbl-search-fb { width: 100%; }
+  .chart-kpi-row.fb-kpi-row { grid-template-columns: repeat(3,1fr); }
+}
+
+/* ── Title column: truncate long titles ── */
+.td-title-truncate {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Assigned staff pill in ticket table ── */
+.assigned-staff-pill {
+  font-size: .75rem;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+  display: inline-block;
+}
+
+/* ── Center-align Resolution Time & SLA (now col 8 & 9) ── */
+#ticketTable thead th:nth-child(8),
+#ticketTable thead th:nth-child(9),
+#ticketTable tbody td:nth-child(8),
+#ticketTable tbody td:nth-child(9) {
+  text-align: center;
+}

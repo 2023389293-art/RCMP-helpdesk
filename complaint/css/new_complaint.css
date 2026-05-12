@@ -1,0 +1,160 @@
+/* ── MAIN AREA: flex column so content can centre ─────────── */ 
+.main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── CONTENT: centre everything horizontally ─────────────── */
+.content {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;          /* override the 900 px cap           */
+  padding: 36px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;      /* ← the magic line                  */
+  box-sizing: border-box;
+}
+
+/* ── PAGE HEADER: full inner width, centred ──────────────── */
+.page-header {
+  width: 100%;
+  max-width: 820px;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+/* ── STEPS ROW: centred, capped width ────────────────────── */
+.steps-row {
+  width: 100%;
+  max-width: 820px;
+  margin-bottom: 28px;
+}
+
+/* ── ERROR ALERT: same max-width ─────────────────────────── */
+.alert {
+  width: 100%;
+  max-width: 820px;
+}
+
+/* ── FORM CARD: centred, nicely proportioned ─────────────── */
+#complaintForm {
+  width: 100%;
+  max-width: 820px;         /* comfortable reading width         */
+}
+
+.form-card {
+  width: 100%;
+  border-radius: 20px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.06),
+    0 10px 40px -8px rgba(0, 59, 142, 0.10);
+}
+
+/* ── FORM CARD HEADER: slightly more breathing room ─────── */
+.form-card-header {
+  padding: 26px 32px 22px;
+  background: linear-gradient(to right, #f7f9ff, #ffffff);
+  border-radius: 20px 20px 0 0;
+}
+
+/* ── FORM BODY: generous padding ─────────────────────────── */
+.form-body {
+  padding: 32px 32px 24px;
+}
+
+/* ── FORM ACTIONS: match body padding ────────────────────── */
+.form-actions {
+  padding: 20px 32px;
+  border-radius: 0 0 20px 20px;
+}
+
+/* ── INPUTS: slightly taller for comfort ─────────────────── */
+.field input[type="text"],
+.field select,
+.field textarea {
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+/* ── PRIORITY GRID: 4 columns up to tablet ───────────────── */
+.priority-grid {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.priority-label {
+  padding: 14px 12px;
+  border-radius: 12px;
+}
+
+/* ── FILE DROP: a little taller ──────────────────────────── */
+.file-drop {
+  padding: 32px 24px;
+}
+
+/* ── SUBMIT BUTTON: slightly bolder ─────────────────────── */
+.btn-submit {
+  padding: 12px 32px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 59, 142, 0.25);
+}
+
+.btn-submit:hover {
+  box-shadow: 0 6px 20px rgba(0, 59, 142, 0.35);
+}
+
+/* ── STEPS: polish ───────────────────────────────────────── */
+.step {
+  padding: 18px 24px;
+}
+
+.step-num {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+/* ── RESPONSIVE: tablet ──────────────────────────────────── */
+@media (max-width: 1100px) {
+  .content {
+    padding: 28px 32px;
+  }
+}
+
+/* ── RESPONSIVE: mobile ──────────────────────────────────── */
+@media (max-width: 768px) {
+  .content {
+    padding: 20px 16px;
+    align-items: stretch;   /* full-width on small screens       */
+  }
+
+  .page-header,
+  .steps-row,
+  .alert,
+  #complaintForm {
+    max-width: 100%;
+  }
+
+  .form-body {
+    padding: 20px 18px;
+  }
+
+  .form-card-header {
+    padding: 20px 18px 16px;
+  }
+
+  .form-actions {
+    padding: 16px 18px;
+  }
+
+  .priority-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
