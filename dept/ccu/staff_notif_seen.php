@@ -1,5 +1,5 @@
 <?php
-// dept/ccu/staff_notif_seen.php   
+// dept/ccu/staff_notif_seen.php 
 // GET  → returns { last_seen: "2026-04-09 12:00:00" }
 // POST → updates last_seen to NOW(), returns { last_seen: "..." }
  

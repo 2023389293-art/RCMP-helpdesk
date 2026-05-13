@@ -1,11 +1,11 @@
 <?php
-// dept/ccu/_layout.php  
+// dept/ccu/_layout.php
 $inProgressCount = $inProgressCount ?? 0;
-$openCount       = $openCount       ?? 0;
-$closedCount     = $closedCount     ?? 0;
-$nav             = $activeNav       ?? 'dashboard';
+$openCount   = $openCount   ?? 0;
+$closedCount = $closedCount ?? 0;
+$nav         = $activeNav   ?? 'dashboard';
 ?>
-<link rel="stylesheet" href="css/sidebar_layout.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="css/sidebarr_layout.css?v=<?php echo time(); ?>">
 
 <?php $ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress', 'tickets-closed']); ?>
 
@@ -41,8 +41,8 @@ $nav             = $activeNav       ?? 'dashboard';
         <img src="../../img/RCMP.png" alt="UniKL Logo">
       </div>
       <div class="brand-text">
-        <div class="top">UniKL RCMP Help Desk</div>
-        <div class="bot">Corporate Communication Unit</div>
+<div class="top">UniKL RCMP Help Desk</div>
+<div class="bot">CCU</div>
       </div>
     </a>
   </div>
@@ -52,7 +52,6 @@ $nav             = $activeNav       ?? 'dashboard';
   <nav class="sb-nav">
     <div class="nav-lbl">Main</div>
 
-    <!-- Dashboard -->
     <a href="dashboard.php"
        class="nav-item <?php echo $nav === 'dashboard' ? 'active' : ''; ?>"
        data-tooltip="Dashboard">
@@ -65,7 +64,6 @@ $nav             = $activeNav       ?? 'dashboard';
       <span>Dashboard</span>
     </a>
 
-    <!-- All Tickets (collapsible) -->
     <div class="nav-group">
       <div class="nav-group-header <?php echo $ticketsNavOpen ? 'has-active' : ''; ?>"
            data-tooltip="All Tickets">
@@ -88,8 +86,6 @@ $nav             = $activeNav       ?? 'dashboard';
       </div>
 
       <div class="nav-sub <?php echo $ticketsNavOpen ? 'open' : ''; ?>" id="tickets-sub">
-
-        <!-- Open -->
         <a href="tickets.php?status=open"
            class="nav-sub-item <?php echo $nav === 'tickets-open' ? 'active' : ''; ?>">
           <svg viewBox="0 0 24 24">
@@ -103,7 +99,6 @@ $nav             = $activeNav       ?? 'dashboard';
           <?php endif; ?>
         </a>
 
-        <!-- In Progress -->
         <a href="tickets.php?status=in_progress"
            class="nav-sub-item <?php echo $nav === 'tickets-inprogress' ? 'active' : ''; ?>">
           <svg viewBox="0 0 24 24">
@@ -116,7 +111,6 @@ $nav             = $activeNav       ?? 'dashboard';
           <?php endif; ?>
         </a>
 
-        <!-- Closed -->
         <a href="tickets.php?status=closed"
            class="nav-sub-item <?php echo $nav === 'tickets-closed' ? 'active' : ''; ?>">
           <svg viewBox="0 0 24 24">
@@ -128,13 +122,11 @@ $nav             = $activeNav       ?? 'dashboard';
             <span class="sub-badge sub-badge-closed"><?php echo $closedCount; ?></span>
           <?php endif; ?>
         </a>
-
       </div>
-    </div><!-- /.nav-group -->
+    </div>
 
     <div class="nav-lbl">Manage</div>
 
-    <!-- Categories -->
     <a href="categories.php"
        class="nav-item <?php echo $nav === 'categories' ? 'active' : ''; ?>"
        data-tooltip="Categories">
@@ -163,7 +155,7 @@ $nav             = $activeNav       ?? 'dashboard';
     </div>
   </div>
 
-</aside><!-- /.sidebar -->
+</aside>
 
 <!-- ══════════════════════════════════════════════════
      MAIN WRAPPER
@@ -172,20 +164,16 @@ $nav             = $activeNav       ?? 'dashboard';
 
   <div class="topbar">
 
-    <!-- Hamburger -->
     <button class="sb-hamburger" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar">
       <div class="hbars"><span></span><span></span><span></span></div>
     </button>
 
-    <!-- Page title -->
     <div class="topbar-titles">
       <h1><?php echo htmlspecialchars($pageTitle ?? 'Dashboard'); ?></h1>
       <p><?php echo htmlspecialchars($pageSubtitle ?? ('Welcome back, ' . $staffName)); ?></p>
     </div>
 
-    <!-- Right side: notification bell + date -->
     <div class="topbar-right">
-
       <div class="notif-wrapper" id="staffNotifWrapper">
         <button class="notif-btn" id="staffNotifBtn" onclick="staffToggleNotif(event)" aria-label="Notifications">
           <svg viewBox="0 0 24 24">
@@ -194,7 +182,6 @@ $nav             = $activeNav       ?? 'dashboard';
           </svg>
           <span class="notif-badge" id="staffNotifBadge">0</span>
         </button>
-
         <div class="notif-dropdown" id="staffNotifDropdown">
           <div class="nd-header">
             <h3>Notifications</h3>
@@ -223,13 +210,11 @@ $nav             = $activeNav       ?? 'dashboard';
             </div>
             <?php endfor; ?>
           </div>
-        </div><!-- /.notif-dropdown -->
-      </div><!-- /.notif-wrapper -->
-
+        </div>
+      </div>
       <span class="topbar-date"><?php echo date('D, d M Y'); ?></span>
-    </div><!-- /.topbar-right -->
-
-  </div><!-- /.topbar -->
+    </div>
+  </div>
 
   <div class="content">
 
@@ -301,11 +286,17 @@ $nav             = $activeNav       ?? 'dashboard';
   cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s,color .15s;
 }
 .ntt-dismiss-btn:hover { border-color:#CDD3DF;color:#3D4560; }
+.ntt-remarks {
+  font-size:11px; color:#5B21B6;
+  background:#EDE9FE; border-left:2px solid #7C3AED;
+  padding:5px 10px; border-radius:0 5px 5px 0;
+  margin-bottom:10px; line-height:1.5;
+  word-break:break-word;
+}
 .ntt-progress { height:3px;width:100%;transform-origin:left;transition:transform linear; }
 </style>
 
 <div id="nttStack" style="position:fixed;bottom:28px;right:28px;z-index:9998;display:flex;flex-direction:column;gap:10px;align-items:flex-end;pointer-events:none;"></div>
-
 
 <!-- ═══════════════════════════════════════════════════
      JAVASCRIPT
@@ -386,7 +377,9 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
         +'<div class="nd-content"><div class="nd-top"><span class="nd-sender">'+esc(trunc(n.sender_name,22))+'</span>'
         +'<span class="nd-type-chip '+chipClass+'">'+chipLabel+'</span></div>'
         +'<div class="nd-ticket-id">'+esc(n.ticket_id)+'</div>'
-        +'<div class="nd-message">'+esc(trunc(n.message,70))+'</div>'
+        +'<div class="nd-message">'+esc(trunc(n.message,80))+'</div>'
++(n.notif_type==='sla_alert'&&n.status?'<div style="margin-top:3px"><span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;'+(n.status==='open'?'background:#FEF3C7;color:#D97706;':'background:#DBEAFE;color:#2563EB;')+'">'+esc(n.status==='in_progress'?'In Progress':n.status.charAt(0).toUpperCase()+n.status.slice(1))+'</span></div>':'')
+        +(n.notif_type==='assignment'&&n.remarks?'<div class="nd-remarks">'+esc(trunc(n.remarks,80))+'</div>':'')
         +'<div class="nd-time">'+esc(trunc(n.ticket_title,34))+' &bull; '+timeAgo(n.event_at)+'</div>'
         +'</div>'+(u?'<div class="nd-unread-dot"></div>':'')+'</a>';
     });
@@ -509,6 +502,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
             +esc(truncate(submitter, 24))
           +'</span>'
         +'</div>'
+        +(data.remarks ? '<div class="ntt-remarks">'+esc(truncate(data.remarks,100))+'</div>' : '')
         +'<div class="ntt-actions">'
           +'<a class="ntt-view-btn" href="'+esc(DETAIL_URL+'?id='+encodeURIComponent(data.ticket_id||''))+'">'
             +'View Ticket'

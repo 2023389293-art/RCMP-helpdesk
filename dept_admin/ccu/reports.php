@@ -1,5 +1,5 @@
 <?php
-// dept_admin/ccu/reports.php 
+// dept_admin/ccu/reports.php
 require '_layout.php';
 
 require_once __DIR__ . '/../../sla_helper.php';
@@ -21,18 +21,40 @@ $summary = $conn->query("
 
 // Fetch all non-closed tickets for SLA calculation (same as dashboard)
 $slaRawReport = $conn->query("
-    SELECT c.ticket_id, c.status, c.priority,
-           c.created_at, c.sla_start_at, c.resolved_at
+    SELECT
+        c.ticket_id, c.status, c.priority,
+        c.created_at, c.sla_start_at, c.resolved_at,
+        c.first_response_at,
+        (SELECT MIN(l.changed_at)
+         FROM ticket_logs l
+         WHERE l.ticket_id = c.ticket_id
+           AND l.new_status IN ('in_progress','closed')
+           AND l.old_status = 'open'
+        ) AS first_log_response_at
     FROM complaints c
     WHERE c.dept_id = 3
 ")->fetch_all(MYSQLI_ASSOC);
 
 $breaches = 0;
 foreach ($slaRawReport as $slaRow) {
-    $slaStartStr = !empty($slaRow['sla_start_at']) ? $slaRow['sla_start_at'] : $slaRow['created_at'];
-    $slaData = getSlaStatus($slaStartStr, $slaRow['resolved_at'] ?? null, $slaRow['status']);
-    if ($slaData['breached']) {
-        $breaches++;
+    // Best respond timestamp: column first, then logs fallback
+    $respondTs = null;
+    if (!empty($slaRow['first_response_at'])) {
+        $respondTs = $slaRow['first_response_at'];
+    } elseif (!empty($slaRow['first_log_response_at'])) {
+        $respondTs = $slaRow['first_log_response_at'];
+    }
+
+    $from = new DateTime($slaRow['created_at'], new DateTimeZone(SLA_TZ));
+
+    if (!empty($respondTs)) {
+        $to = new DateTime($respondTs, new DateTimeZone(SLA_TZ));
+        $mins = workingMinutesBetween($from, $to);
+        if ($mins > SLA_WORK_HOURS * 60) $breaches++;
+    } else {
+        $now  = new DateTime('now', new DateTimeZone(SLA_TZ));
+        $mins = workingMinutesBetween($from, $now);
+        if ($mins >= SLA_WORK_HOURS * 60) $breaches++;
     }
 }
 
@@ -62,38 +84,72 @@ $allTickets = $conn->query("
         c.created_at,
         c.sla_start_at,
         c.resolved_at,
+        c.first_response_at,
         TIMESTAMPDIFF(HOUR, c.created_at, NOW()) AS age_hours,
         0 AS is_breached,
-        ROUND(
-            TIMESTAMPDIFF(MINUTE, c.created_at,
-                (SELECT MAX(l2.changed_at)
-                 FROM ticket_logs l2
-                 WHERE l2.ticket_id = c.ticket_id
-                   AND l2.new_status = 'closed')
-            ) / 60.0
-        , 1) AS resolution_hours,
-        s.full_name AS assigned_staff_name
+        NULL AS resolution_hours,
+        s.full_name AS assigned_staff_name,
+        /* Fallback: get first response from ticket_logs if first_response_at is NULL */
+        (SELECT MIN(l.changed_at)
+         FROM ticket_logs l
+         WHERE l.ticket_id = c.ticket_id
+           AND l.new_status IN ('in_progress','closed')
+           AND l.old_status = 'open'
+        ) AS first_log_response_at
     FROM complaints c
     JOIN categories cat ON cat.category_id = c.category_id
     LEFT JOIN staff s ON s.staff_id = c.assigned_to
     WHERE c.dept_id = 3
     GROUP BY c.ticket_id, c.title, cat.category_name, c.status,
              c.priority, c.created_at, c.sla_start_at, c.resolved_at,
-             age_hours, is_breached, s.full_name
+             c.first_response_at, s.full_name
     ORDER BY c.created_at DESC
 ")->fetch_all(MYSQLI_ASSOC);
 
 foreach ($allTickets as &$t) {
-    // SLA breach check (already correct)
-    $slaStartStr = !empty($t['sla_start_at']) ? $t['sla_start_at'] : $t['created_at'];
-    $slaData = getSlaStatus($slaStartStr, $t['resolved_at'] ?? null, $t['status']);
-    $t['is_breached'] = $slaData['breached'] ? 1 : 0;
 
-    // ✅ Fix Resolution Time — working hours only
+    // ── Determine best respond timestamp ──────────────────────────────────
+    // Priority: first_response_at (DB column) → first_log_response_at (from logs)
+    $respondTimestamp = null;
+    if (!empty($t['first_response_at'])) {
+        $respondTimestamp = $t['first_response_at'];
+    } elseif (!empty($t['first_log_response_at'])) {
+        $respondTimestamp = $t['first_log_response_at'];
+    }
+
+    // ── Respond Time ──────────────────────────────────────────────────────
+    // Working hours from created_at → first response (all tickets)
+    $t['respond_hours'] = null;
+    if (!empty($respondTimestamp)) {
+        $from = new DateTime($t['created_at'],   new DateTimeZone(SLA_TZ));
+        $to   = new DateTime($respondTimestamp,  new DateTimeZone(SLA_TZ));
+        $t['respond_hours'] = round(workingMinutesBetween($from, $to) / 60, 1);
+    }
+
+    // ── Resolution Time ───────────────────────────────────────────────────
+    // Working hours from created_at → resolved_at (closed tickets only)
+    $t['resolution_hours'] = null;
     if ($t['status'] === 'closed' && !empty($t['resolved_at'])) {
         $from = new DateTime($t['created_at'],  new DateTimeZone(SLA_TZ));
         $to   = new DateTime($t['resolved_at'], new DateTimeZone(SLA_TZ));
         $t['resolution_hours'] = round(workingMinutesBetween($from, $to) / 60, 1);
+    }
+
+    // ── SLA Breach ────────────────────────────────────────────────────────
+    // Rule: no response within 8 working hours of created_at = BREACHED
+    // "Response" = first time status changed away from open
+    $from = new DateTime($t['created_at'], new DateTimeZone(SLA_TZ));
+
+    if (!empty($respondTimestamp)) {
+        // Ticket was responded to — check if response was WITHIN 8 working hours
+        $to = new DateTime($respondTimestamp, new DateTimeZone(SLA_TZ));
+        $respondMins = workingMinutesBetween($from, $to);
+        $t['is_breached'] = ($respondMins > SLA_WORK_HOURS * 60) ? 1 : 0;
+    } else {
+        // No response at all yet — check if 8 working hours have passed since created_at
+        $now = new DateTime('now', new DateTimeZone(SLA_TZ));
+        $elapsedMins = workingMinutesBetween($from, $now);
+        $t['is_breached'] = ($elapsedMins >= SLA_WORK_HOURS * 60) ? 1 : 0;
     }
 }
 unset($t);
@@ -131,6 +187,7 @@ $staffActivity = $conn->query("
     SELECT
         s.full_name,
         s.staff_code,
+        s.role,
         COUNT(c.ticket_id)                                                      AS tickets_handled,
         SUM(c.status = 'closed')                                                AS resolved,
         SUM(c.status = 'in_progress')                                           AS in_progress_count,
@@ -155,8 +212,8 @@ $staffActivity = $conn->query("
           AND c.dept_id = 3
           $staffDateWhere
     WHERE s.dept_id = 3
-      AND s.role    = 'staff'
-    GROUP BY s.staff_id, s.full_name, s.staff_code
+      AND s.role IN ('staff', 'admin')
+    GROUP BY s.staff_id, s.full_name, s.staff_code, s.role
     ORDER BY resolved DESC, tickets_handled DESC
 ")->fetch_all(MYSQLI_ASSOC);
 
@@ -291,7 +348,7 @@ function ratingLabelText(int $r): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>CCU Admin — Reports | UniKL Help Desk</title>
   <?php include '_head_assets.php'; ?>
-  <link rel="stylesheet" href="css/tickets_report.css"/>
+  <link rel="stylesheet" href="css/tickets-report.css"/>
   <link rel="stylesheet" href="css/reports-tabs.css"/>
   <link rel="stylesheet" href="css/feedback.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -620,14 +677,14 @@ function ratingLabelText(int $r): string {
         <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
           <div class="chart-legend-group">
             <span class="legend-section-label">STATUS</span>
-            <span class="legend-pill"><span class="legend-dot" style="background:#4338ca"></span>Open</span>
-            <span class="legend-pill"><span class="legend-dot" style="background:#a5b4fc"></span>Closed</span>
-            <span class="legend-pill"><span class="legend-dot" style="background:#6366f1"></span>In Progress</span>
+<span class="legend-pill"><span class="legend-dot" style="background:#DC2626"></span>Open</span>
+<span class="legend-pill"><span class="legend-dot" style="background:#16A34A"></span>Closed</span>
+<span class="legend-pill"><span class="legend-dot" style="background:#3503aa"></span>In Progress</span>
           </div>
           <div class="chart-legend-group">
             <span class="legend-section-label">PRIORITY</span>
-            <span class="legend-pill"><span class="legend-dot" style="background:#1e3a8a"></span>High</span>
-            <span class="legend-pill"><span class="legend-dot" style="background:#3b82f6"></span>Medium</span>
+            <span class="legend-pill"><span class="legend-dot" style="background:#e64545"></span>High</span>
+            <span class="legend-pill"><span class="legend-dot" style="background:#e48a36"></span>Medium</span>
             <span class="legend-pill"><span class="legend-dot" style="background:#93c5fd"></span>Low</span>
           </div>
         </div>
@@ -657,7 +714,6 @@ function ratingLabelText(int $r): string {
           <thead>
   <tr>
     <th onclick="sortTable(0)">Ticket ID <span class="sort-icon">⇅</span></th>
-    <th onclick="sortTable(1)">Title <span class="sort-icon">⇅</span></th>
     <th onclick="sortTable(2)">Category <span class="sort-icon">⇅</span></th>
     <th onclick="sortTable(3)">Status <span class="sort-icon">⇅</span></th>
     <th onclick="sortTable(4)">Priority <span class="sort-icon">⇅</span></th>
@@ -665,6 +721,9 @@ function ratingLabelText(int $r): string {
     <th onclick="sortTable(6)">Assigned To <span class="sort-icon">⇅</span></th>
     <th onclick="sortTable(7)" title="Working hours (Mon-Fri 08:00-17:00 only). Format: Xd Yh or Zh Wm">
         Resolution Time <span class="col-hint">⏱</span>
+    </th>
+    <th onclick="sortTable(8)" title="Working hours from ticket open until first staff response (in-progress or closed)">
+        Respond Time <span class="col-hint">⏱</span>
     </th>
     <th>SLA</th>
   </tr>
@@ -674,6 +733,27 @@ function ratingLabelText(int $r): string {
             <tr><td colspan="8" class="empty-state">No tickets found.</td></tr>
             <?php else: foreach ($allTickets as $t):
               $catShort = explode(' / ', $t['category_name'])[1] ?? $t['category_name'];
+              // Format Respond Time
+$respH = $t['respond_hours'] ?? null;
+if ($respH === null) {
+    $respFmt   = '—';
+    $respClass = 'fr-none';
+} elseif ($respH < 1) {
+    $mins      = (int)round($respH * 60);
+    $respFmt   = ($mins === 0 ? '< 1m' : $mins . 'm');
+    $respClass = 'fr-fast';
+} elseif ($respH <= 8) {
+    $wholeH    = (int)floor($respH);
+    $remMins   = (int)round(($respH - $wholeH) * 60);
+    $respFmt   = $remMins > 0 ? $wholeH . 'h ' . $remMins . 'm' : $wholeH . 'h';
+    $respClass = ($respH <= 2) ? 'fr-fast' : 'fr-ok';
+} else {
+    $days      = (int)floor($respH / 8);
+    $remH      = (int)round($respH - ($days * 8));
+    $respFmt   = $remH > 0 ? $days . 'd ' . $remH . 'h' : $days . 'd';
+    $respClass = $days <= 1 ? 'fr-warn' : 'fr-slow';
+}
+
               $resH = $t['resolution_hours'];
 if ($resH === null || $t['status'] !== 'closed') {
     $resFmt   = '—';
@@ -707,9 +787,10 @@ if ($resH === null || $t['status'] !== 'closed') {
     data-assigned="<?= htmlspecialchars($assignedName ?? '—') ?>"
     data-firstresponse="<?= $resFmt ?>"
     data-firstresponse-raw="<?= $resH ?? 9999 ?>"
-    data-sla="<?= $t['is_breached'] ? 'Breached' : 'OK' ?>">
+    data-sla="<?= $t['is_breached'] ? 'Breached' : 'OK' ?>"
+    data-respondtime="<?= $respFmt ?>"
+    data-respondtime-raw="<?= $respH ?? 9999 ?>">
   <td><span class="ticket-id"><?= htmlspecialchars($t['ticket_id']) ?></span></td>
-  <td class="td-title-truncate" title="<?= htmlspecialchars($t['title']) ?>"><?= htmlspecialchars($t['title']) ?></td>
   <td><?= htmlspecialchars($catShort) ?></td>
   <td><span class="status-pill sp-<?= str_replace(' ','_',$t['status']) ?>"><?= ucfirst(str_replace('_',' ',$t['status'])) ?></span></td>
   <td>
@@ -737,6 +818,9 @@ if ($resH === null || $t['status'] !== 'closed') {
     <?php endif; ?>
   </td>
   <td>
+    <span class="fr-badge <?= $respClass ?>"><?= $respFmt ?></span>
+  </td>
+  <td>
     <?php if ($t['is_breached']): ?>
       <span class="overdue-badge">⚠ Breached</span>
     <?php else: ?>
@@ -760,12 +844,29 @@ if ($resH === null || $t['status'] !== 'closed') {
   <div class="ss-item">SLA Breached: <strong id="ss-breach" style="color:#DC2626"><?= $breaches ?></strong></div>
   <div class="ss-note">
     <span class="ss-note-icon">⏱</span>
-    <span><strong>Resolution Time</strong> — working hours only (Mon–Fri 08:00–17:00), from submission to final close. Shows <code>—</code> if not yet closed.</span>
-  </div>
-  <div class="ss-note">
+    <span>
+        <strong>Resolution Time</strong> — only shown for <strong>closed</strong> tickets. 
+        Counts working hours (Mon–Fri 08:00–17:00) from ticket submission to final close. 
+        Open or in-progress tickets show <code>—</code>.
+    </span>
+</div>
+<div class="ss-note">
+    <span class="ss-note-icon">💬</span>
+    <span>
+        <strong>Respond Time</strong> — shown for <strong>all</strong> tickets once staff responds. 
+        Counts working hours from submission until staff first moved the ticket to in-progress or closed. 
+        Shows <code>—</code> only if no staff action has been taken yet.
+    </span>
+</div>
+<div class="ss-note">
     <span class="ss-note-icon">🛡</span>
-    <span><strong>SLA</strong> — 8 working-hour window per ticket. Resets if ticket is reopened. <span style="color:#DC2626;font-weight:700;">⚠ Breached</span> = exceeded limit.</span>
-  </div>
+    <span>
+        <strong>SLA Breach</strong> — triggered when staff takes more than <strong>8 working hours</strong> 
+        to first respond from ticket submission. 
+        <span style="color:#DC2626;font-weight:700;">⚠ Breached</span> = response exceeded the 8-hour limit. 
+        <span style="color:#16A34A;font-weight:700;">✓ OK</span> = responded within 8 working hours.
+    </span>
+</div>
 </div>
     </div>
 
@@ -788,7 +889,7 @@ if ($resH === null || $t['status'] !== 'closed') {
         <div class="filter-group">
           <span class="filter-group-label">Analysis Period</span>
           <div class="period-select-wrap">
-            <svg class="period-select-icon" viewBox="0 0 24 24">...</svg>
+            <svg class="period-select-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <select class="filter-select period-select" id="staffFilterPeriod">
               <option value="7">Last 7 days</option>
               <option value="30" selected>Last 30 days</option>
@@ -797,7 +898,7 @@ if ($resH === null || $t['status'] !== 'closed') {
               <option value="180">Last 6 months</option>
               <option value="365">Last year</option>
               <option value="all">All time</option>
-              <option value="custom">Custom date range</option>  ← ADD THIS
+              <option value="custom">Custom date range</option>
             </select>
           </div>
         </div>
@@ -890,6 +991,7 @@ if ($resH === null || $t['status'] !== 'closed') {
               <th onclick="sortStaffTable(0)">Rank <span class="sort-icon">⇅</span></th>
               <th onclick="sortStaffTable(1)">Staff Name <span class="sort-icon">⇅</span></th>
               <th onclick="sortStaffTable(2)">Staff Code <span class="sort-icon">⇅</span></th>
+              <th>Role</th>
               <th onclick="sortStaffTable(3)">
                 Tickets Assigned
                 <span class="col-rate-note">via complaints.assigned_to</span>
@@ -916,8 +1018,9 @@ if ($resH === null || $t['status'] !== 'closed') {
               $rateCol  = $rate >= 70 ? '#16A34A' : ($rate >= 40 ? '#F97316' : '#DC2626');
             ?>
             <tr data-name="<?= htmlspecialchars($s['full_name']) ?>"
-                data-code="<?= htmlspecialchars($s['staff_code']) ?>"
-                data-handled="<?= $handled ?>"
+    data-code="<?= htmlspecialchars($s['staff_code']) ?>"
+    data-role="<?= htmlspecialchars($s['role']) ?>"
+    data-handled="<?= $handled ?>"
                 data-resolved="<?= $resolved ?>"
                 data-inprog="<?= $inProg ?>"
                 data-open="<?= $openCnt ?>"
@@ -926,6 +1029,13 @@ data-rank="<?= $i+1 ?>">
               <td style="font-weight:700;color:#64748b;font-size:.88rem;"><?= $i+1 ?></td>
               <td style="font-weight:600;color:#0f172a;"><?= htmlspecialchars($s['full_name']) ?></td>
               <td><span class="ticket-id"><?= htmlspecialchars($s['staff_code']) ?></span></td>
+              <td>
+                <?php if ($s['role'] === 'admin'): ?>
+                  <span style="font-size:.72rem;font-weight:700;color:#574476;background:#F3F0F9;padding:2px 9px;border-radius:99px;border:1px solid #D4C8E8;">Admin</span>
+                <?php else: ?>
+                  <span style="font-size:.72rem;font-weight:700;color:#16A34A;background:#F0FDF4;padding:2px 9px;border-radius:99px;border:1px solid #BBF7D0;">Staff</span>
+                <?php endif; ?>
+              </td>
               <td>
                 <?php if ($handled > 0): ?>
                   <span style="font-weight:700;color:#6366F1;font-size:.95rem;"><?= $handled ?></span>
@@ -1287,13 +1397,21 @@ data-rank="<?= $i+1 ?>">
       <div class="fb2-summary-strip">
         <span>Total: <strong id="fbss-total"><?= count($feedbackList) ?></strong></span>
         <span class="fb2-divider">|</span>
-        <span>Positive: <strong id="fbss-pos" style="color:#16A34A;"><?= $pos ?></strong></span>
+        <span style="color:#16A34A;">Positive: <strong id="fbss-pos"><?= $pos ?></strong>
+          <span style="font-size:.70rem;font-weight:400;color:#94a3b8;">(Very Satisfied + Satisfied)</span>
+        </span>
         <span class="fb2-divider">|</span>
-        <span>Neutral: <strong id="fbss-neu" style="color:#D97706;"><?= $neu ?></strong></span>
+        <span style="color:#D97706;">Neutral: <strong id="fbss-neu"><?= $neu ?></strong>
+          <span style="font-size:.70rem;font-weight:400;color:#94a3b8;">(Neutral)</span>
+        </span>
         <span class="fb2-divider">|</span>
-        <span>Negative: <strong id="fbss-neg" style="color:#DC2626;"><?= $neg ?></strong></span>
+        <span style="color:#DC2626;">Negative: <strong id="fbss-neg"><?= $neg ?></strong>
+          <span style="font-size:.70rem;font-weight:400;color:#94a3b8;">(Dissatisfied + Very Dissatisfied)</span>
+        </span>
         <span class="fb2-divider">|</span>
-        
+        <span>Manual: <strong id="fbss-manual"><?= $manualCount ?></strong></span>
+        <span class="fb2-divider">|</span>
+        <span>Auto: <strong id="fbss-auto"><?= $autoCount ?></strong></span>
       </div>
     </div>
 
@@ -1573,7 +1691,6 @@ window.TICKET_DATA = {
   allTickets: <?= json_encode(array_map(function($t) {
     return [
       'ticket_id'            => $t['ticket_id'],
-      'title'                => $t['title'],
       'category'             => (explode(' / ', $t['category_name'])[1] ?? $t['category_name']),
       'status'               => $t['status'],
       'priority'             => $t['priority'],
@@ -1581,6 +1698,7 @@ window.TICKET_DATA = {
       'submitted_ts'         => strtotime($t['created_at']),
       'is_breached'          => (int)$t['is_breached'],
       'resolution_hours'    => $t['resolution_hours'],
+'respond_hours'       => $t['respond_hours'] ?? null,
 'assigned_staff_name' => $t['assigned_staff_name'] ?? null,
     ];
   }, $allTickets)) ?>,
@@ -1589,7 +1707,7 @@ window.TICKET_DATA = {
   avgHours: <?= $avgHours ? (float)$avgHours : 'null' ?>
 };
 </script>
-<script src="js/tickets-report.js"></script>
+<script src="js/tickets_report.js"></script>
 <?php endif; ?>
 
 <?php if ($activeTab === 'staff'): ?>
@@ -1603,6 +1721,7 @@ window.STAFF_DATA = {
     return [
       'full_name'        => $s['full_name'],
       'staff_code'       => $s['staff_code'],
+      'role'             => $s['role'],
       'tickets_handled'  => $handled,
       'resolved'         => $resolved,
       'in_progress_count'=> (int)$s['in_progress_count'],
@@ -1613,7 +1732,7 @@ window.STAFF_DATA = {
   }, $staffActivity)) ?>
 };
 </script>
-<script src="js/staff_reports.js"></script>
+<script src="js/staff-reports.js"></script>
 <?php endif; ?>
 
 <?php if ($activeTab === 'feedback'): ?>
@@ -1631,7 +1750,7 @@ window.FEEDBACK_DATA = {
   periodLabel: <?= json_encode($days ? 'Last '.$days.' days' : 'All time') ?>
 };
 </script>
-<script src="js/feedback_report.js"></script>
+<script src="js/feedbacks_report.js"></script>
 <?php endif; ?>
 
 <?php if ($activeTab === 'category' && !empty($categoryStats)): ?>
@@ -1644,7 +1763,7 @@ window.CATEGORY_DATA = {
   periodLabel: <?= json_encode($catPeriodLabel) ?>
 };
 </script>
-<script src="js/category_report.js"></script>
+<script src="js/category-report.js"></script>
 <?php endif; ?>
 
 </body>

@@ -1,5 +1,5 @@
 <?php
-// dept/ccu/categories.php
+// dept/hcd/categories.php
 require_once __DIR__ . '/../auth_guard.php';
 if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
@@ -129,14 +129,14 @@ $stmt->close();
 // ── Layout vars ───────────────────────────────────────────────────────────────
 $activeNav    = 'categories';
 $pageTitle    = 'Categories';
-$pageSubtitle = 'Corporate Communication Unit';
+$pageSubtitle = 'Human Capital Department';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Categories | UniKL Help Desk – CCU</title>
+  <title>Categories | UniKL Help Desk – HCD</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
   <style>
     /* ── Alerts ── */
@@ -288,7 +288,7 @@ $pageSubtitle = 'Corporate Communication Unit';
                 <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
               </div>
               <div>
-<div class="card-header-title">Corporate Communication Unit Categories</div>
+<div class="card-header-title">Human Capital Department Categories</div>
 <div class="card-header-sub">Manage complaint categories for this department</div>
               </div>
               <span class="count-badge"><?php echo count($categories); ?></span>
@@ -324,7 +324,7 @@ $pageSubtitle = 'Corporate Communication Unit';
                 <tr data-name="<?php echo strtolower(htmlspecialchars($cat['category_name'])); ?>">
                   <td style="color:var(--g400);font-size:13px;font-family:monospace"><?php echo $i + 1; ?></td>
                   <td>
-                    <div class="cat-name"><?php echo htmlspecialchars(preg_replace('/^(CCU\s*\/\s*)+/i', '', $cat['category_name'])); ?></div>
+                    <div class="cat-name"><?php echo htmlspecialchars(preg_replace('/^(PMTC\s*\/\s*)+/i', '', $cat['category_name'])); ?></div>
                   </td>
                   <td>
                     <?php $u = (int)$cat['usage_count']; ?>
@@ -569,7 +569,7 @@ function requestDelete(id, name, usageCount) {
 
 // ─── startEdit ────────────────────────────────────────────────────────────────
 function startEdit(id, fullName) {
-  var suffix = fullName.replace(/^(CCU\s*\/\s*)+/i, '').trim();
+  var suffix = fullName.replace(/^(PMTC\s*\/\s*)+/i, '').trim();
 
   document.getElementById('formAction').value        = 'edit';
   document.getElementById('formCategoryId').value    = id;

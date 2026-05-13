@@ -1,4 +1,4 @@
-<!-- dept_admin/ccu/_head_assets.php -->  
+<!-- dept_admin/ccu/_head_assets.php -->
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,17 +27,19 @@
     /* ── SIDEBAR ──────────────────────────────────────────────────── */
     .sidebar {
       position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
-      background: linear-gradient(180deg, #4A3B6B 0%, #362B55 50%, #271F40 100%);
-      z-index: 50; overflow-y: auto;
-      display: flex;
-      flex-direction: column;
+  background: linear-gradient(180deg, #4A3B6B 0%, #362B55 50%, #271F40 100%);
+  z-index: 50; overflow-y: auto;
+  
+  /* ✅ ADD THESE TWO: */
+  display: flex;
+  flex-direction: column;
     }
     .sidebar-brand {
-      padding: 26px 20px 22px;
-      border-bottom: 1px solid rgba(255,255,255,.07);
-      display: flex; align-items: center; gap: 12px;
-      text-decoration: none;
-    }
+  padding: 26px 20px 22px;   /* was 22px 20px 18px */
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  display: flex; align-items: center; gap: 12px;  /* gap: 10px → 12px */
+  text-decoration: none;
+}
     .brand-logo {
       background: #6B5A9E;
       width: 36px; height: 36px; background: var(--blue); border-radius: 7px;
@@ -161,11 +163,11 @@
     .status-in_progress { background: #FFF7ED; color: #C2410C; border: 1px solid rgba(194,65,12,.2); }
     .status-closed      { background: #F0FDF4; color: #15803D; border: 1px solid rgba(21,128,61,.2); }
 
-    .submitter-badge {
-      display: inline-block; font-size: 9px; font-weight: 700;
-      letter-spacing: .04em; padding: 2px 6px; border-radius: 3px;
-      text-transform: uppercase; flex-shrink: 0;
-    }
+    .submitter-badge { 
+  display: inline-block; font-size: 9px; font-weight: 700; 
+  letter-spacing: .04em; padding: 2px 6px; border-radius: 3px; 
+  text-transform: uppercase; flex-shrink: 0;  /* ADD flex-shrink: 0 */
+}
     .submitter-badge.student { background: #EFF6FF; color: #1D4ED8; }
     .submitter-badge.staff   { background: #F5F3FF; color: #6D28D9; }
 
@@ -273,62 +275,122 @@
     .feedback-stats { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--gray-700); }
 
    @media (max-width: 900px) {
-    .sidebar { transform: translateX(-100%); transition: transform .25s ease; }
-    .sidebar.open { transform: translateX(0); }
-    .main-content { margin-left: 0; padding: 60px 12px 20px; max-width: 100vw; }
-    .page-header { flex-direction: column; align-items: flex-start; gap: 8px; }
-    .page-title  { font-size: 20px; }
-    .filter-bar { flex-direction: column; align-items: stretch; }
-    .filter-bar select,
-    .filter-bar .search-wrap,
-    .filter-bar .btn-primary-sm,
-    .filter-bar .btn-ghost-sm { width: 100%; }
-    .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .dash-row { grid-template-columns: 1fr; }
-    .card.no-pad { overflow-x: auto; }
-    .data-table { min-width: 400px; }
-    .data-table thead th:nth-child(3),
-    .data-table thead th:nth-child(4),
-    .data-table thead th:nth-child(7),
-    .data-table tbody td:nth-child(3),
-    .data-table tbody td:nth-child(4),
-    .data-table tbody td:nth-child(7) { display: none; }
-    .data-table thead th:nth-child(4),
-    .data-table tbody td:nth-child(4) { display: none; }
-    .ticket-id { max-width: 70px; font-size: 10px; }
-    .td-title  { max-width: 100px; }
-    .modal { max-width: 95vw; margin: 10px; }
-    .mob-toggle {
-      display: flex; position: fixed; top: 14px; left: 14px; z-index: 100;
-      width: 40px; height: 40px; border-radius: 9px; background: #4A3B6B;
-      border: none; cursor: pointer; align-items: center; justify-content: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,.25);
-    }
-    .mob-toggle svg { width: 20px; height: 20px; stroke: white; fill: none; stroke-width: 2; stroke-linecap: round; }
-    .mob-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 49; }
-    .mob-overlay.open { display: block; }
-    .section-tabs { gap: .2rem; padding: .35rem; }
-    .section-tab  { padding: .4rem .65rem; font-size: .74rem; }
-    .filter-panel-row { flex-direction: column; }
-    .filter-group     { width: 100%; }
-    .filter-select,
-    .filter-date-input { width: 100%; }
-    .chart-kpi-row { grid-template-columns: repeat(2, 1fr) !important; }
-    .chart-card,
-    .fb2-chart-card { overflow-x: auto; }
-    .chart-canvas-wrap { min-width: 320px; }
-    .table-card-header,
-    .fb2-table-header { flex-direction: column; align-items: flex-start; gap: 8px; }
-    .table-actions,
-    .fb2-table-actions { flex-direction: column; width: 100%; }
-    .tbl-search,
-    .dl-btn { width: 100%; }
-    .summary-strip,
-    .fb2-summary-strip { flex-wrap: wrap; gap: 6px; }
+  /* ── Sidebar hidden by default on mobile ── */
+  .sidebar { transform: translateX(-100%); transition: transform .25s ease; }
+  .sidebar.open { transform: translateX(0); }
+
+  /* ── Main content takes full width ── */
+  .main-content { 
+    margin-left: 0; 
+    padding: 60px 12px 20px; /* 60px top = space for hamburger button */
+    max-width: 100vw;
   }
 
-  @media (min-width: 901px) {
-    .mob-toggle  { display: none; }
-    .mob-overlay { display: none; }
+  /* ── Page header stacks vertically ── */
+  .page-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .page-title  { font-size: 20px; }
+
+  /* ── Filter bar stacks vertically ── */
+  .filter-bar { flex-direction: column; align-items: stretch; }
+  .filter-bar select,
+  .filter-bar .search-wrap,
+  .filter-bar .btn-primary-sm,
+  .filter-bar .btn-ghost-sm { width: 100%; }
+
+  /* ── Stats grid: 2 columns on mobile ── */
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* ── Dashboard two-column layout stacks ── */
+  .dash-row { grid-template-columns: 1fr; }
+
+  /* ── Tables: hide less important columns, allow horizontal scroll ── */
+  .card.no-pad { overflow-x: auto; }
+  .data-table { min-width: 400px; }
+
+  /* All Tickets page — hide less critical columns */
+  .data-table thead th:nth-child(3),
+  .data-table thead th:nth-child(4),
+  .data-table thead th:nth-child(7),
+  .data-table tbody td:nth-child(3),
+  .data-table tbody td:nth-child(4),
+  .data-table tbody td:nth-child(7) { display: none; }
+
+  /* Manage Users page — hide phone column */
+  .data-table thead th:nth-child(4),
+  .data-table tbody td:nth-child(4) { display: none; }
+
+  /* ── Ticket ID wraps properly ── */
+  .ticket-id { max-width: 70px; font-size: 10px; }
+  .td-title  { max-width: 100px; }
+
+  /* ── Modal full width on mobile ── */
+  .modal { max-width: 95vw; margin: 10px; }
+
+  /* ── Hamburger button ── */
+  .mob-toggle {
+    display: flex;
+    position: fixed;
+    top: 14px; left: 14px;
+    z-index: 100;
+    width: 40px; height: 40px;
+    border-radius: 9px;
+    background: #4A3B6B;
+    border: none;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
   }
+  .mob-toggle svg {
+    width: 20px; height: 20px;
+    stroke: white; fill: none;
+    stroke-width: 2; stroke-linecap: round;
+  }
+
+  /* ── Dark overlay behind open sidebar ── */
+  .mob-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 49;
+  }
+  .mob-overlay.open { display: block; }
+
+  /* ── Reports: tabs wrap and shrink ── */
+  .section-tabs { gap: .2rem; padding: .35rem; }
+  .section-tab  { padding: .4rem .65rem; font-size: .74rem; }
+
+  /* ── Reports: filter panel stacks ── */
+  .filter-panel-row { flex-direction: column; }
+  .filter-group     { width: 100%; }
+  .filter-select,
+  .filter-date-input { width: 100%; }
+
+  /* ── Reports: KPI row wraps to 2 columns ── */
+  .chart-kpi-row { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* ── Reports: chart canvas scrollable ── */
+  .chart-card,
+  .fb2-chart-card { overflow-x: auto; }
+  .chart-canvas-wrap { min-width: 320px; }
+
+  /* ── Reports: table actions stack ── */
+  .table-card-header,
+  .fb2-table-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .table-actions,
+  .fb2-table-actions { flex-direction: column; width: 100%; }
+  .tbl-search,
+  .dl-btn { width: 100%; }
+
+  /* ── Reports: summary strip wraps ── */
+  .summary-strip,
+  .fb2-summary-strip { flex-wrap: wrap; gap: 6px; }
+}
+
+/* ── Hide hamburger on desktop ── */
+@media (min-width: 901px) {
+  .mob-toggle  { display: none; }
+  .mob-overlay { display: none; }
+}
   </style>

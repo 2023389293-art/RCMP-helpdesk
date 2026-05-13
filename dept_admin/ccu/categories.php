@@ -1,5 +1,5 @@
 <?php
-// dept_admin/it/categories.php
+// dept_admin/ccu/categories.php
 require_once __DIR__ . '/_layout.php';
 
 // ── Session for flash messages ────────────────────────────────────────────────
@@ -8,7 +8,8 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 // ── Sidebar badge counts ──────────────────────────────────────────────────────
 $openCount = $closedCount = 0;
 $stmt = $conn->prepare(
-    "SELECT SUM(status='open') AS oc, SUM(status='closed') AS cc FROM complaints WHERE dept_id = 3"
+    "SELECT SUM(status='open') AS oc, SUM(status='closed') AS cc
+     FROM complaints WHERE dept_id = 3"
 );
 $stmt->execute();
 $counts = $stmt->get_result()->fetch_assoc();
@@ -22,8 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $deptId = 3;
 
     if ($action === 'add') {
-    $suffix = trim($_POST['category_name'] ?? '');
-    $name   = $suffix !== '' ? 'CCU / ' . $suffix : '';
+        $suffix = trim($_POST['category_name'] ?? '');
+        $name   = $suffix !== '' ? 'CCU / ' . $suffix : '';
         if (empty($suffix)) {
             $_SESSION['flash_error'] = 'Category name cannot be empty.';
         } else {
@@ -50,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($action === 'edit') {
         $id     = (int)($_POST['category_id'] ?? 0);
         $suffix = trim($_POST['category_name'] ?? '');
-        $suffix = trim(preg_replace('/^(CCU\s*\/\s*)+/i', '', $suffix));
+$suffix = trim(preg_replace('/^(CCU\s*\/\s*)+/i', '', $suffix));
 $name   = $suffix !== '' ? 'CCU / ' . $suffix : '';
         if (!$id || empty($suffix)) {
             $_SESSION['flash_error'] = 'Invalid data submitted.';
@@ -102,7 +103,7 @@ $successMsg = $_SESSION['flash_success'] ?? '';
 $errorMsg   = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-// ── Fetch IT categories (dept_id = 4) ────────────────────────────────────────
+// ── Fetch Maintenance categories (dept_id = 3) ────────────────────────────────────────
 $categories = [];
 $deptId = 3;
 $stmt = $conn->prepare(
@@ -286,7 +287,7 @@ $currentPage = 'categories';
   <!-- Page Header -->
   <div class="page-header">
     <div>
-      <div class="page-eyebrow">CCU Department</div>
+      <div class="page-eyebrow">Corporate Communication Unit</div>
       <h1 class="page-title">
   Categories
   <span class="title-count"><?= count($categories) ?></span>
@@ -320,7 +321,7 @@ $currentPage = 'categories';
               <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             </div>
             <div>
-              <div style="font-size:14px;font-weight:600;color:var(--gray-900);">CCU Department Categories</div>
+              <div style="font-size:14px;font-weight:600;color:var(--gray-900);">CCU Categories</div>
               <div style="font-size:12px;color:var(--gray-500);margin-top:1px;">Manage complaint categories</div>
             </div>
             <span class="count-badge"><?= count($categories) ?></span>
@@ -355,8 +356,7 @@ $currentPage = 'categories';
               <tr data-name="<?= strtolower(htmlspecialchars($cat['category_name'])) ?>">
                 <td style="color:var(--gray-500);font-size:12px;font-family:monospace;"><?= $i + 1 ?></td>
                 <td>
-                  <div class="cat-name"><?= htmlspecialchars($cat['category_name']) ?></div>
-                  <div class="cat-id">ID: <?= $cat['category_id'] ?></div>
+                  <div class="cat-name"><?= htmlspecialchars(preg_replace('/^CCU\s*\/\s*/i', '', $cat['category_name'])) ?></div>
                 </td>
                 <td>
                   <?php $u = (int)$cat['usage_count']; ?>
@@ -422,13 +422,13 @@ $currentPage = 'categories';
 
             <div class="field">
               <label for="category_name">Category Name <span style="color:#DC2626;">*</span></label>
-              <div class="prefix-wrap">
-                <span class="prefix-label" id="itPrefix">CCU /</span>
-                <input type="text" id="category_name" name="category_name"
-                  class="prefix-input" placeholder="e.g. Hardware &amp; Software"
-                  maxlength="140" required autocomplete="off"/>
-              </div>
-              <div class="field-hint" id="formHint">Only type the topic — <em>CCU /</em> is added automatically.</div>
+<div class="prefix-wrap">
+    <input type="text" id="category_name" name="category_name"
+      style="border-radius:8px !important;"
+      placeholder="e.g. Audio &amp; Video"
+      maxlength="140" required autocomplete="off"/>
+</div>
+
             </div>
 
             <button type="submit" class="btn-submit" id="submitBtn">
@@ -551,9 +551,7 @@ function startEdit(id, fullName) {
   document.getElementById('editModeBar').classList.add('show');
   document.getElementById('cancelEditBtn').style.display     = 'flex';
   document.getElementById('formCard').classList.add('editing-active');
-  document.getElementById('itPrefix').style.display           = 'none';
   document.getElementById('category_name').style.borderRadius = '8px';
-  document.getElementById('formHint').style.display           = 'none';
   document.getElementById('formCardTitle').textContent = 'Edit Category';
   document.getElementById('formCardSub').textContent   = 'Update the category name below';
   document.getElementById('submitBtn').innerHTML =
@@ -574,9 +572,7 @@ function forceCancelEdit() {
   document.getElementById('editModeBar').classList.remove('show');
   document.getElementById('cancelEditBtn').style.display     = 'none';
   document.getElementById('formCard').classList.remove('editing-active');
-  document.getElementById('itPrefix').style.display           = 'flex';
-  document.getElementById('category_name').style.borderRadius = '0 8px 8px 0';
-  document.getElementById('formHint').style.display           = '';
+  document.getElementById('category_name').style.borderRadius = '8px';
   document.getElementById('formCardTitle').textContent = 'Add Category';
   document.getElementById('formCardSub').textContent   = 'Create a new complaint category';
   document.getElementById('submitBtn').innerHTML =

@@ -1,10 +1,10 @@
 /* =============================================================
-   category-report.js  —  IT Dept Admin · Category Tab 
+   category-report.js  —  CCU Dept Admin · Category Tab 
    + Custom date range filter (pure JS, no page reload)
    The category data injected by PHP now always covers ALL time;
    JS handles date filtering client-side.
    ============================================================= */
-
+ 
 (function () {
   'use strict';
 
@@ -477,23 +477,27 @@
     doc.rect(0, 0, 297, 22, 'F');
 
     try {
-      const logoImg = new Image(); logoImg.crossOrigin = 'anonymous';
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
       logoImg.src = '../../img/RCMP.png';
       await new Promise(res => { logoImg.onload = res; logoImg.onerror = res; });
       const canvas = document.createElement('canvas');
       canvas.width  = logoImg.naturalWidth  || 100;
       canvas.height = logoImg.naturalHeight || 100;
       const ctx2d = canvas.getContext('2d');
-      ctx2d.fillStyle = '#574476'; ctx2d.fillRect(0,0,canvas.width,canvas.height);
-      ctx2d.drawImage(logoImg,0,0);
-      doc.addImage(canvas.toDataURL('image/png'),'PNG',6,2,18,18);
+      ctx2d.fillStyle = '#574476';
+      ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+      ctx2d.drawImage(logoImg, 0, 0);
+      doc.addImage(canvas.toDataURL('image/png'), 'PNG', 6, 3.5, 26, 15);
     } catch(e) {}
 
-    doc.setTextColor(255,255,255);
-    doc.setFont('helvetica','bold'); doc.setFontSize(12);
-    doc.text('UniKL Help Desk — IT Department | Category Report', 28, 10);
-    doc.setFontSize(8); doc.setFont('helvetica','normal');
-    doc.text('Generated: ' + new Date().toLocaleString(), 205, 10);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('UniKL Help Desk — Corporate Communication Unit | Category Report', 36, 10);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Generated: ' + new Date().toLocaleString(), 36, 16);
 
     doc.setTextColor(87,68,118); doc.setFontSize(8); doc.setFont('helvetica','bold');
     const filterLine = [
@@ -562,7 +566,7 @@
     const pc = doc.internal.getNumberOfPages();
     for (let i=1;i<=pc;i++) {
       doc.setPage(i); doc.setFontSize(7); doc.setTextColor(148,163,184);
-      doc.text(`Page ${i} of ${pc} — UniKL Help Desk IT Dept`, 14, 208);
+      doc.text(`Page ${i} of ${pc} — UniKL Help Desk CCU`, 14, 208);
     }
     doc.save(`category-report-${label.replace(/[\s→]+/g,'-').toLowerCase()}.pdf`);
   };

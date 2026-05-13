@@ -1,4 +1,4 @@
-<!-- dept_admin/hcd/_head_assets.php -->  
+<!-- dept_admin/hcd/_head_assets.php -->
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

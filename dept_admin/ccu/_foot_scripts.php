@@ -1,4 +1,4 @@
-<!-- dept_admin/ccu/_foot_scripts.php -->
+<!-- dept_admin/ccu/_foot_scripts.php --> 
 <script>
 // Active nav highlight
 document.querySelectorAll('.nav-item').forEach(el => {

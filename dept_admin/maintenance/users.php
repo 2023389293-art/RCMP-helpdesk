@@ -396,8 +396,12 @@ foreach ($scRows as $scRow) {
     </button>
   </div>
 
-  <?php if ($msg):  ?><div class="alert alert-success"><?= $msg ?></div><?php endif; ?>
-  <?php if ($error):?><div class="alert alert-error"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+<?php if ($msg): ?>
+<div class="alert alert-success" id="alertSuccess"><?= $msg ?></div>
+<?php endif; ?>
+<?php if ($error): ?>
+<div class="alert alert-error" id="alertError"><?= htmlspecialchars($error) ?></div>
+<?php endif; ?>
 
   <form method="GET" class="filter-bar">
     <div class="search-wrap">
@@ -1033,6 +1037,16 @@ document.getElementById('deactivateConfirmBtn').addEventListener('click', functi
     _deactivateForm.submit();
     _deactivateForm = null;
   }
+});
+
+['alertSuccess', 'alertError'].forEach(function(id) {
+  const el = document.getElementById(id);
+  if (!el) return;       // ✅ safely skips if alert isn't shown
+  setTimeout(function() {
+    el.style.transition = 'opacity 0.6s ease';
+    el.style.opacity = '0';         // ✅ fades out smoothly
+    setTimeout(function() { el.style.display = 'none'; }, 600); // ✅ removes space after fade
+  }, 4000);              // ✅ 4 second delay
 });
 </script>
 </body>

@@ -1,5 +1,5 @@
 <?php
-// dept/ccu/tickets.php
+// dept/hcd/tickets.php
 require_once __DIR__ . '/../auth_guard.php';
 if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
@@ -117,7 +117,7 @@ $stmt->close();
 
 $activeNav = match($filterStatus) { 'open'=>'tickets-open','in_progress'=>'tickets-inprogress','closed'=>'tickets-closed',default=>'tickets' };
 $pageTitle    = 'All Tickets';
-$pageSubtitle = 'Corporate Communication Unit';
+$pageSubtitle = 'Human Capital Department';
 
 function ticketUrl(array $overrides = []): string {
     $params = array_merge(['status'=>$_GET['status']??'all','per_page'=>$_GET['per_page']??10,'page'=>$_GET['page']??1,'priority'=>$_GET['priority']??'','date_from'=>$_GET['date_from']??'','date_to'=>$_GET['date_to']??'','dept'=>$_GET['dept']??'','category'=>$_GET['category']??''], $overrides);
@@ -151,14 +151,14 @@ function staffInitials(string $name): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>All Tickets | UniKL Help Desk – CCU</title>
+  <title>All Tickets | UniKL Help Desk – HCD</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
   <style>
     /* ── Filter tabs ── */
     .filter-bar{display:flex;align-items:center;gap:6px;margin-bottom:20px;flex-wrap:wrap;}
     .filter-tab{display:inline-flex;align-items:center;gap:7px;padding:8px 18px;border-radius:9px;font-size:14px;font-weight:500;text-decoration:none;border:1.5px solid var(--g200);color:var(--g500);background:white;transition:border-color .15s,color .15s,background .15s,box-shadow .15s;white-space:nowrap;}
     .filter-tab:hover:not(.active){border-color:var(--g300);color:var(--g700);background:var(--g100);}
-    .filter-tab.active.tab-all{background:var(--accent);border-color:var(--accent);color:white;font-weight:600;box-shadow:0 2px 10px rgba(124,58,237,.22);}
+    .filter-tab.active.tab-all{background:var(--accent);border-color:var(--accent);color:white;font-weight:600;box-shadow:0 2px 10px rgba(26,86,219,.22);}
     .filter-tab.active.tab-open{background:#D97706;border-color:#D97706;color:white;font-weight:600;}
     .filter-tab.active.tab-inprogress{background:#2563EB;border-color:#2563EB;color:white;font-weight:600;}
     .filter-tab.active.tab-closed{background:#059669;border-color:#059669;color:white;font-weight:600;}
@@ -178,7 +178,7 @@ function staffInitials(string $name): string {
     .search-wrap{position:relative;display:flex;align-items:center;}
     .search-wrap svg{position:absolute;left:10px;width:14px;height:14px;stroke:var(--g400);fill:none;stroke-width:2;pointer-events:none;}
     .search-input{padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1.5px solid var(--g200);background:white;color:var(--g900);width:200px;outline:none;font-family:'DM Sans',sans-serif;}
-    .search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.08);}
+    .search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,86,219,.08);}
     .perpage-select{padding:8px 10px;font-size:13px;border-radius:8px;border:1.5px solid var(--g200);background:white;color:var(--g700);cursor:pointer;outline:none;font-family:'DM Sans',sans-serif;}
 
     /* ── Advanced filter bar ── */
@@ -190,16 +190,16 @@ function staffInitials(string $name): string {
 .adv-filter-group{display:flex;flex-direction:column;gap:5px;}
 .adv-filter-group label{font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;}
 .adv-filter-select,.adv-filter-input{padding:8px 12px;font-size:13px;border-radius:9px;border:1.5px solid var(--g200);background:#FAFAFA;color:var(--g700);font-family:'DM Sans',sans-serif;outline:none;min-width:155px;transition:border-color .15s,background .15s;}
-.adv-filter-select:focus,.adv-filter-input:focus{border-color:var(--accent);background:white;box-shadow:0 0 0 3px rgba(124,58,237,.07);}
+.adv-filter-select:focus,.adv-filter-input:focus{border-color:var(--accent);background:white;box-shadow:0 0 0 3px rgba(26,86,219,.07);}
 .adv-filter-actions{display:flex;align-items:center;gap:8px;margin-left:auto;padding-bottom:1px;}
-.btn-apply-filter{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;border-radius:9px;border:none;background:var(--accent);color:white;cursor:pointer;box-shadow:0 2px 8px rgba(124,58,237,.18);transition:background .15s,box-shadow .15s;}
-.btn-apply-filter:hover{background:#6d28d9;box-shadow:0 4px 14px rgba(124,58,237,.28);}
+.btn-apply-filter{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;border-radius:9px;border:none;background:var(--accent);color:white;cursor:pointer;box-shadow:0 2px 8px rgba(26,86,219,.18);transition:background .15s,box-shadow .15s;}
+.btn-apply-filter:hover{background:#1240b0;box-shadow:0 4px 14px rgba(26,86,219,.28);}
 .btn-reset-filter{display:inline-flex;align-items:center;gap:5px;padding:9px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;border-radius:9px;border:1.5px solid var(--g200);background:white;color:var(--g500);text-decoration:none;transition:border-color .15s,color .15s;}
 .btn-reset-filter:hover{border-color:var(--g300);color:var(--g700);}
 
     /* ── Active filter chips ── */
     .active-chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-    .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#F5F3FF;border:1.5px solid #DDD6FE;border-radius:20px;font-size:12px;font-weight:600;color:var(--accent);}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:20px;font-size:12px;font-weight:600;color:var(--accent);}
     .chip-x{font-size:14px;font-weight:700;color:var(--accent);text-decoration:none;line-height:1;opacity:.6;}
 
     /* ── Table card ── */
@@ -224,7 +224,7 @@ function staffInitials(string $name): string {
 
     /* ── Ticket ID ── */
     .tid-link{font-weight:600;color:var(--accent);font-size:13px;text-decoration:none;font-family:monospace;letter-spacing:.03em;background:#EFF6FF;padding:3px 8px;border-radius:5px;white-space:nowrap;display:inline-block;max-width:100%;overflow:visible;}
-    .tid-link:hover{color:#6d28d9;background:#EDE9FE;}
+    .tid-link:hover{color:#1240b0;background:#DBEAFE;}
 
     /* ── From Department cell ── */
     .dept-cell{display:flex;flex-direction:column;gap:2px;}
@@ -251,7 +251,7 @@ function staffInitials(string $name): string {
 
     /* ── Assigned To ── */
     .assigned-cell{display:flex;align-items:center;gap:7px;overflow:hidden;}
-.staff-avatar-sm{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3b0764,#7c3aed);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+    .staff-avatar-sm{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#001f5c,#1a56db);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
     .assigned-name{font-size:13px;color:var(--g700);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .unassigned-tag{font-size:13px;color:#9CA3AF;font-style:italic;}
 

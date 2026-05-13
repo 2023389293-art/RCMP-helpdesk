@@ -102,12 +102,15 @@ function pgstr(array $extra = []): string {
       text-overflow: ellipsis;
     }
     /* ── TICKET ID: allow wrap so full ID is always visible ── */
-    .ticket-id {
-  white-space: normal !important;
-  word-break: break-all;
+.ticket-id {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
   display: inline-block;
-  max-width: 100px;
+  max-width: 80px;
+  font-size: 12px;
 }
+
     .td-date {
       color: var(--gray-500);
       font-size: 12px;
@@ -361,15 +364,16 @@ function pgstr(array $extra = []): string {
 
     /* ── STATUS BADGE COLOR OVERRIDES ── */
     .badge.status-open {
-      background: #FFF7ED;
-      color: #C2410C;
-      border: 1px solid rgba(194,65,12,.2);
-    }
-    .badge.status-in_progress {
+  background: #FFF7ED;
+  color: #C2410C;
+  border: 1px solid rgba(194,65,12,.2);
+  white-space: nowrap;   /* ← add this */
+}
+.badge.status-in_progress {
   background: #EFF6FF;
   color: #1D4ED8;
   border: 1px solid rgba(29,78,216,.2);
-  white-space: nowrap;
+  white-space: nowrap;   /* ← add this */
 }
     #ticketModal .modal {
       max-width: 560px;
@@ -440,7 +444,9 @@ function pgstr(array $extra = []): string {
       .data-table tbody td:nth-child(4),
       .data-table tbody td:nth-child(7) { display: none; }
 
-      .card.no-pad { overflow-x: auto; }
+      .card.no-pad {
+  overflow-x: auto;
+}
       .data-table  { min-width: 400px; }
       .ticket-id   { max-width: 70px; font-size: 10px; }
       .td-title    { max-width: 100px; }
@@ -528,7 +534,7 @@ function pgstr(array $extra = []): string {
     <table class="data-table full">
       <thead>
         <tr>
-          <th style="width: 150px;">Ticket ID</th>
+          <th>Ticket ID</th>
           <th>Title</th>
           <th>Submitted By</th>
           <th>Category</th>

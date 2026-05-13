@@ -1,5 +1,5 @@
 <?php
-// dept_admin/it/tickets.php
+// dept_admin/hcd/tickets.php
 require '_layout.php';
 
 $status   = $_GET['status']   ?? '';
@@ -79,7 +79,7 @@ function pgstr(array $extra = []): string {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Human Capital Admin — All Tickets | UniKL Help Desk</title>
+  <title>HCD Admin — All Tickets | UniKL Help Desk</title>
   <?php include '_head_assets.php'; ?>
   <style>
     /* ── TABLE CELL FIXES ── */
@@ -102,12 +102,14 @@ function pgstr(array $extra = []): string {
       text-overflow: ellipsis;
     }
     /* ── TICKET ID: allow wrap so full ID is always visible ── */
-    .ticket-id {
-      white-space: normal !important;
-      word-break: break-all;
-      display: inline-block;
-      max-width: 100px;
-    }
+.ticket-id {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  display: inline-block;
+  max-width: 80px;
+  font-size: 12px;
+}
 
     .td-date {
       color: var(--gray-500);
@@ -362,15 +364,17 @@ function pgstr(array $extra = []): string {
 
     /* ── STATUS BADGE COLOR OVERRIDES ── */
     .badge.status-open {
-      background: #FFF7ED;
-      color: #C2410C;
-      border: 1px solid rgba(194,65,12,.2);
-    }
-    .badge.status-in_progress {
-      background: #EFF6FF;
-      color: #1D4ED8;
-      border: 1px solid rgba(29,78,216,.2);
-    }
+  background: #FFF7ED;
+  color: #C2410C;
+  border: 1px solid rgba(194,65,12,.2);
+  white-space: nowrap;   /* ← add this */
+}
+.badge.status-in_progress {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid rgba(29,78,216,.2);
+  white-space: nowrap;   /* ← add this */
+}
     #ticketModal .modal {
       max-width: 560px;
     }
@@ -440,7 +444,9 @@ function pgstr(array $extra = []): string {
       .data-table tbody td:nth-child(4),
       .data-table tbody td:nth-child(7) { display: none; }
 
-      .card.no-pad { overflow-x: auto; }
+      .card.no-pad {
+  overflow-x: auto;
+}
       .data-table  { min-width: 400px; }
       .ticket-id   { max-width: 70px; font-size: 10px; }
       .td-title    { max-width: 100px; }
@@ -458,7 +464,7 @@ function pgstr(array $extra = []): string {
   <div class="page-header">
     <div>
       <div class="page-eyebrow">Human Capital Department</div>
-      <h1 class="page-title">All Tickets <span class="title-count"><?= $total ?></span></h1>
+<h1 class="page-title">All Tickets <span class="title-count"><?= $total ?></span></h1>
     </div>
   </div>
 

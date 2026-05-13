@@ -902,7 +902,6 @@ $pageSubtitle = 'Information Technology Department';
             </div>
             <div>
               <div class="td-card-header-title">Assigned To</div>
-              <div class="td-card-header-sub">Auto round-robin assignment</div>
             </div>
           </div>
           <div class="td-card-body">

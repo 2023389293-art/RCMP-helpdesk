@@ -26,10 +26,11 @@ $ticketId = trim($_GET['id'] ?? '');
 $ticket   = null;
 
 // ── Smart back URL ────────────────────────────────────────────────────────────
-$backUrl = 'tickets.php';
+$backUrl = 'tickets.php'; // safe default
 $sessionKey = 'td_back_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $ticketId);
 if (!empty($_GET['from'])) {
     $from = $_GET['from'];
+    // Only trust relative URLs (no protocol = safe, no open redirect)
     if (!preg_match('#^https?://#', $from)) {
         $backUrl = $from;
         $_SESSION[$sessionKey] = $backUrl;
@@ -38,90 +39,44 @@ if (!empty($_GET['from'])) {
     $backUrl = $_SESSION[$sessionKey];
 } elseif (!empty($_SERVER['HTTP_REFERER'])) {
     $ref = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_PATH);
+    // Only use referrer if it's NOT ticket_detail itself (avoids tab-switch self-referral)
     if ($ref && strpos($ref, 'ticket_detail') === false) {
         $backUrl = $_SERVER['HTTP_REFERER'];
         $_SESSION[$sessionKey] = $backUrl;
     }
 }
 $backUrlEncoded = urlencode($backUrl);
-
 if ($ticketId !== '') {
     $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.dept_id = ? LIMIT 1");
     $stmt->bind_param("si", $ticketId, $deptId); $stmt->execute();
     $ticket = $stmt->get_result()->fetch_assoc(); $stmt->close();
 }
 
-// ── AJAX: get logs ────────────────────────────────────────────────────────────
-if (!empty($_GET['action']) && $_GET['action'] === 'get_logs' && !empty($_GET['id'])) {
-    $ajaxTid = trim($_GET['id']);
-    $lg = $conn->prepare("SELECT log_id,changed_by,field_changed,old_priority,new_priority,old_status,new_status,changed_at FROM ticket_logs WHERE ticket_id=? ORDER BY changed_at DESC");
-    $lg->bind_param("s", $ajaxTid); $lg->execute();
-    $logs = $lg->get_result()->fetch_all(MYSQLI_ASSOC); $lg->close();
-    header('Content-Type: application/json'); echo json_encode(['logs' => $logs]); exit;
-}
-
-// ── Handle POST ───────────────────────────────────────────────────────────────
+// ── HANDLE POST ───────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
     $action = trim($_POST['action'] ?? 'update');
 
-    if ($action === 'reply') {
-        $message    = trim($_POST['message'] ?? '');
-        $senderId   = $_SESSION['staff_id']   ?? 0;
-        $senderName = $_SESSION['staff_name'] ?? 'Unknown';
-        $senderRole = 'staff';
-        $replyAttachPath = null;
-        if (!empty($_FILES['reply_attachment']['name'])) {
-            $uploadDir = __DIR__ . '/../../uploads/replies/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-            $ext = strtolower(pathinfo($_FILES['reply_attachment']['name'], PATHINFO_EXTENSION));
-            $allowed = ['jpg','jpeg','png','gif','pdf','doc','docx','txt'];
-            if (in_array($ext, $allowed) && $_FILES['reply_attachment']['size'] <= 5*1024*1024) {
-                $filename = $ticketId.'_reply_'.time().'.'.$ext;
-                $replyAttachPath = 'uploads/replies/'.$filename;
-                move_uploaded_file($_FILES['reply_attachment']['tmp_name'], $uploadDir.$filename);
-            }
-        }
-        if (!empty($message) || !empty($replyAttachPath)) {
-            $ins = $conn->prepare("INSERT INTO ticket_replies (ticket_id,sender_id,sender_name,sender_role,message,attachment_path) VALUES (?,?,?,?,?,?)");
-            $ins->bind_param("sissss",$ticketId,$senderId,$senderName,$senderRole,$message,$replyAttachPath);
-            if ($ins->execute()) {
-                $_SESSION['flash_success'] = 'Reply sent.';
-                $countQ = $conn->prepare("SELECT COUNT(*) FROM ticket_replies WHERE ticket_id=? AND sender_role='staff'");
-                $countQ->bind_param("s", $ticketId); $countQ->execute();
-                $countQ->bind_result($staffReplyCount); $countQ->fetch(); $countQ->close();
-                if ($staffReplyCount === 1) {
-                    $convLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_status,new_status) VALUES (?,?,?,'conversation',?,?)");
-                    if ($convLog) {
-                        $clId   = (int)($_SESSION['staff_id'] ?? 0);
-                        $clName = $_SESSION['staff_name'] ?? 'Unknown';
-                        $curSt  = $ticket['status'];
-                        $convLog->bind_param("sisss", $ticketId, $clId, $clName, $curSt, $curSt);
-                        $convLog->execute(); $convLog->close();
-                    }
-                }
-            } else {
-                $_SESSION['flash_error'] = 'Failed to send reply.';
-            }
-            $ins->close();
-        }
-        header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=conversation&from='.$backUrlEncoded); exit;
-    }
-
+    // ── ACTION: reassign ──────────────────────────────────────────────────────
     if ($action === 'reassign') {
         $newStaffId = (int)($_POST['new_staff_id'] ?? 0);
         if ($newStaffId > 0) {
             $oldAssigned = getAssignedStaff($conn, $ticketId);
             $oldName = $oldAssigned ? $oldAssigned['full_name'] : 'Unassigned';
+
             $nsQ = $conn->prepare("SELECT full_name FROM staff WHERE staff_id=? LIMIT 1");
             $nsQ->bind_param("i", $newStaffId); $nsQ->execute();
             $nsRow = $nsQ->get_result()->fetch_assoc(); $nsQ->close();
             $newName = $nsRow['full_name'] ?? "Staff #$newStaffId";
+
             manualAssignTicket($conn, $deptId, $ticketId, $newStaffId);
-            $asnLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority) VALUES (?,?,?,'assigned',?,?)");
+
+            $assignRemarks = trim($_POST['assign_remarks'] ?? '');
+
+            $asnLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,remarks) VALUES (?,?,?,'assigned',?,?,?)");
             if ($asnLog) {
                 $alId   = (int)$_SESSION['staff_id'];
                 $alName = $_SESSION['staff_name'];
-                $asnLog->bind_param("sisss", $ticketId, $alId, $alName, $oldName, $newName);
+                $asnLog->bind_param("sissss", $ticketId, $alId, $alName, $oldName, $newName, $assignRemarks);
                 $asnLog->execute(); $asnLog->close();
             }
             $_SESSION['flash_success'] = 'Ticket reassigned to <strong>'.htmlspecialchars($newName).'</strong>.';
@@ -131,98 +86,286 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
         header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
     }
 
-    if ($action === 'update') {
-        $assignedNow   = getAssignedStaff($conn, $ticketId);
-        $isAssignedNow = ($assignedNow && (int)$assignedNow['staff_id'] === (int)($_SESSION['staff_id'] ?? 0));
-        if (!$isAssignedNow) {
-            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest';
-            if ($isAjax) { header('Content-Type: application/json'); http_response_code(403); echo json_encode(['success'=>false,'error'=>'not_assigned']); exit; }
-            $_SESSION['flash_error'] = 'Only the assigned staff can change priority or status.';
-            header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
-        }
+    
+
+    // ── ACTION: update ────────────────────────────────────────────────────────
+   if ($action === 'update' || $action === 'update_with_message') {
+    $assignedNow   = getAssignedStaff($conn, $ticketId);
+    $isAssignedNow = ($assignedNow && (int)$assignedNow['staff_id'] === (int)($_SESSION['staff_id'] ?? 0));
+
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+    // Allow any staff to change priority via AJAX (priority-only = action 'update' via AJAX)
+    $isPriorityOnlyAjax = $isAjax && $action === 'update';
+
+    if (!$isAssignedNow && !$isPriorityOnlyAjax) {
+        if ($isAjax) { header('Content-Type: application/json'); http_response_code(403); echo json_encode(['success'=>false,'error'=>'not_assigned']); exit; }
+        $_SESSION['flash_error'] = 'Only the assigned staff can change priority or status.';
+        header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
+    }
 
         $newPriority = trim($_POST['priority'] ?? '');
         $newStatus   = trim($_POST['status']   ?? '');
         $allowedPri  = ['low','medium','high'];
         $allowedSta  = ['open','in_progress','closed'];
 
-        if (!in_array($newPriority,$allowedPri)) { $_SESSION['flash_error']='Invalid priority.'; }
-        elseif (!in_array($newStatus,$allowedSta)) { $_SESSION['flash_error']='Invalid status.'; }
-        else {
-            $freshStmt = $conn->prepare("SELECT priority, status, sla_start_at FROM complaints WHERE ticket_id = ? AND dept_id = ? LIMIT 1");
-            $freshStmt->bind_param("si",$ticketId,$deptId); $freshStmt->execute();
-            $freshRow = $freshStmt->get_result()->fetch_assoc(); $freshStmt->close();
-            $oldPriority   = $freshRow['priority']     ?? $ticket['priority'];
-            $oldStatus     = $freshRow['status']       ?? $ticket['status'];
-            $oldSlaStartAt = $freshRow['sla_start_at'] ?? null;
+        // Fetch fresh DB row for old values
+        $freshStmt = $conn->prepare("SELECT priority, status, sla_start_at, first_response_at FROM complaints WHERE ticket_id = ? AND dept_id = ? LIMIT 1");
+        $freshStmt->bind_param("si", $ticketId, $deptId); $freshStmt->execute();
+        $freshRow = $freshStmt->get_result()->fetch_assoc(); $freshStmt->close();
+        $oldPriority      = $freshRow['priority']          ?? $ticket['priority'];
+        $oldStatus        = $freshRow['status']            ?? $ticket['status'];
+        $oldSlaStartAt    = $freshRow['sla_start_at']      ?? null;
+        $oldFirstResponse = $freshRow['first_response_at'] ?? null;
 
-            $slaResetNeeded = (strtolower($oldStatus) === 'closed' && strtolower($newStatus) !== 'closed');
-            if (!$slaResetNeeded && strtolower($newStatus) !== 'closed') {
-                $slaAge = time() - strtotime($oldSlaStartAt ?? $ticket['created_at']);
-                if ($slaAge > (8 * 3600)) { $slaResetNeeded = true; }
-            }
-            $nowMysql = (new DateTime('now', new DateTimeZone(SLA_TZ)))->format('Y-m-d H:i:s');
-
-            if ($slaResetNeeded) {
-                $upd = $conn->prepare("UPDATE complaints SET priority=?,status=?,sla_start_at=?,resolved_at=NULL,updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
-                $upd->bind_param("ssssi", $newPriority, $newStatus, $nowMysql, $ticketId, $deptId);
-            } else {
-                if (strtolower($newStatus) === 'closed' && strtolower($oldStatus) !== 'closed') {
-                    $upd = $conn->prepare("UPDATE complaints SET priority=?,status=?,resolved_at=NOW(),updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
-                    $upd->bind_param("sssi", $newPriority, $newStatus, $ticketId, $deptId);
-                } else {
-                    $upd = $conn->prepare("UPDATE complaints SET priority=?,status=?,updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
-                    $upd->bind_param("sssi", $newPriority, $newStatus, $ticketId, $deptId);
-                }
-            }
-
-            if ($upd->execute()) {
-                $priChanged  = ($oldPriority !== $newPriority);
-                $statChanged = ($oldStatus   !== $newStatus);
-                if ($priChanged || $statChanged) {
-                    $fc = ($priChanged && $statChanged) ? 'both' : ($priChanged ? 'priority' : 'status');
-                    $logStaffId   = (int)$staffId;
-                    $logStaffName = $staffName;
-                    $logStmt = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,old_status,new_status) VALUES (?,?,?,?,?,?,?,?)");
-                    if ($logStmt) {
-                        $logStmt->bind_param("sissssss",$ticketId,$logStaffId,$logStaffName,$fc,$oldPriority,$newPriority,$oldStatus,$newStatus);
-                        $logStmt->execute(); $logStmt->close();
-                    }
-                }
-                $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest';
-                if ($isAjax) {
-                    $extraData = [];
-                    if ($slaResetNeeded) { $extraData['sla_reset'] = true; $extraData['sla_start_at'] = $nowMysql; }
-                    header('Content-Type: application/json');
-                    echo json_encode(array_merge(['success'=>true], $extraData)); exit;
-                }
-                $statusLabel = ucfirst(str_replace('_',' ',$newStatus));
-                $slaNote     = $slaResetNeeded ? ' <strong>SLA reset — fresh 8-hour window started.</strong>' : '';
-                $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.'.$slaNote;
-            } else {
-                $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest';
-                if ($isAjax) { header('Content-Type: application/json'); http_response_code(500); echo json_encode(['success'=>false]); exit; }
-                $_SESSION['flash_error'] = 'Failed to update.';
-            }
-            $upd->close();
+        // Prevent any change on a closed ticket (closed is final)
+        if ($oldStatus === 'closed') {
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjax) { header('Content-Type: application/json'); http_response_code(403); echo json_encode(['success'=>false,'error'=>'ticket_closed']); exit; }
+            $_SESSION['flash_error'] = 'This ticket is closed and cannot be changed.';
+            header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
         }
-        header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
-    }
+
+        if (!in_array($newPriority, $allowedPri)) {
+            $_SESSION['flash_error'] = 'Invalid priority.';
+            header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
+        }
+        if (!in_array($newStatus, $allowedSta)) {
+            $_SESSION['flash_error'] = 'Invalid status.';
+            header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
+        }
+
+        $nowMysql = (new DateTime('now', new DateTimeZone(SLA_TZ)))->format('Y-m-d H:i:s');
+
+        // ── Stamp sla_start_at on very first in_progress ──────────────────
+        if (empty($oldSlaStartAt)) {
+            $slaSet = $conn->prepare("UPDATE complaints SET sla_start_at=? WHERE ticket_id=? AND dept_id=?");
+            $slaSet->bind_param("ssi", $nowMysql, $ticketId, $deptId);
+            $slaSet->execute(); $slaSet->close();
+            $oldSlaStartAt = $nowMysql; // keep in sync for logic below
+        }
+
+// ── Stamp first_response_at on first staff action (open → anything) ──────
+// Covers: open→in_progress AND open→closed directly
+if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed'])) {
+    $frSet = $conn->prepare("UPDATE complaints SET first_response_at=? WHERE ticket_id=? AND dept_id=?");
+    $frSet->bind_param("ssi", $nowMysql, $ticketId, $deptId);
+    $frSet->execute(); $frSet->close();
 }
 
-// ── Flash messages ────────────────────────────────────────────────────────────
+        // ── Build the UPDATE complaints query ─────────────────────────────
+        if ($newStatus === 'closed' && $oldStatus !== 'closed') {
+            // Closing: stamp resolved_at
+            $upd = $conn->prepare("UPDATE complaints SET priority=?,status=?,resolved_at=?,updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
+            $upd->bind_param("ssssi", $newPriority, $newStatus, $nowMysql, $ticketId, $deptId);
+        } else {
+            // open → in_progress or priority-only change
+            $upd = $conn->prepare("UPDATE complaints SET priority=?,status=?,updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
+            $upd->bind_param("sssi", $newPriority, $newStatus, $ticketId, $deptId);
+        }
+
+        if ($upd->execute()) {
+            // Log the change
+            $priChanged  = ($oldPriority !== $newPriority);
+            $statChanged = ($oldStatus   !== $newStatus);
+            if ($priChanged || $statChanged) {
+                $fc           = ($priChanged && $statChanged) ? 'both' : ($priChanged ? 'priority' : 'status');
+                $logStaffId   = (int)$staffId;
+                $logStaffName = $staffName;
+                $logStmt = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,old_status,new_status) VALUES (?,?,?,?,?,?,?,?)");
+                if ($logStmt) {
+                    $logStmt->bind_param("sissssss", $ticketId, $logStaffId, $logStaffName, $fc, $oldPriority, $newPriority, $oldStatus, $newStatus);
+                    $logStmt->execute(); $logStmt->close();
+                }
+            }
+
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true]); exit;
+            }
+
+            $statusLabel = ucfirst(str_replace('_', ' ', $newStatus));
+
+            // ── Send message if provided ──────────────────────────────────────
+            $inlineMessage = trim($_POST['message'] ?? '');
+            if (!empty($inlineMessage)) {
+                $senderName = $_SESSION['staff_name'] ?? 'Staff';
+                $senderRole = 'staff';
+                $senderId   = (int)($_SESSION['staff_id'] ?? 0);
+                $ins = $conn->prepare("INSERT INTO ticket_replies (ticket_id,sender_id,sender_name,sender_role,message) VALUES (?,?,?,?,?)");
+                $ins->bind_param("sisss", $ticketId, $senderId, $senderName, $senderRole, $inlineMessage);
+                $ins->execute(); $ins->close();
+
+                // Email to submitter
+                $subType  = $ticket['submitter_type'] ?? 'student';
+                $subTable = $subType === 'student' ? 'students' : 'staff';
+                $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
+                $subQ = $conn->prepare("SELECT full_name, email FROM {$subTable} WHERE {$subPk}=? LIMIT 1");
+                if ($subQ) {
+                    $subQ->bind_param("i", $ticket['submitter_id']);
+                    $subQ->execute();
+                    $submitterData = $subQ->get_result()->fetch_assoc();
+                    $subQ->close();
+                    if ($submitterData && !empty($submitterData['email'])) {
+                        $toName      = $submitterData['full_name'];
+                        $toEmail     = $submitterData['email'];
+                        $currentYear = date('Y');
+                        $currentDate = date('d F Y');
+                        $escapedTo   = htmlspecialchars($toName);
+                        $escapedTid  = htmlspecialchars($ticketId);
+                        $escapedMsg  = nl2br(htmlspecialchars($inlineMessage));
+                        $escapedFrom = htmlspecialchars($senderName);
+                        $escapedStat = htmlspecialchars($statusLabel);
+                        $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
+                        $statFg  = $newStatus==='closed' ? '#059669' : ($newStatus==='in_progress' ? '#1D4ED8' : '#D97706');
+
+                        $htmlBody = <<<HTML
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background-color:#ffffff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;padding:40px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:white;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #e4e7ed;">
+  <tr><td style="background:#00327a;padding:0;">
+    <table width="100%"><tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr></table>
+    <table width="100%"><tr><td style="padding:28px 40px 24px;">
+<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:4px;">Universiti Kuala Lumpur</div>
+<div style="font-size:18px;font-weight:700;color:#fff;">RCMP Help Desk</div>
+    </td></tr></table>
+    <table width="100%"><tr><td style="padding:12px 40px 16px;background:#002660;">
+      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Ticket Update — Message from Staff</span>
+    </td></tr></table>
+  </td></tr>
+  <tr><td style="background:#f7f8fa;border-bottom:1px solid #e4e7ed;padding:14px 40px;">
+    <table width="100%"><tr>
+      <td style="font-size:12px;color:#6b7280;">Reference No.</td>
+      <td align="right" style="font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTid}</td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:36px 40px 0;">
+    <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">{$currentDate}</p>
+    <p style="margin:0 0 20px;font-size:15px;font-weight:600;color:#111827;">Dear {$escapedTo},</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">Your complaint ticket has been updated by a staff member. Please find the current status and message below.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:20px;">
+      <tr><td colspan="2" style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Ticket Status Update</span></td></tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Ticket Reference</td>
+        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTid}</td>
+      </tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Current Status</td>
+        <td style="padding:12px 18px;"><span style="display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:{$statBg};color:{$statFg};">{$escapedStat}</span></td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:24px;">
+      <tr><td style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Message from {$escapedFrom}</span></td></tr>
+      <tr><td style="padding:16px 18px;background:#f7f8fa;font-size:14px;color:#374151;line-height:1.75;">{$escapedMsg}</td></tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+      <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
+        <p style="margin:0;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details or reply to this ticket.</p>
+      </td></tr>
+    </table>
+    <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
+    <p style="margin:20px 0 4px;font-size:14px;color:#374151;">Yours sincerely,</p>
+    <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#00327a;">UniKL RCMP Help Desk Team</p>
+    <p style="margin:0 0 28px;font-size:12px;color:#9ca3af;">Universiti Kuala Lumpur</p>
+  </td></tr>
+  <tr><td style="background:#f7f8fa;border-top:1px solid #e4e7ed;padding:20px 40px;">
+    <p style="margin:0;font-size:11px;color:#9ca3af;">This is a system-generated notification. Please do not reply directly to this email. &bull; &copy; {$currentYear} Universiti Kuala Lumpur.</p>
+  </td></tr>
+  <tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr>
+</table></td></tr></table></body></html>
+HTML;
+                        $mail = new PHPMailer(true);
+                        try {
+                            $mail->isSMTP(); $mail->Host='smtp.gmail.com'; $mail->SMTPAuth=true;
+                            $mail->Username='farahwdi33@gmail.com'; $mail->Password='wvgq vqdn dbiw vcjn';
+                            $mail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $mail->Port=587;
+                            $mail->Debugoutput='error_log';
+                            $mail->setFrom('farahwdi33@gmail.com','UniKL RCMP Help Desk');
+                            $mail->addAddress($toEmail,$toName);
+                            $mail->isHTML(true); $mail->CharSet='UTF-8';
+                            $mail->Subject="Ticket Update ({$statusLabel}) — {$ticketId}";
+                            $mail->Body=$htmlBody;
+                            $mail->AltBody="Status: {$statusLabel}\n\nMessage from {$senderName}:\n\n{$inlineMessage}\n\nTicket: {$ticketId}";
+                            $mail->send();
+                        } catch (Exception $e) {
+                            error_log("[UniKL Mail] Merged message send failed for {$ticketId}: ".$mail->ErrorInfo);
+                        }
+                    }
+                }
+            } // end if(!empty($inlineMessage))
+
+            // ── Fire processQueue ALWAYS (not just when message sent) ──────────
+            if ($statChanged && in_array($newStatus, ['in_progress', 'closed'])) {
+                processQueue($conn, $deptId, (int)$staffId);
+            }
+
+            $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.';
+
+        } else {
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjax) { header('Content-Type: application/json'); http_response_code(500); echo json_encode(['success'=>false]); exit; }
+            $_SESSION['flash_error'] = 'Failed to update.';
+        }
+        $upd->close();
+        header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
+    } // end update
+
+} // end POST handler
+
+
+if (!empty($_GET['action']) && $_GET['action']==='get_logs' && !empty($_GET['id'])) {
+    $ajaxTid = trim($_GET['id']); $logs = [];
+    $lg = $conn->prepare("
+        SELECT 
+            'log' AS source,
+            log_id AS row_id,
+            changed_by,
+            field_changed,
+            old_priority,
+            new_priority,
+            old_status,
+            new_status,
+            NULL AS message_content,
+            COALESCE(remarks, '') AS remarks,
+            changed_at AS event_at
+        FROM ticket_logs
+        WHERE ticket_id = ?
+        UNION ALL
+        SELECT
+            'reply' AS source,
+            reply_id AS row_id,
+            sender_name AS changed_by,
+            'message' AS field_changed,
+            NULL AS old_priority,
+            NULL AS new_priority,
+            NULL AS old_status,
+            NULL AS new_status,
+            message AS message_content,
+            '' AS remarks,
+            created_at AS event_at
+        FROM ticket_replies
+        WHERE ticket_id = ? AND sender_role = 'staff'
+        ORDER BY event_at DESC
+    ");
+    $lg->bind_param("ss",$ajaxTid,$ajaxTid); $lg->execute();
+    $logs = $lg->get_result()->fetch_all(MYSQLI_ASSOC); $lg->close();
+    header('Content-Type: application/json'); echo json_encode(['logs'=>$logs]); exit;
+}
+
 $updateMsg   = $_SESSION['flash_success'] ?? '';
 $updateError = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-// ── Re-fetch ticket after POST redirect ───────────────────────────────────────
 if ($ticketId !== '') {
     $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.dept_id = ? LIMIT 1");
     $stmt->bind_param("si", $ticketId, $deptId); $stmt->execute();
     $ticket = $stmt->get_result()->fetch_assoc(); $stmt->close();
 }
 
-// ── Fetch submitter ───────────────────────────────────────────────────────────
 $submitter = null;
 if ($ticket) {
     $type  = $ticket['submitter_type'] ?? 'student';
@@ -232,22 +375,50 @@ if ($ticket) {
     if ($s2) { $s2->bind_param("i",$ticket['submitter_id']); $s2->execute(); $submitter=$s2->get_result()->fetch_assoc(); $s2->close(); }
 }
 
-// ── Fetch change logs ─────────────────────────────────────────────────────────
 $changeLogs = [];
 if ($ticket) {
-    $lg = $conn->prepare("SELECT log_id,changed_by,field_changed,old_priority,new_priority,old_status,new_status,changed_at FROM ticket_logs WHERE ticket_id=? ORDER BY changed_at DESC");
-    $lg->bind_param("s",$ticketId); $lg->execute();
+    $lg = $conn->prepare("
+        SELECT 
+            'log' AS source,
+            log_id AS row_id,
+            changed_by,
+            field_changed,
+            old_priority,
+            new_priority,
+            old_status,
+            new_status,
+            NULL AS message_content,
+            COALESCE(remarks, '') AS remarks,
+            changed_at AS event_at
+        FROM ticket_logs
+        WHERE ticket_id = ?
+        UNION ALL
+        SELECT
+            'reply' AS source,
+            reply_id AS row_id,
+            sender_name AS changed_by,
+            'message' AS field_changed,
+            NULL AS old_priority,
+            NULL AS new_priority,
+            NULL AS old_status,
+            NULL AS new_status,
+            message AS message_content,
+            '' AS remarks,
+            created_at AS event_at
+        FROM ticket_replies
+        WHERE ticket_id = ? AND sender_role = 'staff'
+        ORDER BY event_at DESC
+    ");
+    $lg->bind_param("ss",$ticketId,$ticketId); $lg->execute();
     $changeLogs = $lg->get_result()->fetch_all(MYSQLI_ASSOC); $lg->close();
 }
 
-// ── Fetch assigned staff ──────────────────────────────────────────────────────
 $assignedStaff = null;
 if ($ticket) { $assignedStaff = getAssignedStaff($conn, $ticketId); }
 
 $currentStaffId  = (int)($_SESSION['staff_id'] ?? 0);
 $isAssignedStaff = ($assignedStaff && (int)$assignedStaff['staff_id'] === $currentStaffId);
 
-// ── Dept staff list ───────────────────────────────────────────────────────────
 $deptStaffList = [];
 $dsStmt = $conn->prepare("SELECT staff_id, full_name FROM staff WHERE dept_id = ? AND status = 'active' AND role = 'staff' ORDER BY staff_id ASC");
 $dsStmt->bind_param("i", $deptId); $dsStmt->execute();
@@ -255,7 +426,6 @@ $dsRes = $dsStmt->get_result();
 while ($row = $dsRes->fetch_assoc()) $deptStaffList[] = $row;
 $dsStmt->close();
 
-// ── Fetch replies ─────────────────────────────────────────────────────────────
 $replies = [];
 if ($ticket) {
     $rq = $conn->prepare("SELECT reply_id,sender_id,sender_name,sender_role,message,attachment_path,created_at FROM ticket_replies WHERE ticket_id=? ORDER BY created_at ASC");
@@ -263,7 +433,6 @@ if ($ticket) {
     $replies = $rq->get_result()->fetch_all(MYSQLI_ASSOC); $rq->close();
 }
 
-// ── Fetch feedback ────────────────────────────────────────────────────────────
 $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq = $conn->prepare("SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at, s.full_name AS student_name FROM ticket_feedback tf LEFT JOIN students s ON s.student_id = tf.student_id WHERE tf.ticket_id = ? LIMIT 1");
@@ -271,20 +440,51 @@ if ($ticket && strtolower($ticket['status']) === 'closed') {
     $feedback = $fq->get_result()->fetch_assoc(); $fq->close();
 }
 
-// ── SLA data ──────────────────────────────────────────────────────────────────
 $slaData = null;
-if ($ticket && !empty($ticket['sla_start_at'])) {
-    $slaData = getSlaStatus($ticket['sla_start_at'], $ticket['resolved_at'] ?? null, $ticket['status']);
+if ($ticket && !empty($ticket['created_at'])) {
+
+    // Also get first_log_response_at (same fallback as dashboard/reports)
+    $firstLogResponse = null;
+    $flrStmt = $conn->prepare("
+        SELECT MIN(changed_at) AS first_log_ts
+        FROM ticket_logs
+        WHERE ticket_id = ?
+          AND new_status IN ('in_progress','closed')
+          AND old_status = 'open'
+    ");
+    $flrStmt->bind_param("s", $ticketId);
+    $flrStmt->execute();
+    $flrRow = $flrStmt->get_result()->fetch_assoc();
+    $flrStmt->close();
+    $firstLogResponse = $flrRow['first_log_ts'] ?? null;
+
+    // Best respond timestamp: column first, then logs fallback
+    $bestRespondTs = null;
+    if (!empty($ticket['first_response_at'])) {
+        $bestRespondTs = $ticket['first_response_at'];
+    } elseif (!empty($firstLogResponse)) {
+        $bestRespondTs = $firstLogResponse;
+    }
+
+    // For OPEN tickets with no response: clock runs from created_at, no stop
+    $slaFirstResponse = null;
+    if (strtolower($ticket['status']) !== 'open') {
+        $slaFirstResponse = $bestRespondTs;
+    }
+
+    $slaData = getSlaStatus(
+        $ticket['created_at'],        // ← FIX: use created_at (matches reports/dashboard)
+        $ticket['resolved_at'] ?? null,
+        $ticket['status'],
+        $slaFirstResponse
+    );
 }
 
-// ── Active tab ────────────────────────────────────────────────────────────────
+// Active tab from URL
 $activeTab = $_GET['tab'] ?? 'detail';
-if (!in_array($activeTab, ['detail','conversation','history','feedback'])) $activeTab = 'detail';
+if (!in_array($activeTab, ['detail','history','feedback'])) $activeTab = 'detail';
 
-$isClosed    = $ticket && strtolower($ticket['status']) === 'closed';
-$hasFeedback = $feedback !== null;
-
-// ── Helper functions ──────────────────────────────────────────────────────────
+// ── Helpers (all unchanged) ────────────────────────────────────────────────────
 function statusBadge(string $s): string {
     $map=['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
     [$bg,$fg]=$map[strtolower($s)]??['#F3F4F6','#6B7280'];
@@ -350,6 +550,9 @@ function ratingColors(int $rating): array {
     return match($rating) { 1=>['#FEF2F2','#DC2626','#EF4444'], 2=>['#FFF7ED','#C2410C','#F97316'], 3=>['#FEFCE8','#854D0E','#EAB308'], 4=>['#F0FDF4','#166534','#22C55E'], 5=>['#ECFDF5','#166534','#16A34A'], default=>['#F3F4F6','#374151','#6B7280'] };
 }
 
+$isClosed   = $ticket && strtolower($ticket['status']) === 'closed';
+$hasFeedback= $feedback !== null;
+
 $activeNav    = 'tickets';
 $pageTitle    = 'Ticket Detail';
 $pageSubtitle = 'Corporate Communication Unit';
@@ -361,7 +564,8 @@ $pageSubtitle = 'Corporate Communication Unit';
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Ticket Detail | UniKL Help Desk – CCU</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="../it/css/ticket-details.css">
+<link rel="stylesheet" href="css/tickets_details.css">
+  
 </head>
 <body>
 <?php require_once __DIR__ . '/_layout.php'; ?>
@@ -426,16 +630,7 @@ $pageSubtitle = 'Corporate Communication Unit';
       Detail
     </a>
 
-    <!-- Tab 2: Conversation -->
-    <a href="?id=<?php echo urlencode($ticketId); ?>&tab=conversation&from=<?php echo $backUrlEncoded; ?>"
-       class="td-tab-btn <?php echo $activeTab==='conversation'?'active':''; ?>"
-       role="tab">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Conversation
-      <?php if (count($replies) > 0): ?>
-      <span class="td-tab-badge"><?php echo count($replies); ?></span>
-      <?php endif; ?>
-    </a>
+    
 
     <!-- Tab 3: History -->
     <a href="?id=<?php echo urlencode($ticketId); ?>&tab=history&from=<?php echo $backUrlEncoded; ?>"
@@ -575,15 +770,30 @@ $pageSubtitle = 'Corporate Communication Unit';
           <div class="td-card-body">
             <div class="sla-inline-grid">
               <div>
-                <div class="sla-status-chip" style="background:<?php echo $slaData['status_bg']; ?>;color:<?php echo $slaData['status_color']; ?>">
-                  <?php echo htmlspecialchars($slaData['status_label']); ?>
-                </div>
-                <?php if (strtolower($ticket['status']) !== 'closed'): ?>
-                <div class="sla-remaining-big" style="color:<?php echo $slaData['status_color']; ?>">
-                  <?php echo htmlspecialchars($slaData['remaining_str']); ?>
-                </div>
-                <div class="sla-remaining-sub">until SLA deadline</div>
-                <?php endif; ?>
+                <?php if (strtolower($ticket['status']) !== 'in_progress' || empty($ticket['first_response_at'])): ?>
+<div class="sla-status-chip" style="background:<?php echo $slaData['status_bg']; ?>;color:<?php echo $slaData['status_color']; ?>">
+  <?php echo htmlspecialchars($slaData['status_label']); ?>
+</div>
+<?php else: ?>
+<div class="sla-status-chip" style="background:#D1FAE5;color:#059669;">
+  SLA Stopped
+</div>
+<?php endif; ?>
+                <?php if (strtolower($ticket['status']) !== 'closed' && empty($ticket['first_response_at'])): ?>
+<div class="sla-remaining-big" style="color:<?php echo $slaData['status_color']; ?>">
+  <?php echo htmlspecialchars($slaData['remaining_str']); ?>
+</div>
+<div class="sla-remaining-sub">until SLA deadline</div>
+<?php elseif (strtolower($ticket['status']) === 'in_progress' && !empty($ticket['first_response_at'])): ?>
+<div class="sla-remaining-big" style="color:#059669;">
+  <?php 
+    $em = $slaData['elapsed_mins'];
+    $eh = intdiv($em, 60); $emm = $em % 60;
+    echo $eh > 0 ? "{$eh}h {$emm}m used" : "{$emm}m used";
+  ?>
+</div>
+<div class="sla-remaining-sub"></div>
+<?php endif; ?>
               </div>
               <div class="sla-inline-right">
                 <?php $fillPct = min($slaData['percent_used'], 100); ?>
@@ -591,32 +801,77 @@ $pageSubtitle = 'Corporate Communication Unit';
                   <div class="sla-progress-fill" style="width:<?php echo $fillPct; ?>%;background:<?php echo $slaData['status_color']; ?>"></div>
                 </div>
                 <div class="sla-tick-row"><span>0h</span><span>4h</span><span>8h</span></div>
-                <div class="sla-info-grid" style="grid-template-columns: repeat(4,1fr);">
-                  <div>
-                    <div class="sla-info-label">SLA Started</div>
-                    <div class="sla-info-value"><?php echo date('d M, H:i',strtotime($ticket['sla_start_at'])); ?></div>
-                  </div>
-                  <div>
-                    <div class="sla-info-label">Deadline</div>
-                    <div class="sla-info-value"><?php echo $slaData['deadline_str']; ?></div>
-                  </div>
-                  <div>
-                    <div class="sla-info-label">Time Used</div>
-                    <div class="sla-info-value">
-                      <?php $em=$slaData['elapsed_mins']; $eh=intdiv($em,60); $emm=$em%60; echo $eh>0?"{$eh}h {$emm}m":"{$emm}m"; ?> / <?php echo SLA_WORK_HOURS; ?>h
-                    </div>
-                  </div>
-                  <div>
-                    <div class="sla-info-label"><?php echo strtolower($ticket['status'])==='closed'?'Closed At':'Updated'; ?></div>
-                    <div class="sla-info-value">
-                      <?php if(strtolower($ticket['status'])==='closed'&&!empty($ticket['resolved_at'])): ?>
-                        <?php echo date('d M, H:i',strtotime($ticket['resolved_at'])); ?>
-                      <?php else: ?>
-                        <?php echo date('d M, H:i',strtotime($ticket['updated_at'])); ?>
-                      <?php endif; ?>
-                    </div>
-                  </div>
-                </div>
+                <?php
+  $ticketStatus = strtolower($ticket['status']);
+  $em = $slaData['elapsed_mins'];
+  $eh = intdiv($em, 60); $emm = $em % 60;
+  if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
+    $timeUsedStr = ($eh > 0 ? "{$eh}h {$emm}m" : "{$emm}m") . ' / ' . SLA_WORK_HOURS . 'h';
+} else {
+    $timeUsedStr = ($eh > 0 ? "{$eh}h {$emm}m" : "{$emm}m") . ' used';
+}
+
+  if ($ticketStatus === 'closed') {
+      $timeUsedNote = 'Working hours from submission to close';
+  } elseif (!empty($ticket['first_response_at'])) {
+      $timeUsedNote = 'Working hours from submission to first response';
+  } else {
+      $timeUsedNote = 'Working hours elapsed since submission';
+  }
+
+  $respondedVal  = !empty($ticket['first_response_at'])
+      ? date('d M Y, H:i', strtotime($ticket['first_response_at'])) : '—';
+  $respondedNote = !empty($ticket['first_response_at'])
+      ? 'Staff first moved ticket to In Progress or Closed' : 'No staff response yet';
+
+  $closedVal  = ($ticketStatus === 'closed' && !empty($ticket['resolved_at']))
+      ? date('d M Y, H:i', strtotime($ticket['resolved_at'])) : '—';
+  $closedNote = ($ticketStatus === 'closed' && !empty($ticket['resolved_at']))
+      ? 'Ticket was marked as closed'
+      : ($ticketStatus === 'closed' ? 'Closed (no timestamp)' : 'Ticket not yet closed');
+?>
+<div class="sla-info-grid" style="grid-template-columns: repeat(5,1fr);">
+
+  <div>
+    <div class="sla-info-label">Submitted</div>
+    <div class="sla-info-value"><?php echo date('d M Y, H:i', strtotime($ticket['created_at'])); ?></div>
+    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;">Ticket submission date &amp; time</div>
+  </div>
+
+  <div>
+    <div class="sla-info-label">Deadline</div>
+    <?php if ($ticketStatus === 'open' && empty($ticket['first_response_at'])): ?>
+      <div class="sla-info-value"><?php echo $slaData['deadline_str']; ?></div>
+      <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;">Must respond before this time</div>
+    <?php else: ?>
+      <div class="sla-info-value" style="color:#9CA3AF;">—</div>
+      <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;">SLA clock stopped after response</div>
+    <?php endif; ?>
+  </div>
+
+  <div>
+    <div class="sla-info-label">Time Used</div>
+    <div class="sla-info-value"><?php echo $timeUsedStr; ?></div>
+    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;"><?php echo $timeUsedNote; ?></div>
+  </div>
+
+  <div>
+    <div class="sla-info-label">Responded At</div>
+    <div class="sla-info-value" style="<?php echo empty($ticket['first_response_at']) ? 'color:#9CA3AF;' : ''; ?>">
+      <?php echo $respondedVal; ?>
+    </div>
+    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;"><?php echo $respondedNote; ?></div>
+  </div>
+
+  <div>
+    <div class="sla-info-label">Closed At</div>
+    <div class="sla-info-value" style="<?php echo ($ticketStatus !== 'closed') ? 'color:#9CA3AF;' : ''; ?>">
+      <?php echo $closedVal; ?>
+    </div>
+    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;"><?php echo $closedNote; ?></div>
+  </div>
+
+</div>
               </div>
             </div>
             <?php
@@ -647,7 +902,6 @@ $pageSubtitle = 'Corporate Communication Unit';
             </div>
             <div>
               <div class="td-card-header-title">Assigned To</div>
-              <div class="td-card-header-sub">Auto round-robin assignment</div>
             </div>
           </div>
           <div class="td-card-body">
@@ -668,17 +922,21 @@ $pageSubtitle = 'Corporate Communication Unit';
               <input type="hidden" name="action" value="reassign"/>
               <div class="reassign-label">Reassign to</div>
               <div class="reassign-row">
-                <select name="new_staff_id" class="reassign-select" required>
+                <select name="new_staff_id" class="reassign-select" id="reassignSelect" required onchange="handleReassignChange(this)">
                   <option value="">— Select staff —</option>
                   <?php foreach ($deptStaffList as $s): ?>
-                  <option value="<?php echo $s['staff_id']; ?>"
-                    <?php echo (($assignedStaff['staff_id'] ?? 0) == $s['staff_id']) ? 'selected' : ''; ?>>
+                  <?php if ((int)$s['staff_id'] === (int)($assignedStaff['staff_id'] ?? 0)) continue; ?>
+                  <option value="<?php echo $s['staff_id']; ?>">
                     <?php echo htmlspecialchars($s['full_name']); ?>
                   </option>
                   <?php endforeach; ?>
                 </select>
-                <button type="submit" class="reassign-btn">Save</button>
               </div>
+              <div id="reassignRemarksBox" style="display:none;">
+                <div class="reassign-label" style="margin-top:10px;">Remarks <span style="color:#9CA3AF;font-weight:400;font-size:10px;">(optional)</span></div>
+                <textarea name="assign_remarks" class="msg-inline-textarea" placeholder="Reason for reassignment…" maxlength="500" rows="2"></textarea>
+              </div>
+              <button type="submit" id="reassignSaveBtn" class="reassign-btn" style="width:100%;margin-top:8px;display:none;">Save Assignment</button>
             </form>
             <?php endif; ?>
           </div>
@@ -709,45 +967,66 @@ $pageSubtitle = 'Corporate Communication Unit';
                 </button>
                 <?php endforeach; ?>
               </div>
-              <div class="form-divider"></div>
-              <form method="POST" action="ticket_detail.php?id=<?php echo urlencode($ticketId); ?>" id="updateForm">
-                <input type="hidden" name="action" value="update"/>
-                <input type="hidden" name="priority" id="priorityInput" value="<?php echo htmlspecialchars($curPri); ?>"/>
-                <div class="update-status-label">Status</div>
-                <select name="status" id="status" required class="update-status-select">
-                  <option value="open"        <?php echo $curStat==='open'       ?'selected':''; ?>>Open</option>
-                  <option value="in_progress" <?php echo $curStat==='in_progress'?'selected':''; ?>>In Progress</option>
-                  <option value="closed"      <?php echo $curStat==='closed'     ?'selected':''; ?>>Closed</option>
-                </select>
-                <div id="slaResetWarning" class="sla-warning-box">
-                  <svg viewBox="0 0 24 24"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                  <span>Reopening this ticket will <strong>reset the SLA</strong> — a fresh 8-hour window starts from now.</span>
-                </div>
-                <button type="button" class="btn-update-save" onclick="openConfirmModal()">Save Changes</button>
-              </form>
+              <div class="pri-status-divider"><span>Status</span></div>
+<form method="POST" action="ticket_detail.php?id=<?php echo urlencode($ticketId); ?>" id="updateForm">
+  <input type="hidden" name="action" value="update_with_message"/>
+  <input type="hidden" name="priority" id="priorityInput" value="<?php echo htmlspecialchars($curPri); ?>"/>
+                
+<div class="status-select-wrap">
+  <select name="status" id="status" class="status-select-styled" onchange="handleStatusChange(this.value)">
+    <?php if ($curStat === 'open'): ?>
+  <option value="open" selected>Open</option>
+  <option value="in_progress">In Progress</option>
+  <option value="closed">Closed</option>
+<?php elseif ($curStat === 'in_progress'): ?>
+  <option value="in_progress" selected>In Progress</option>
+  <option value="closed">Closed</option>
+<?php else: ?>
+  <option value="closed" selected>Closed</option>
+<?php endif; ?>
+  </select>
+</div>
+
+<?php if ($curStat !== 'closed'): ?>
+<div id="msgBox" style="display:none;">
+  <div class="msg-section-divider"></div>
+  <div class="msg-section-label">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Message to Submitter <span style="color:#9CA3AF;font-weight:400;font-size:10px;margin-left:4px;">(optional)</span>
+  </div>
+  <textarea name="message" class="msg-inline-textarea" placeholder="Type a message to the submitter…" maxlength="2000" rows="3"></textarea>
+</div>
+<?php endif; ?>
+
+<button type="button" class="btn-update-save" onclick="openConfirmModal()">Save Changes</button>
+</form>
+
+
 
             <?php else: ?>
-              <div class="no-permission-box">
-                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <div>
-                  <div class="no-permission-title">No permission</div>
-                  <div class="no-permission-desc">Only <strong><?php echo htmlspecialchars($assignedStaff['full_name'] ?? 'the assigned staff'); ?></strong> can change priority or status.</div>
-                </div>
-              </div>
-              <div class="pri-label-sm">Priority</div>
-              <div class="pri-btn-group" style="pointer-events:none;opacity:0.45;">
-                <?php foreach(['low'=>'Low','medium'=>'Medium','high'=>'High'] as $val=>$label): ?>
-                <button type="button" class="pri-btn <?php echo $curPri===$val?'active':''; ?>" disabled>
-                  <span class="pri-dot"></span><?php echo $label; ?>
-                </button>
-                <?php endforeach; ?>
-              </div>
-              <div class="form-divider"></div>
-              <div class="update-status-label">Status</div>
-              <div style="padding:9px 11px;border:1.5px solid #E5E7EB;border-radius:7px;font-size:13px;color:#9CA3AF;background:#F9FAFB;">
-                <?php echo $curStat==='in_progress'?'In Progress':ucfirst($curStat); ?>
-              </div>
-            <?php endif; ?>
+  <div class="no-permission-box">
+    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <div>
+      <div class="no-permission-title">Limited permission</div>
+      <div class="no-permission-desc">You can change <strong>priority</strong>. Only <strong><?php echo htmlspecialchars($assignedStaff['full_name'] ?? 'the assigned staff'); ?></strong> can change the status.</div>
+    </div>
+  </div>
+
+  <div class="pri-label-sm">Priority <span id="priSavingSpinner" style="display:none;font-size:10px;color:#9CA3AF;font-weight:400;margin-left:3px">saving…</span></div>
+  <div class="pri-btn-group">
+    <?php foreach(['low'=>'Low','medium'=>'Medium','high'=>'High'] as $val=>$label): ?>
+    <button type="button" class="pri-btn <?php echo $curPri===$val?'active':''; ?>" data-pri="<?php echo $val; ?>" onclick="selectPriorityAutoSave('<?php echo $val; ?>',this)">
+      <span class="pri-dot"></span><?php echo $label; ?>
+    </button>
+    <?php endforeach; ?>
+  </div>
+
+  <input type="hidden" id="priorityInput" value="<?php echo htmlspecialchars($curPri); ?>"/>
+<div class="pri-status-divider"><span>Status</span></div>
+  <div style="padding:9px 11px;border:1.5px solid #E5E7EB;border-radius:7px;font-size:13px;color:#9CA3AF;background:#F9FAFB;">
+    <?php echo $curStat==='in_progress'?'In Progress':ucfirst($curStat); ?>
+  </div>
+<?php endif; ?>
           </div>
         </div>
 
@@ -755,106 +1034,6 @@ $pageSubtitle = 'Corporate Communication Unit';
     </div><!-- /.detail-tab-grid -->
   </div><!-- /.td-panel detail -->
 
-
-  <!-- ══════════════════════════════════════════════════
-       TAB 2: CONVERSATION
-  ══════════════════════════════════════════════════ -->
-  <div class="td-panel <?php echo $activeTab==='conversation'?'active':''; ?>">
-    <div class="conv-card">
-      <div class="conv-header">
-        <div class="conv-header-icon">
-          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <div>
-          <div class="conv-header-title">Complaint Chat</div>
-          <div class="conv-header-sub">Reply to <?php echo htmlspecialchars($submitter['name']??'the user'); ?></div>
-        </div>
-        <?php if (count($replies) > 0): ?><div class="conv-badge"><?php echo count($replies); ?></div><?php endif; ?>
-      </div>
-
-      <div class="conv-messages" id="chatMessages">
-        <?php if (empty($replies)): ?>
-        <div class="conv-empty">
-          <div class="conv-empty-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-          <div><strong style="display:block;font-size:13.5px;font-weight:600;color:#374151;margin-bottom:3px;">No messages yet</strong>
-          <p style="font-size:12.5px;color:#9CA3AF;margin:0;max-width:200px;">Start the conversation by sending a reply below.</p></div>
-        </div>
-        <?php else:
-          $prevDate='';
-          foreach ($replies as $r):
-            $msgDate  = date('d M Y',strtotime($r['created_at']));
-            $isStaff  = in_array($r['sender_role'],['staff','dept_handler','admin']);
-            $rowClass = $isStaff?'from-staff':'from-user';
-            $avClass  = $isStaff?'staff-av':'user-av';
-            $initials = getInitials($r['sender_name']);
-            $hasAttach= !empty($r['attachment_path']);
-            $attachPath=$hasAttach?$r['attachment_path']:'';
-            $isImg    = $hasAttach&&isImageFile($attachPath);
-            $fileName = $hasAttach?basename($attachPath):'';
-            $fileIcon = ($hasAttach&&!$isImg)?fileTypeIcon($attachPath):[];
-        ?>
-          <?php if($msgDate!==$prevDate):$prevDate=$msgDate;?><div class="date-sep"><span><?php echo $msgDate===date('d M Y')?'Today':$msgDate; ?></span></div><?php endif; ?>
-          <div class="msg-row <?php echo $rowClass; ?>">
-            <div class="msg-avatar <?php echo $avClass; ?>"><?php echo htmlspecialchars($initials); ?></div>
-            <div class="msg-content">
-              <div class="msg-meta"><span class="msg-sender"><?php echo htmlspecialchars($r['sender_name']); ?></span>· <?php echo date('H:i',strtotime($r['created_at'])); ?></div>
-              <?php if($isImg): ?>
-                <a href="../../<?php echo htmlspecialchars($attachPath); ?>" class="msg-img-bubble" onclick="openLightbox(this.href,'<?php echo htmlspecialchars(addslashes($fileName)); ?>');return false;">
-                  <img src="../../<?php echo htmlspecialchars($attachPath); ?>" alt="<?php echo htmlspecialchars($fileName); ?>" loading="lazy"/>
-                </a>
-                <?php if(!empty($r['message'])): ?><div class="msg-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div><?php endif; ?>
-              <?php elseif($hasAttach): ?>
-                <?php if(!empty($r['message'])): ?><div class="msg-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div><?php endif; ?>
-                <a href="../../<?php echo htmlspecialchars($attachPath); ?>" class="msg-file-card" target="_blank">
-                  <div class="msg-file-icon" style="<?php if(!$isStaff):echo 'background:'.htmlspecialchars($fileIcon['bg']).';color:'.htmlspecialchars($fileIcon['color']).';';endif;?>"><?php echo htmlspecialchars($fileIcon['label']??'?'); ?></div>
-                  <div class="msg-file-info">
-                    <span class="msg-file-name"><?php echo htmlspecialchars($fileName); ?></span>
-                    <span class="msg-file-meta"><?php echo strtoupper(pathinfo($attachPath,PATHINFO_EXTENSION)); ?> file</span>
-                  </div>
-                  <svg class="msg-file-dl-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                </a>
-              <?php else: ?>
-                <?php if(!empty($r['message'])): ?><div class="msg-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div><?php endif; ?>
-              <?php endif; ?>
-            </div>
-          </div>
-        <?php endforeach; endif; ?>
-      </div>
-
-      <?php if ($ticket['status'] !== 'closed'): ?>
-      <div class="conv-input-area">
-        <form method="POST" action="ticket_detail.php?id=<?php echo urlencode($ticketId); ?>" enctype="multipart/form-data" id="replyForm">
-          <input type="hidden" name="action" value="reply"/>
-          <div class="conv-input-row">
-            <label class="conv-attach-label" for="replyAttachment" title="Attach file">
-              <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            </label>
-            <input type="file" id="replyAttachment" name="reply_attachment" accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.txt" style="display:none"/>
-            <textarea class="conv-textarea" name="message" id="chatInput" placeholder="Type your reply here…" rows="1" maxlength="3000"></textarea>
-            <button type="submit" class="conv-send-btn">
-              <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
-          </div>
-          <div class="conv-attach-preview" id="attachFilePreview">
-            <svg viewBox="0 0 24 24" style="width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <span id="attachFileName"></span>
-            <button type="button" class="conv-attach-remove" id="attachRemove">×</button>
-          </div>
-          <div id="attachImgPreviewWrap"><img id="attachImgPreview" src="" alt=""/></div>
-          <div class="conv-hint">
-            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            Message saved to chat thread.
-          </div>
-        </form>
-      </div>
-      <?php else: ?>
-      <div class="conv-closed-bar">
-        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        This ticket is <strong style="margin:0 4px">closed</strong>. Reopen it to reply.
-      </div>
-      <?php endif; ?>
-    </div>
-  </div><!-- /.td-panel conversation -->
 
 
   <!-- ══════════════════════════════════════════════════
@@ -894,12 +1073,13 @@ $pageSubtitle = 'Corporate Communication Unit';
         <?php foreach($changeLogs as $idx=>$log):
           $fc=$log['field_changed'];
           $dotCls=match($fc){
-            'priority'=>'pri',
-            'status'=>'stat',
-            'assigned'=>'asgn',
-            'conversation'=>'conv',
-            default=>'both'
-          };
+    'priority'=>'pri',
+    'status'=>'stat',
+    'assigned'=>'asgn',
+    'conversation'=>'conv',
+    'message'=>'msg',
+    default=>'both'
+};
         ?>
         <div class="tl-item" data-log-index="<?php echo $idx; ?>" style="<?php echo $idx>=10?'display:none':''; ?>">
           <div class="tl-dot <?php echo $dotCls; ?>">
@@ -911,16 +1091,18 @@ $pageSubtitle = 'Corporate Communication Unit';
               <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             <?php elseif($fc==='conversation'):?>
               <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <?php elseif($fc==='message'):?>
+  <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10" stroke-linecap="round"/><line x1="9" y1="14" x2="13" y2="14" stroke-linecap="round"/></svg>
             <?php else:?>
               <svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg>
             <?php endif; ?>
           </div>
           <div class="tl-body">
             <div class="tl-header">
-              <span class="tl-who"><?php echo htmlspecialchars($log['changed_by']); ?></span>
-              <span class="tl-when"><?php echo timeAgo($log['changed_at']); ?></span>
-            </div>
-            <span class="tl-when-full"><?php echo date('d M Y, H:i',strtotime($log['changed_at'])); ?></span>
+  <span class="tl-who"><?php echo htmlspecialchars($log['changed_by']); ?></span>
+  <span class="tl-when"><?php echo timeAgo($log['event_at']); ?></span>
+</div>
+<span class="tl-when-full"><?php echo date('d M Y, H:i',strtotime($log['event_at'])); ?></span>
             <div class="tl-changes" style="margin-top:5px">
               <?php if(in_array($fc,['priority','both'])&&$log['old_priority']&&$log['new_priority']):?>
               <div class="tl-row"><span class="tl-row-label">Priority</span><?php echo priChip($log['old_priority']); ?><span class="tl-arrow">→</span><?php echo priChip($log['new_priority']); ?></div>
@@ -930,15 +1112,27 @@ $pageSubtitle = 'Corporate Communication Unit';
               <?php endif; ?>
               <?php if($fc==='assigned'): ?>
 <div class="tl-row">
-    <span class="tl-row-label">Assigned by</span>
-    <span class="tl-chip-name" style="background:#EFF6FF;color:#1D4ED8;"><?php echo htmlspecialchars($log['changed_by']); ?></span>
+    <span class="tl-row-label">Action</span>
+    <span class="tl-chip-name" style="background:#EFF6FF;color:#1D4ED8;">Ticket Reassigned</span>
 </div>
 <div class="tl-row" style="margin-top:4px;">
-    <span class="tl-row-label">From</span>
-    <span class="tl-chip-name"><?php echo htmlspecialchars($log['old_priority'] ?? 'Unassigned'); ?></span>
-    <span class="tl-arrow">→</span>
-    <span class="tl-chip-name tl-chip-name--new"><?php echo htmlspecialchars($log['new_priority'] ?? '—'); ?></span>
+    <span class="tl-row-label">Assigned to</span>
+    <?php $fromName = $log['old_priority'] ?? null; $toName = $log['new_priority'] ?? null; ?>
+    <?php if ($fromName && $fromName !== 'Unassigned'): ?>
+        <span class="tl-chip-name"><?php echo htmlspecialchars($fromName); ?></span>
+        <span class="tl-arrow">→</span>
+    <?php else: ?>
+        <span class="tl-chip-name" style="color:#9CA3AF;background:#F9FAFB;">Unassigned</span>
+        <span class="tl-arrow">→</span>
+    <?php endif; ?>
+    <span class="tl-chip-name tl-chip-name--new"><?php echo htmlspecialchars($toName ?? '—'); ?></span>
 </div>
+<?php if (!empty($log['remarks'])): ?>
+<div class="tl-msg-bubble" style="border-left-color:#6366F1;background:#EEF2FF;color:#3730A3;margin-top:6px;">
+    <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#818CF8;display:block;margin-bottom:3px;">Remarks</span>
+    <?php echo nl2br(htmlspecialchars($log['remarks'])); ?>
+</div>
+<?php endif; ?>
 <?php endif; ?>
               <?php if($fc==='conversation'): ?>
               <div class="tl-row">
@@ -946,6 +1140,27 @@ $pageSubtitle = 'Corporate Communication Unit';
                 <span class="tl-chip-conv">Started first reply to ticket</span>
               </div>
               <?php endif; ?>
+
+              <?php if($fc==='message'): ?>
+<div class="tl-row">
+  <span class="tl-row-label">Message</span>
+  <span class="tl-chip-conv" style="background:#EEF2FF;color:#3730A3;">
+    <?php echo $log['source'] === 'reply' ? 'Sent a message' : 'Sent message with status update'; ?>
+  </span>
+</div>
+<?php if(!empty($log['message_content'])): ?>
+<div class="tl-msg-bubble">
+  <?php echo nl2br(htmlspecialchars($log['message_content'])); ?>
+</div>
+<?php endif; ?>
+<?php if(!empty($log['new_status']) && $log['source'] === 'log'): ?>
+<div class="tl-row" style="margin-top:4px;">
+  <span class="tl-row-label">Status</span>
+  <?php echo statChip($log['new_status']); ?>
+</div>
+<?php endif; ?>
+<?php endif; ?>
+
             </div>
           </div>
         </div>
@@ -1089,6 +1304,39 @@ $pageSubtitle = 'Corporate Communication Unit';
   </div>
 </div>
 
+<!-- ══ Validation Alert Modal ══ -->
+<div class="modal-backdrop" id="validationModal">
+  <div class="td-modal" style="max-width:360px;position:relative;overflow:hidden;padding:0;text-align:left;">
+    
+    <!-- Red alert header band -->
+    <div style="background:#DC2626;padding:20px 24px 18px;display:flex;align-items:center;gap:12px;">
+      <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin-bottom:3px;">Warning</div>
+        <div style="font-size:16px;font-weight:700;color:white;line-height:1.2;">No Status Selected</div>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:20px 24px 22px;">
+      <p style="font-size:13.5px;color:#374151;line-height:1.65;margin:0 0 14px;">You must select a <strong>new status</strong> from the dropdown before saving. The status cannot stay the same.</p>
+      
+      <!-- Current status highlight box -->
+      <div style="background:#FEF2F2;border:1.5px solid #FECACA;border-left:4px solid #DC2626;border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:18px;display:flex;align-items:center;gap:9px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span style="font-size:12.5px;color:#991B1B;line-height:1.5;">Current status is already <strong id="validationCurrentStatus"></strong> — you must pick a different one.</span>
+      </div>
+
+      <!-- Action button -->
+      <button onclick="closeValidationModal()" style="width:100%;padding:11px;border-radius:8px;border:1.5px solid #E5E7EB;background:white;color:#374151;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;" onmouseover="this.style.background='#F9FAFB'" onmouseout="this.style.background='white'">Dismiss</button>
+    </div>
+
+  </div>
+</div>
+
+
 <!-- ══ Confirm Modal ══ -->
 <div class="modal-backdrop" id="confirmModal">
   <div class="td-modal">
@@ -1112,6 +1360,15 @@ $pageSubtitle = 'Corporate Communication Unit';
 </div>
 
 <script>
+// ── Reassign select — show remarks + button only when a staff is chosen ───────
+function handleReassignChange(sel) {
+  var remarksBox = document.getElementById('reassignRemarksBox');
+  var saveBtn    = document.getElementById('reassignSaveBtn');
+  var show = sel.value !== '';
+  remarksBox.style.display = show ? 'block' : 'none';
+  saveBtn.style.display    = show ? 'block' : 'none';
+}
+
 // ── Priority auto-save ────────────────────────────────────────────────────────
 var priConfig={
   low:{emoji:'🔵',label:'Low',chip:'#EFF6FF',chipColor:'#3B82F6',subtext:'Marked as low priority.'},
@@ -1135,6 +1392,14 @@ function openPriModal(priority){
   clearTimeout(priModalAutoClose); priModalAutoClose=setTimeout(closePriModal,4000);
 }
 function closePriModal(){clearTimeout(priModalAutoClose);document.getElementById('priModalBackdrop').style.display='none';}
+
+function handleStatusChange(val) {
+  document.querySelector('.btn-update-save').style.display = 'block';
+  var msgBox = document.getElementById('msgBox');
+  if (msgBox) {
+    msgBox.style.display = (val === 'in_progress' || val === 'closed') ? 'block' : 'none';
+  }
+}
 document.getElementById('priModalBackdrop').addEventListener('click',function(e){if(e.target===this)closePriModal();});
 
 var priFlagMap={
@@ -1160,11 +1425,12 @@ function selectPriorityAutoSave(priority,btn){
     if(xhr.status===200){
       try{
         var r=JSON.parse(xhr.responseText);
-        if(r.success){
+       if(r.success){
     openPriModal(priority);
+    // Update sidebar chip (already exists)
     var ce=document.getElementById('ticketPriorityChip');
     if(ce&&priFlagMap[priority])ce.innerHTML=priFlagMap[priority];
-    // ← ADD THESE TWO LINES: Update header strip priority flag
+    // ← ADD THIS: Update header strip priority flag
     var thsPri=document.getElementById('thsPriorityFlag');
     if(thsPri&&priFlagMap[priority])thsPri.innerHTML=priFlagMap[priority];
 }else{alert('Failed to update.');}
@@ -1176,28 +1442,28 @@ function selectPriorityAutoSave(priority,btn){
 
 // ── SLA reset warning ─────────────────────────────────────────────────────────
 var currentTicketStatus='<?php echo addslashes($curStat ?? 'open'); ?>';
-(function(){
-  var statusEl=document.getElementById('status');
-  if(!statusEl)return;
-  statusEl.addEventListener('change',function(){
-    var warn=document.getElementById('slaResetWarning');
-    if(!warn)return;
-    warn.style.display=(currentTicketStatus==='closed'&&this.value!=='closed')?'flex':'none';
-  });
-})();
+
 
 // ── Confirm modal ─────────────────────────────────────────────────────────────
 function openConfirmModal(){
-  var statusEl=document.getElementById('status');
-  if(!statusEl)return;
-  var status=statusEl.value;
+  var status = document.getElementById('status').value;
+  var currentStatus = '<?php echo addslashes($curStat); ?>';
+
+  if (!status || status === currentStatus) {
+    var label = {'open':'Open','in_progress':'In Progress','closed':'Closed'};
+    var el = document.getElementById('validationCurrentStatus');
+    if (el) el.textContent = label[currentStatus] || currentStatus;
+    document.getElementById('validationModal').classList.add('show');
+    return;
+  }
+
+  var isReopening=(currentTicketStatus==='closed'&&status!=='closed');
   var map={
     open:'<span style="display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px;background:#FEF3C7;color:#D97706">Open</span>',
     in_progress:'<span style="display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px;background:#DBEAFE;color:#1D4ED8">In Progress</span>',
     closed:'<span style="display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px;background:#D1FAE5;color:#059669">Closed</span>'
   };
   document.getElementById('modalStatVal').innerHTML=map[status]||status;
-  var isReopening=(currentTicketStatus==='closed'&&status!=='closed');
   var slaRow=document.getElementById('slaResetRow');
   if(slaRow)slaRow.style.display=isReopening?'flex':'none';
   var titleEl=document.getElementById('confirmModalTitle');
@@ -1207,38 +1473,22 @@ function openConfirmModal(){
   document.getElementById('confirmModal').classList.add('show');
 }
 function closeConfirmModal(){document.getElementById('confirmModal').classList.remove('show');}
+function closeValidationModal(){document.getElementById('validationModal').classList.remove('show');}
+document.getElementById('validationModal').addEventListener('click',function(e){if(e.target===this)closeValidationModal();});
 function submitUpdate(){closeConfirmModal();document.getElementById('updateForm').submit();}
 document.getElementById('confirmModal').addEventListener('click',function(e){if(e.target===this)closeConfirmModal();});
 
-// ── Chat textarea auto-resize ─────────────────────────────────────────────────
-var chatInput=document.getElementById('chatInput');
-if(chatInput){
-  function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
-  chatInput.addEventListener('input',function(){autoResize(chatInput);});
-  chatInput.addEventListener('keydown',function(e){
-    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();
-    var hT=this.value.trim().length>0,hF=document.getElementById('replyAttachment').files.length>0;
-    if(hT||hF)document.getElementById('replyForm').submit();}
-  });
-}
 
-// ── Attachment preview ────────────────────────────────────────────────────────
-var ra=document.getElementById('replyAttachment'),afp=document.getElementById('attachFilePreview'),afn=document.getElementById('attachFileName'),ar=document.getElementById('attachRemove'),aiw=document.getElementById('attachImgPreviewWrap'),aip=document.getElementById('attachImgPreview');
-if(ra){
-  ra.addEventListener('change',function(){if(this.files.length>0){var f=this.files[0],ext=f.name.split('.').pop().toLowerCase();afn.textContent=f.name;afp.style.display='flex';if(['jpg','jpeg','png','gif','webp'].indexOf(ext)!==-1){var r=new FileReader();r.onload=function(e){aip.src=e.target.result;aiw.style.display='block';};r.readAsDataURL(f);}else{aiw.style.display='none';aip.src='';}}});
-  ar.addEventListener('click',function(){ra.value='';afp.style.display='none';afn.textContent='';aiw.style.display='none';aip.src='';});
-}
-
-// ── Scroll chat to bottom ─────────────────────────────────────────────────────
-(function(){var c=document.getElementById('chatMessages');if(c)c.scrollTop=c.scrollHeight;})();
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
 var lb=document.getElementById('lightboxBackdrop'),li=document.getElementById('lightboxImg'),lc=document.getElementById('lightboxCaption'),lo=document.getElementById('lightboxOpenFull');
-function openLightbox(url,filename){li.src=url;li.alt=filename||'';lc.textContent=filename||'';lo.href=url;lb.classList.add('show');document.body.style.overflow='hidden';}
-function closeLightbox(){lb.classList.remove('show');document.body.style.overflow='';setTimeout(function(){li.src='';},300);}
-document.getElementById('lightboxClose').addEventListener('click',closeLightbox);
-lb.addEventListener('click',function(e){if(e.target===this)closeLightbox();});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeLightbox();closeConfirmModal();closePriModal();}});
+function openLightbox(url,filename){if(!lb)return;li.src=url;li.alt=filename||'';lc.textContent=filename||'';lo.href=url;lb.classList.add('show');document.body.style.overflow='hidden';}
+function closeLightbox(){if(!lb)return;lb.classList.remove('show');document.body.style.overflow='';setTimeout(function(){if(li)li.src='';},300);}
+var lbClose=document.getElementById('lightboxClose');
+if(lbClose)lbClose.addEventListener('click',closeLightbox);
+if(lb)lb.addEventListener('click',function(e){if(e.target===this)closeLightbox();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeLightbox();closeConfirmModal();closePriModal();closeValidationModal();}});
+
 
 // ── Timeline pagination ───────────────────────────────────────────────────────
 (function(){
@@ -1301,6 +1551,9 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeLightb
 
   showPage(1);
 })();
+
+
+
 </script>
 </body>
 </html>

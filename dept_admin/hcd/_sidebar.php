@@ -1,5 +1,6 @@
-<!-- dept_admin/hcd/_sidebar.php -->
+<!-- dept_admin/hcd/_sidebar.php --> 
 
+<!-- Hamburger button (mobile only) -->
 <button class="mob-toggle" id="mobToggle" aria-label="Open menu">
   <svg viewBox="0 0 24 24">
     <line x1="3" y1="6" x2="21" y2="6"/>
@@ -8,26 +9,23 @@
   </svg>
 </button>
 
+<!-- Dark overlay that appears behind the sidebar -->
 <div class="mob-overlay" id="mobOverlay"></div>
 
+<!-- YOUR EXISTING ASIDE — only change is adding id="sidebar" -->
 <aside class="sidebar" id="sidebar">
-  <a class="sidebar-brand" href="../../index.php">
-    <img src="../../img/RCMP.png" alt="RCMP Logo" style="width:58px;height:58px;object-fit:contain;border-radius:7px;flex-shrink:0;">
-    <div class="brand-text">
-      <div class="t1" style="font-size:13px;">UniKL RCMP</div>
-      <div class="t2" style="font-size:16px;">Help Desk</div>
-    </div>
-  </a>
+<a class="sidebar-brand" href="../../index.php">
+  <img src="../../img/RCMP.png" alt="RCMP Logo" style="width:58px;height:58px;object-fit:contain;border-radius:7px;flex-shrink:0;">
+  <div class="brand-text">
+    <div class="t1" style="font-size:13px;">UniKL RCMP</div>
+    <div class="t2" style="font-size:16px;">Help Desk</div>
+  </div>
+</a>
 
   <div class="sidebar-dept">
     <div class="dept-chip">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
-      Admin HCD
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+       HCD admin
     </div>
   </div>
 

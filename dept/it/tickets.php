@@ -1,5 +1,5 @@
 <?php
-// dept/it/tickets.php 
+// dept/it/tickets.php
 require_once __DIR__ . '/../auth_guard.php';
 if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';

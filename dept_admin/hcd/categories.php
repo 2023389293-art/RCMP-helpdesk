@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'add') {
         $suffix = trim($_POST['category_name'] ?? '');
-        $name = $suffix !== '' ? 'PMTC / ' . $suffix : '';
+        $name   = $suffix !== '' ? 'PMTC / ' . $suffix : '';
         if (empty($suffix)) {
             $_SESSION['flash_error'] = 'Category name cannot be empty.';
         } else {
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($action === 'edit') {
         $id     = (int)($_POST['category_id'] ?? 0);
         $suffix = trim($_POST['category_name'] ?? '');
-        $suffix = trim(preg_replace('/^(PMTC\s*\/\s*)+/i', '', $suffix));
+$suffix = trim(preg_replace('/^(PMTC\s*\/\s*)+/i', '', $suffix));
 $name   = $suffix !== '' ? 'PMTC / ' . $suffix : '';
         if (!$id || empty($suffix)) {
             $_SESSION['flash_error'] = 'Invalid data submitted.';
@@ -103,7 +103,7 @@ $successMsg = $_SESSION['flash_success'] ?? '';
 $errorMsg   = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-// ── Fetch HCD categories (dept_id = 5) ────────────────────────────────────────
+// ── Fetch HCD categories (dept_id = 5) ──────────────────────────────────────
 $categories = [];
 $deptId = 5;
 $stmt = $conn->prepare(
@@ -321,8 +321,8 @@ $currentPage = 'categories';
               <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             </div>
             <div>
-              <div style="font-size:14px;font-weight:600;color:var(--gray-900);">Human Capital Department Categories</div>
-              <div style="font-size:12px;color:var(--gray-500);margin-top:1px;">Manage complaint categories</div>
+<div style="font-size:14px;font-weight:600;color:var(--gray-900);">HCD Categories</div>
+<div style="font-size:12px;color:var(--gray-500);margin-top:1px;">Manage HCD complaint categories</div>
             </div>
             <span class="count-badge"><?= count($categories) ?></span>
           </div>
@@ -356,8 +356,7 @@ $currentPage = 'categories';
               <tr data-name="<?= strtolower(htmlspecialchars($cat['category_name'])) ?>">
                 <td style="color:var(--gray-500);font-size:12px;font-family:monospace;"><?= $i + 1 ?></td>
                 <td>
-                  <div class="cat-name"><?= htmlspecialchars($cat['category_name']) ?></div>
-                  <div class="cat-id">ID: <?= $cat['category_id'] ?></div>
+                  <div class="cat-name"><?= htmlspecialchars(preg_replace('/^PMTC\s*\/\s*/i', '', $cat['category_name'])) ?></div>
                 </td>
                 <td>
                   <?php $u = (int)$cat['usage_count']; ?>
@@ -424,12 +423,11 @@ $currentPage = 'categories';
             <div class="field">
               <label for="category_name">Category Name <span style="color:#DC2626;">*</span></label>
               <div class="prefix-wrap">
-                <span class="prefix-label" id="itPrefix">PMTC /</span>
                 <input type="text" id="category_name" name="category_name"
-                  class="prefix-input" placeholder="e.g. Hardware &amp; Software"
+                  style="border-radius:8px !important;"
+                  placeholder="e.g. Vehicle Booking"
                   maxlength="140" required autocomplete="off"/>
               </div>
-              <div class="field-hint" id="formHint">Only type the topic — <em>PMTC /</em> is added automatically.</div>
             </div>
 
             <button type="submit" class="btn-submit" id="submitBtn">
@@ -552,9 +550,7 @@ function startEdit(id, fullName) {
   document.getElementById('editModeBar').classList.add('show');
   document.getElementById('cancelEditBtn').style.display     = 'flex';
   document.getElementById('formCard').classList.add('editing-active');
-  document.getElementById('itPrefix').style.display           = 'none';
   document.getElementById('category_name').style.borderRadius = '8px';
-  document.getElementById('formHint').style.display           = 'none';
   document.getElementById('formCardTitle').textContent = 'Edit Category';
   document.getElementById('formCardSub').textContent   = 'Update the category name below';
   document.getElementById('submitBtn').innerHTML =
@@ -575,9 +571,7 @@ function forceCancelEdit() {
   document.getElementById('editModeBar').classList.remove('show');
   document.getElementById('cancelEditBtn').style.display     = 'none';
   document.getElementById('formCard').classList.remove('editing-active');
-  document.getElementById('itPrefix').style.display           = 'flex';
-  document.getElementById('category_name').style.borderRadius = '0 8px 8px 0';
-  document.getElementById('formHint').style.display           = '';
+  document.getElementById('category_name').style.borderRadius = '8px';
   document.getElementById('formCardTitle').textContent = 'Add Category';
   document.getElementById('formCardSub').textContent   = 'Create a new complaint category';
   document.getElementById('submitBtn').innerHTML =

@@ -1,7 +1,8 @@
 /* =============================================================
-   tickets-report.js  —  IT Dept Admin · Tickets Tab 
+   tickets-report.js  —  CCU Dept Admin · Tickets Tab 
    ============================================================= */
  
+   
 (function () {
   'use strict';
 
@@ -257,11 +258,11 @@ if (searchQuery)               parts.push(`Search: <strong>"${searchQuery}"</str
     const push = (label, val, color, show) => {
       if (show) { labels.push(label); values.push(val); colors.push(color); }
     };
-    push('Open',        open,   '#4338ca', showOpen);
-    push('Closed',      closed, '#a5b4fc', showClosed);
-    push('In Progress', prog,   '#6366f1', showProg);
-    push('High',        high,   '#1e3a8a', showHigh);
-    push('Medium',      med,    '#3b82f6', showMed);
+push('Open',        open,   '#DC2626', showOpen);
+push('Closed',      closed, '#16A34A', showClosed);
+push('In Progress', prog,   '#3503aa', showProg);
+    push('High',        high,   '#e64545', showHigh);
+    push('Medium',      med,    '#e48a36', showMed);
     push('Low',         low,    '#93c5fd', showLow);
 
     if (chartInstance) chartInstance.destroy();
@@ -383,7 +384,7 @@ if (searchQuery)               parts.push(`Search: <strong>"${searchQuery}"</str
   }
 
   window.sortTable = function (col) {
-    const keys = ['id', 'title', 'category', 'status', 'priority', 'submitted', 'assigned', 'firstresponse-raw', 'sla'];
+    const keys = ['id', 'category', 'status', 'priority', 'submitted', 'assigned', 'firstresponse-raw', 'sla', 'respondtime-raw'];
     const key  = keys[col];
     sortDir[key] = !sortDir[key];
 
@@ -416,23 +417,23 @@ if (searchQuery)               parts.push(`Search: <strong>"${searchQuery}"</str
   /* ══════════════════════════════════════════════
      DOWNLOAD — uses activeRows (filtered)
   ══════════════════════════════════════════════ */
-  window.downloadCSV = function () {
+window.downloadCSV = function () {
     const rows  = activeRows.length ? activeRows : getAllRows();
-    const lines = [['Ticket ID', 'Title', 'Category', 'Status', 'Priority', 'Date Submitted', 'Assigned To', 'Resolution Time', 'SLA'].join(',')];
-rows.forEach(r => {
-  const d = r.dataset;
-  lines.push([
-    d.id,
-    `"${(d.title || '').replace(/"/g, '""')}"`,
-    `"${(d.category || '').replace(/"/g, '""')}"`,
-    d.status,
-    d.priority,
-    d.submitted,
-    `"${(d.assigned || '—').replace(/"/g, '""')}"`,
-    d.firstresponse,
-    d.sla
-  ].join(','));
-});
+    const lines = [['Ticket ID', 'Category', 'Status', 'Priority', 'Date Submitted', 'Assigned To', 'Resolution Time', 'Respond Time', 'SLA'].join(',')];
+    rows.forEach(r => {
+      const d = r.dataset;
+      lines.push([
+        d.id,
+        `"${(d.category || '').replace(/"/g, '""')}"`,
+        d.status,
+        d.priority,
+        d.submitted,
+        `"${(d.assigned || '—').replace(/"/g, '""')}"`,
+        d.firstresponse,
+        d.respondtime,
+        d.sla
+      ].join(','));
+    });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     Object.assign(document.createElement('a'), {
       href: URL.createObjectURL(blob),
@@ -440,22 +441,41 @@ rows.forEach(r => {
     }).click();
   };
 
-  window.downloadPDF = function () {
+ window.downloadPDF = async function () {
     const { jsPDF } = window.jspdf;
+    // ── CHANGED: landscape to match Staff Activity tab ───────────
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-    // Header bar
+    // ── Header bar (A4 landscape width = 297mm) ──────────────────
     doc.setFillColor(87, 68, 118);
-    doc.rect(0, 0, 297, 18, 'F');
+    doc.rect(0, 0, 297, 22, 'F');
+
+    // ── Logo ────────────────────────────────────────────────────
+    try {
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      logoImg.src = '../../img/RCMP.png';
+      await new Promise(res => { logoImg.onload = res; logoImg.onerror = res; });
+      const canvas = document.createElement('canvas');
+      canvas.width  = logoImg.naturalWidth  || 100;
+      canvas.height = logoImg.naturalHeight || 100;
+      const ctx2d = canvas.getContext('2d');
+      ctx2d.fillStyle = '#574476';
+      ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+      ctx2d.drawImage(logoImg, 0, 0);
+      doc.addImage(canvas.toDataURL('image/png'), 'PNG', 6, 3.5, 26, 15);
+    } catch (e) {}
+
+    // ── Header text ─────────────────────────────────────────────
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text('UniKL Help Desk — IT Department Ticket Report', 14, 12);
+    doc.text('UniKL Help Desk — Corporate Communication Unit Ticket Report', 36, 10);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text('Generated: ' + new Date().toLocaleString(), 220, 12);
+    doc.text('Generated: ' + new Date().toLocaleString(), 36, 16);
 
-    // Filter info line
+    // ── Filter info line ─────────────────────────────────────────
     doc.setTextColor(87, 68, 118);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
@@ -463,11 +483,12 @@ rows.forEach(r => {
       `Period: ${getPeriodLabel()}`,
       filterStatus   !== 'all' ? `Status: ${filterStatus.replace('_', ' ')}` : null,
       filterPriority !== 'all' ? `Priority: ${filterPriority}` : null,
+      filterStaff    !== 'all' ? `Staff: ${filterStaff}` : null,
       searchQuery ? `Search: "${searchQuery}"` : null,
     ].filter(Boolean).join('   |   ');
-    doc.text(filterInfo, 14, 23);
+    doc.text(filterInfo, 14, 28);
 
-    // KPI summary line
+    // ── KPI summary line ─────────────────────────────────────────
     const rows    = activeRows;
     const total   = rows.length;
     const open    = rows.filter(r => r.dataset.status === 'open').length;
@@ -476,55 +497,72 @@ rows.forEach(r => {
     const breach  = rows.filter(r => r.dataset.sla === 'Breached').length;
     doc.setTextColor(30, 41, 59);
     doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
     doc.text(
       `Total: ${total}  |  Open: ${open}  |  In Progress: ${prog}  |  Closed: ${closed}  |  SLA Breached: ${breach}  |  Avg Resolution: ${DATA.avgHours ? DATA.avgHours + 'h' : '—'}`,
-      14, 30
+      14, 36
     );
 
+    // ── Table ────────────────────────────────────────────────────
     const body = rows.map(r => [
-  r.dataset.id,
-  r.dataset.title,
-  r.dataset.category,
-  r.dataset.status,
-  r.dataset.priority,
-  r.dataset.submitted,
-  r.dataset.assigned || '—',
-  r.dataset.firstresponse,
-  r.dataset.sla
-]);
+      r.dataset.id,
+      r.dataset.category,
+      r.dataset.status,
+      r.dataset.priority,
+      r.dataset.submitted,
+      r.dataset.assigned || '—',
+      r.dataset.firstresponse,
+      r.dataset.respondtime,
+      r.dataset.sla
+    ]);
 
-doc.autoTable({
-  startY: 35,
-  head: [['Ticket ID', 'Title', 'Category', 'Status', 'Priority', 'Date Submitted', 'Assigned To', 'Resolution Time', 'SLA']],
-  body,
-  styles: { fontSize: 7, cellPadding: 2.2 },
-  headStyles: { fillColor: [87, 68, 118], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
-  alternateRowStyles: { fillColor: [248, 247, 252] },
-  columnStyles: {
-    0: { cellWidth: 34 }, 1: { cellWidth: 40 }, 2: { cellWidth: 30 },
-    3: { cellWidth: 20 }, 4: { cellWidth: 18 }, 5: { cellWidth: 24 },
-    6: { cellWidth: 38 }, 7: { cellWidth: 22 }, 8: { cellWidth: 18 }
-  },
-  didParseCell: data => {
-    if (data.section === 'body') {
-      if (data.column.index === 8 && data.cell.raw === 'Breached') {
-        data.cell.styles.textColor = [220, 38, 38];
-        data.cell.styles.fontStyle = 'bold';
+    doc.autoTable({
+      startY: 42,
+      margin: { left: 14, right: 14 },
+      tableWidth: 'auto',
+      head: [['Ticket ID', 'Category', 'Status', 'Priority', 'Date Submitted', 'Assigned To', 'Resolution Time', 'Respond Time', 'SLA']],
+      body,
+      styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
+      headStyles: { fillColor: [87, 68, 118], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [248, 247, 252] },
+      // ── UPDATED: wider columns to take advantage of landscape width ──
+      columnStyles: {
+        0: { cellWidth: 38 },  // Ticket ID
+        1: { cellWidth: 36 },  // Category
+        2: { cellWidth: 22 },  // Status
+        3: { cellWidth: 20 },  // Priority
+        4: { cellWidth: 24 },  // Date Submitted
+        5: { cellWidth: 40 },  // Assigned To
+        6: { cellWidth: 22 },  // Resolution Time
+        7: { cellWidth: 20 },  // Respond Time
+        8: { cellWidth: 16 },  // SLA
+      },
+      didParseCell: data => {
+        if (data.section === 'body') {
+          if (data.column.index === 8 && data.cell.raw === 'Breached') {
+            data.cell.styles.textColor = [220, 38, 38];
+            data.cell.styles.fontStyle = 'bold';
+          }
+          if (data.column.index === 2) {
+            const c = { open: [220, 38, 38], in_progress: [37, 99, 235], closed: [22, 163, 74] };
+            data.cell.styles.textColor = c[data.cell.raw] || [51, 65, 85];
+          }
+          if (data.column.index === 3) {
+            const p = { high: [220, 38, 38], medium: [234, 138, 54], low: [99, 102, 241] };
+            data.cell.styles.textColor = p[data.cell.raw] || [51, 65, 85];
+          }
+        }
       }
-      if (data.column.index === 3) {
-        const c = { open: [217, 119, 6], in_progress: [37, 99, 235], closed: [22, 163, 74] };
-        data.cell.styles.textColor = c[data.cell.raw] || [51, 65, 85];
-      }
-    }
-  }
-});
+    });
 
+    // ── Page numbers ─────────────────────────────────────────────
     const pc = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pc; i++) {
       doc.setPage(i);
       doc.setFontSize(7);
       doc.setTextColor(148, 163, 184);
-      doc.text(`Page ${i} of ${pc} — UniKL Help Desk IT Dept`, 14, 200);
+      // A4 landscape height = 210mm
+      doc.text(`Page ${i} of ${pc} — UniKL Help Desk CCU`, 14, 200);
     }
 
     doc.save(`ticket-report-${getPeriodLabel().replace(/\s+/g, '-').toLowerCase()}.pdf`);

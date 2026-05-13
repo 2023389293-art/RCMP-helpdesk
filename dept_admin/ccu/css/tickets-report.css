@@ -1,5 +1,5 @@
 /* =============================================================
-   tickets-report.css  —  IT Dept Admin · Tickets Section
+   tickets-report.css  —  CCU Dept Admin · Tickets Section
    ============================================================= */
  
   
@@ -473,11 +473,11 @@
   flex-shrink: 0;
 }
 
-.sp-open::before        { background: #94a3b8; }
-.sp-open                { color: #475569; }
+.sp-open::before        { background: #DC2626; }
+.sp-open                { color: #DC2626; }
 
-.sp-in_progress::before { background: #574476; }
-.sp-in_progress         { color: #574476; }
+.sp-in_progress::before { background: #2563EB; }
+.sp-in_progress         { color: #2563EB; }
 
 .sp-closed::before      { background: #16A34A; }
 .sp-closed              { color: #16A34A; }

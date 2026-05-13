@@ -1,5 +1,5 @@
 <?php
-// dept/maintenance/ticket_detail.php 
+// dept/hcd/ticket_detail.php 
 require_once __DIR__ . '/../auth_guard.php';
 if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
@@ -14,7 +14,6 @@ require __DIR__ . '/../../PHPMailer-master/src/SMTP.php';
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 
-// ── Counts for sidebar badges ─────────────────────────────────────────────────
 $openCount = $closedCount = $inProgressCount = 0;
 $stmt = $conn->prepare("SELECT SUM(status='open') AS oc, SUM(status='in_progress') AS ipc, SUM(status='closed') AS cc FROM complaints WHERE dept_id = ?");
 $stmt->bind_param("i", $deptId); $stmt->execute();
@@ -23,15 +22,15 @@ $openCount       = (int)($counts['oc']  ?? 0);
 $inProgressCount = (int)($counts['ipc'] ?? 0);
 $closedCount     = (int)($counts['cc']  ?? 0);
 
-// ── Fetch ticket ──────────────────────────────────────────────────────────────
 $ticketId = trim($_GET['id'] ?? '');
 $ticket   = null;
 
 // ── Smart back URL ────────────────────────────────────────────────────────────
-$backUrl = 'tickets.php';
+$backUrl = 'tickets.php'; // safe default
 $sessionKey = 'td_back_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $ticketId);
 if (!empty($_GET['from'])) {
     $from = $_GET['from'];
+    // Only trust relative URLs (no protocol = safe, no open redirect)
     if (!preg_match('#^https?://#', $from)) {
         $backUrl = $from;
         $_SESSION[$sessionKey] = $backUrl;
@@ -40,72 +39,24 @@ if (!empty($_GET['from'])) {
     $backUrl = $_SESSION[$sessionKey];
 } elseif (!empty($_SERVER['HTTP_REFERER'])) {
     $ref = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_PATH);
+    // Only use referrer if it's NOT ticket_detail itself (avoids tab-switch self-referral)
     if ($ref && strpos($ref, 'ticket_detail') === false) {
         $backUrl = $_SERVER['HTTP_REFERER'];
         $_SESSION[$sessionKey] = $backUrl;
     }
 }
 $backUrlEncoded = urlencode($backUrl);
-
 if ($ticketId !== '') {
-    $stmt = $conn->prepare("
-        SELECT c.*, cat.category_name
-        FROM complaints c
-        LEFT JOIN categories cat ON cat.category_id = c.category_id
-        WHERE c.ticket_id = ? AND c.dept_id = ?
-        LIMIT 1
-    ");
-    $stmt->bind_param("si", $ticketId, $deptId);
-    $stmt->execute();
-    $ticket = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.dept_id = ? LIMIT 1");
+    $stmt->bind_param("si", $ticketId, $deptId); $stmt->execute();
+    $ticket = $stmt->get_result()->fetch_assoc(); $stmt->close();
 }
 
-// ── AJAX: get logs ────────────────────────────────────────────────────────────
-if (!empty($_GET['action']) && $_GET['action']==='get_logs' && !empty($_GET['id'])) {
-    $ajaxTid = trim($_GET['id']); $logs = [];
-    $lg = $conn->prepare("
-        SELECT 
-            'log' AS source,
-            log_id AS row_id,
-            changed_by,
-            field_changed,
-            old_priority,
-            new_priority,
-            old_status,
-            new_status,
-            NULL AS message_content,
-            COALESCE(remarks, '') AS remarks,
-            changed_at AS event_at
-        FROM ticket_logs
-        WHERE ticket_id = ?
-        UNION ALL
-        SELECT
-            'reply' AS source,
-            reply_id AS row_id,
-            sender_name AS changed_by,
-            'message' AS field_changed,
-            NULL AS old_priority,
-            NULL AS new_priority,
-            NULL AS old_status,
-            NULL AS new_status,
-            message AS message_content,
-            '' AS remarks,
-            created_at AS event_at
-        FROM ticket_replies
-        WHERE ticket_id = ? AND sender_role = 'staff'
-        ORDER BY event_at DESC
-    ");
-    $lg->bind_param("ss",$ajaxTid,$ajaxTid); $lg->execute();
-    $logs = $lg->get_result()->fetch_all(MYSQLI_ASSOC); $lg->close();
-    header('Content-Type: application/json'); echo json_encode(['logs'=>$logs]); exit;
-}
-
-// ── Handle POST ───────────────────────────────────────────────────────────────
+// ── HANDLE POST ───────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
     $action = trim($_POST['action'] ?? 'update');
 
-    // ── ACTION: Reassign ──────────────────────────────────────────────────────
+    // ── ACTION: reassign ──────────────────────────────────────────────────────
     if ($action === 'reassign') {
         $newStaffId = (int)($_POST['new_staff_id'] ?? 0);
         if ($newStaffId > 0) {
@@ -135,24 +86,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
         header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
     }
 
-    if ($action === 'update' || $action === 'update_with_message') {
-        $assignedNow   = getAssignedStaff($conn, $ticketId);
-        $isAssignedNow = ($assignedNow && (int)$assignedNow['staff_id'] === (int)($_SESSION['staff_id'] ?? 0));
+    
 
-        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-        $isPriorityOnlyAjax = $isAjax && $action === 'update';
+    // ── ACTION: update ────────────────────────────────────────────────────────
+   if ($action === 'update' || $action === 'update_with_message') {
+    $assignedNow   = getAssignedStaff($conn, $ticketId);
+    $isAssignedNow = ($assignedNow && (int)$assignedNow['staff_id'] === (int)($_SESSION['staff_id'] ?? 0));
 
-        if (!$isAssignedNow && !$isPriorityOnlyAjax) {
-            if ($isAjax) { header('Content-Type: application/json'); http_response_code(403); echo json_encode(['success'=>false,'error'=>'not_assigned']); exit; }
-            $_SESSION['flash_error'] = 'Only the assigned staff can change priority or status.';
-            header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
-        }
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+    // Allow any staff to change priority via AJAX (priority-only = action 'update' via AJAX)
+    $isPriorityOnlyAjax = $isAjax && $action === 'update';
+
+    if (!$isAssignedNow && !$isPriorityOnlyAjax) {
+        if ($isAjax) { header('Content-Type: application/json'); http_response_code(403); echo json_encode(['success'=>false,'error'=>'not_assigned']); exit; }
+        $_SESSION['flash_error'] = 'Only the assigned staff can change priority or status.';
+        header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
+    }
 
         $newPriority = trim($_POST['priority'] ?? '');
         $newStatus   = trim($_POST['status']   ?? '');
         $allowedPri  = ['low','medium','high'];
         $allowedSta  = ['open','in_progress','closed'];
 
+        // Fetch fresh DB row for old values
         $freshStmt = $conn->prepare("SELECT priority, status, sla_start_at, first_response_at FROM complaints WHERE ticket_id = ? AND dept_id = ? LIMIT 1");
         $freshStmt->bind_param("si", $ticketId, $deptId); $freshStmt->execute();
         $freshRow = $freshStmt->get_result()->fetch_assoc(); $freshStmt->close();
@@ -161,7 +118,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
         $oldSlaStartAt    = $freshRow['sla_start_at']      ?? null;
         $oldFirstResponse = $freshRow['first_response_at'] ?? null;
 
+        // Prevent any change on a closed ticket (closed is final)
         if ($oldStatus === 'closed') {
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
             if ($isAjax) { header('Content-Type: application/json'); http_response_code(403); echo json_encode(['success'=>false,'error'=>'ticket_closed']); exit; }
             $_SESSION['flash_error'] = 'This ticket is closed and cannot be changed.';
             header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
@@ -178,28 +137,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
 
         $nowMysql = (new DateTime('now', new DateTimeZone(SLA_TZ)))->format('Y-m-d H:i:s');
 
+        // ── Stamp sla_start_at on very first in_progress ──────────────────
         if (empty($oldSlaStartAt)) {
             $slaSet = $conn->prepare("UPDATE complaints SET sla_start_at=? WHERE ticket_id=? AND dept_id=?");
             $slaSet->bind_param("ssi", $nowMysql, $ticketId, $deptId);
             $slaSet->execute(); $slaSet->close();
-            $oldSlaStartAt = $nowMysql;
+            $oldSlaStartAt = $nowMysql; // keep in sync for logic below
         }
 
-        if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed'])) {
-            $frSet = $conn->prepare("UPDATE complaints SET first_response_at=? WHERE ticket_id=? AND dept_id=?");
-            $frSet->bind_param("ssi", $nowMysql, $ticketId, $deptId);
-            $frSet->execute(); $frSet->close();
-        }
+// ── Stamp first_response_at on first staff action (open → anything) ──────
+// Covers: open→in_progress AND open→closed directly
+if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed'])) {
+    $frSet = $conn->prepare("UPDATE complaints SET first_response_at=? WHERE ticket_id=? AND dept_id=?");
+    $frSet->bind_param("ssi", $nowMysql, $ticketId, $deptId);
+    $frSet->execute(); $frSet->close();
+}
 
+        // ── Build the UPDATE complaints query ─────────────────────────────
         if ($newStatus === 'closed' && $oldStatus !== 'closed') {
+            // Closing: stamp resolved_at
             $upd = $conn->prepare("UPDATE complaints SET priority=?,status=?,resolved_at=?,updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
             $upd->bind_param("ssssi", $newPriority, $newStatus, $nowMysql, $ticketId, $deptId);
         } else {
+            // open → in_progress or priority-only change
             $upd = $conn->prepare("UPDATE complaints SET priority=?,status=?,updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
             $upd->bind_param("sssi", $newPriority, $newStatus, $ticketId, $deptId);
         }
 
         if ($upd->execute()) {
+            // Log the change
             $priChanged  = ($oldPriority !== $newPriority);
             $statChanged = ($oldStatus   !== $newStatus);
             if ($priChanged || $statChanged) {
@@ -213,10 +179,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
                 }
             }
 
-            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success' => true]); exit; }
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true]); exit;
+            }
 
             $statusLabel = ucfirst(str_replace('_', ' ', $newStatus));
 
+            // ── Send message if provided ──────────────────────────────────────
             $inlineMessage = trim($_POST['message'] ?? '');
             if (!empty($inlineMessage)) {
                 $senderName = $_SESSION['staff_name'] ?? 'Staff';
@@ -325,8 +296,9 @@ HTML;
                         }
                     }
                 }
-            }
+            } // end if(!empty($inlineMessage))
 
+            // ── Fire processQueue ALWAYS (not just when message sent) ──────────
             if ($statChanged && in_array($newStatus, ['in_progress', 'closed'])) {
                 processQueue($conn, $deptId, (int)$staffId);
             }
@@ -334,116 +306,75 @@ HTML;
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.';
 
         } else {
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
             if ($isAjax) { header('Content-Type: application/json'); http_response_code(500); echo json_encode(['success'=>false]); exit; }
             $_SESSION['flash_error'] = 'Failed to update.';
         }
         $upd->close();
         header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
-    }
-} // ← closes if POST
+    } // end update
+
+} // end POST handler
 
 
+if (!empty($_GET['action']) && $_GET['action']==='get_logs' && !empty($_GET['id'])) {
+    $ajaxTid = trim($_GET['id']); $logs = [];
+    $lg = $conn->prepare("
+        SELECT 
+            'log' AS source,
+            log_id AS row_id,
+            changed_by,
+            field_changed,
+            old_priority,
+            new_priority,
+            old_status,
+            new_status,
+            NULL AS message_content,
+            COALESCE(remarks, '') AS remarks,
+            changed_at AS event_at
+        FROM ticket_logs
+        WHERE ticket_id = ?
+        UNION ALL
+        SELECT
+            'reply' AS source,
+            reply_id AS row_id,
+            sender_name AS changed_by,
+            'message' AS field_changed,
+            NULL AS old_priority,
+            NULL AS new_priority,
+            NULL AS old_status,
+            NULL AS new_status,
+            message AS message_content,
+            '' AS remarks,
+            created_at AS event_at
+        FROM ticket_replies
+        WHERE ticket_id = ? AND sender_role = 'staff'
+        ORDER BY event_at DESC
+    ");
+    $lg->bind_param("ss",$ajaxTid,$ajaxTid); $lg->execute();
+    $logs = $lg->get_result()->fetch_all(MYSQLI_ASSOC); $lg->close();
+    header('Content-Type: application/json'); echo json_encode(['logs'=>$logs]); exit;
+}
 
-
-
-
-
-// Flash messages
 $updateMsg   = $_SESSION['flash_success'] ?? '';
 $updateError = $_SESSION['flash_error']   ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
-// Re-fetch ticket after POST redirect
 if ($ticketId !== '') {
-    $stmt = $conn->prepare("
-        SELECT c.*, cat.category_name
-        FROM complaints c
-        LEFT JOIN categories cat ON cat.category_id = c.category_id
-        WHERE c.ticket_id = ? AND c.dept_id = ?
-        LIMIT 1
-    ");
-    $stmt->bind_param("si", $ticketId, $deptId);
-    $stmt->execute();
-    $ticket = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.dept_id = ? LIMIT 1");
+    $stmt->bind_param("si", $ticketId, $deptId); $stmt->execute();
+    $ticket = $stmt->get_result()->fetch_assoc(); $stmt->close();
 }
 
-// ── SLA Status ────────────────────────────────────────────────────────────────
-$slaData = null;
-if ($ticket && !empty($ticket['created_at'])) {
-
-    $firstLogResponse = null;
-    $flrStmt = $conn->prepare("
-        SELECT MIN(changed_at) AS first_log_ts
-        FROM ticket_logs
-        WHERE ticket_id = ?
-          AND new_status IN ('in_progress','closed')
-          AND old_status = 'open'
-    ");
-    $flrStmt->bind_param("s", $ticketId);
-    $flrStmt->execute();
-    $flrRow = $flrStmt->get_result()->fetch_assoc();
-    $flrStmt->close();
-    $firstLogResponse = $flrRow['first_log_ts'] ?? null;
-
-    $bestRespondTs = null;
-    if (!empty($ticket['first_response_at'])) {
-        $bestRespondTs = $ticket['first_response_at'];
-    } elseif (!empty($firstLogResponse)) {
-        $bestRespondTs = $firstLogResponse;
-    }
-
-    $slaFirstResponse = null;
-    if (strtolower($ticket['status']) !== 'open') {
-        $slaFirstResponse = $bestRespondTs;
-    }
-
-    $slaData = getSlaStatus(
-        $ticket['created_at'],
-        $ticket['resolved_at'] ?? null,
-        $ticket['status'],
-        $slaFirstResponse
-    );
-}
-
-// ── Fetch submitter info ──────────────────────────────────────────────────────
 $submitter = null;
 if ($ticket) {
     $type  = $ticket['submitter_type'] ?? 'student';
-    $table = $type === 'student' ? 'students' : 'staff';
-    $pkCol = $type === 'student' ? 'student_id' : 'staff_id';
-    $s2 = $conn->prepare("SELECT full_name AS name, email FROM {$table} WHERE {$pkCol} = ? LIMIT 1");
-    if ($s2) {
-        $s2->bind_param("i", $ticket['submitter_id']);
-        $s2->execute();
-        $submitter = $s2->get_result()->fetch_assoc();
-        $s2->close();
-    }
+    $table = $type==='student' ? 'students' : 'staff';
+    $pkCol = $type==='student' ? 'student_id' : 'staff_id';
+    $s2 = $conn->prepare("SELECT full_name AS name, email FROM {$table} WHERE {$pkCol}=? LIMIT 1");
+    if ($s2) { $s2->bind_param("i",$ticket['submitter_id']); $s2->execute(); $submitter=$s2->get_result()->fetch_assoc(); $s2->close(); }
 }
 
-// ── Fetch assigned staff ──────────────────────────────────────────────────────
-$assignedStaff = null;
-if ($ticket) {
-    $assignedStaff = getAssignedStaff($conn, $ticketId);
-}
-
-$currentStaffId  = (int)($_SESSION['staff_id'] ?? 0);
-$isAssignedStaff = ($assignedStaff && (int)$assignedStaff['staff_id'] === $currentStaffId);
-
-// ── Dept staff list for reassign ──────────────────────────────────────────────
-$deptStaffList = [];
-$dsStmt = $conn->prepare(
-    "SELECT staff_id, full_name FROM staff
-     WHERE dept_id = ? AND status = 'active' AND role = 'staff'
-     ORDER BY staff_id ASC"
-);
-$dsStmt->bind_param("i", $deptId);
-$dsStmt->execute();
-$dsRes = $dsStmt->get_result();
-while ($row = $dsRes->fetch_assoc()) $deptStaffList[] = $row;
-$dsStmt->close();
-
-// ── Fetch change logs ─────────────────────────────────────────────────────────
 $changeLogs = [];
 if ($ticket) {
     $lg = $conn->prepare("
@@ -482,110 +413,125 @@ if ($ticket) {
     $changeLogs = $lg->get_result()->fetch_all(MYSQLI_ASSOC); $lg->close();
 }
 
-// ── Fetch replies ─────────────────────────────────────────────────────────────
+$assignedStaff = null;
+if ($ticket) { $assignedStaff = getAssignedStaff($conn, $ticketId); }
+
+$currentStaffId  = (int)($_SESSION['staff_id'] ?? 0);
+$isAssignedStaff = ($assignedStaff && (int)$assignedStaff['staff_id'] === $currentStaffId);
+
+$deptStaffList = [];
+$dsStmt = $conn->prepare("SELECT staff_id, full_name FROM staff WHERE dept_id = ? AND status = 'active' AND role = 'staff' ORDER BY staff_id ASC");
+$dsStmt->bind_param("i", $deptId); $dsStmt->execute();
+$dsRes = $dsStmt->get_result();
+while ($row = $dsRes->fetch_assoc()) $deptStaffList[] = $row;
+$dsStmt->close();
+
 $replies = [];
 if ($ticket) {
-    $rq = $conn->prepare(
-        "SELECT reply_id,sender_id,sender_name,sender_role,message,attachment_path,created_at
-         FROM ticket_replies WHERE ticket_id=? ORDER BY created_at ASC"
-    );
-    $rq->bind_param("s", $ticketId);
-    $rq->execute();
-    $replies = $rq->get_result()->fetch_all(MYSQLI_ASSOC);
-    $rq->close();
+    $rq = $conn->prepare("SELECT reply_id,sender_id,sender_name,sender_role,message,attachment_path,created_at FROM ticket_replies WHERE ticket_id=? ORDER BY created_at ASC");
+    $rq->bind_param("s",$ticketId); $rq->execute();
+    $replies = $rq->get_result()->fetch_all(MYSQLI_ASSOC); $rq->close();
 }
 
-// ── Fetch feedback (closed tickets only) ──────────────────────────────────────
 $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
-    $fq = $conn->prepare("
-        SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at,
-               s.full_name AS student_name
-        FROM ticket_feedback tf
-        LEFT JOIN students s ON s.student_id = tf.student_id
-        WHERE tf.ticket_id = ?
-        LIMIT 1
-    ");
-    $fq->bind_param("s", $ticketId);
-    $fq->execute();
-    $feedback = $fq->get_result()->fetch_assoc();
-    $fq->close();
+    $fq = $conn->prepare("SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at, s.full_name AS student_name FROM ticket_feedback tf LEFT JOIN students s ON s.student_id = tf.student_id WHERE tf.ticket_id = ? LIMIT 1");
+    $fq->bind_param("s", $ticketId); $fq->execute();
+    $feedback = $fq->get_result()->fetch_assoc(); $fq->close();
 }
 
-// Active tab
+$slaData = null;
+if ($ticket && !empty($ticket['created_at'])) {
+
+    // Also get first_log_response_at (same fallback as dashboard/reports)
+    $firstLogResponse = null;
+    $flrStmt = $conn->prepare("
+        SELECT MIN(changed_at) AS first_log_ts
+        FROM ticket_logs
+        WHERE ticket_id = ?
+          AND new_status IN ('in_progress','closed')
+          AND old_status = 'open'
+    ");
+    $flrStmt->bind_param("s", $ticketId);
+    $flrStmt->execute();
+    $flrRow = $flrStmt->get_result()->fetch_assoc();
+    $flrStmt->close();
+    $firstLogResponse = $flrRow['first_log_ts'] ?? null;
+
+    // Best respond timestamp: column first, then logs fallback
+    $bestRespondTs = null;
+    if (!empty($ticket['first_response_at'])) {
+        $bestRespondTs = $ticket['first_response_at'];
+    } elseif (!empty($firstLogResponse)) {
+        $bestRespondTs = $firstLogResponse;
+    }
+
+    // For OPEN tickets with no response: clock runs from created_at, no stop
+    $slaFirstResponse = null;
+    if (strtolower($ticket['status']) !== 'open') {
+        $slaFirstResponse = $bestRespondTs;
+    }
+
+    $slaData = getSlaStatus(
+        $ticket['created_at'],        // ← FIX: use created_at (matches reports/dashboard)
+        $ticket['resolved_at'] ?? null,
+        $ticket['status'],
+        $slaFirstResponse
+    );
+}
+
+// Active tab from URL
 $activeTab = $_GET['tab'] ?? 'detail';
 if (!in_array($activeTab, ['detail','history','feedback'])) $activeTab = 'detail';
 
-$isClosed    = $ticket && strtolower($ticket['status']) === 'closed';
-$hasFeedback = $feedback !== null;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers (all unchanged) ────────────────────────────────────────────────────
 function statusBadge(string $s): string {
-    $map = [
-        'open'        => ['#FEF3C7','#D97706'],
-        'in_progress' => ['#DBEAFE','#1D4ED8'],
-        'closed'      => ['#D1FAE5','#059669'],
-    ];
-    $sl = strtolower($s);
-    [$bg, $fg] = $map[$sl] ?? ['#F3F4F6','#6B7280'];
-    $label = $sl === 'in_progress' ? 'In Progress' : ucfirst($sl);
-    return "<span style=\"display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:{$bg};color:{$fg}\">" . htmlspecialchars($label) . "</span>";
+    $map=['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
+    [$bg,$fg]=$map[strtolower($s)]??['#F3F4F6','#6B7280'];
+    $label=$s==='in_progress'?'In Progress':ucfirst($s);
+    return "<span style=\"display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:{$bg};color:{$fg}\">".htmlspecialchars($label)."</span>";
 }
-
 function priFlag(string $v): string {
-    $map = ['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
-    [$color,$label] = $map[strtolower($v)] ?? ['#6B7280',ucfirst($v)];
-    $svg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="'.$color.'" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
+    $map=['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
+    [$color,$label]=$map[strtolower($v)]??['#6B7280',ucfirst($v)];
+    $svg='<svg width="13" height="13" viewBox="0 0 24 24" fill="'.$color.'" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
     return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:'.$color.';">'.$svg.htmlspecialchars($label).'</span>';
 }
-
 function priChip(string $v): string {
-    $map = ['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
-    [$color,$label] = $map[strtolower($v)] ?? ['#6B7280',ucfirst($v)];
-    $svg = '<svg width="10" height="10" viewBox="0 0 24 24" fill="'.$color.'" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
+    $map=['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
+    [$color,$label]=$map[strtolower($v)]??['#6B7280',ucfirst($v)];
+    $svg='<svg width="10" height="10" viewBox="0 0 24 24" fill="'.$color.'" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
     return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:'.$color.';">'.$svg.htmlspecialchars($label).'</span>';
 }
-
 function statChip(string $v): string {
-    $map = ['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
-    $vl = strtolower($v);
-    [$bg,$fg] = $map[$vl] ?? ['#F3F4F6','#6B7280'];
-    $label = $vl === 'in_progress' ? 'In Progress' : ucfirst($vl);
-    return "<span style=\"display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;background:{$bg};color:{$fg}\">" . htmlspecialchars($label) . "</span>";
+    $map=['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
+    [$bg,$fg]=$map[strtolower($v)]??['#F3F4F6','#6B7280'];
+    $label=$v==='in_progress'?'In Progress':ucfirst($v);
+    return "<span style=\"display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;background:{$bg};color:{$fg}\">".htmlspecialchars($label)."</span>";
 }
-
 function timeAgo(string $datetime): string {
-    $now  = new DateTime('now', new DateTimeZone('Asia/Kuala_Lumpur'));
-    $past = new DateTime($datetime, new DateTimeZone('Asia/Kuala_Lumpur'));
-    $diff = $now->getTimestamp() - $past->getTimestamp();
-    if ($diff < 60)     return 'just now';
-    if ($diff < 3600)   return floor($diff / 60) . ' min ago';
-    if ($diff < 86400)  return floor($diff / 3600) . ' hr ago';
-    if ($diff < 604800) { $d = floor($diff / 86400); return $d . ' day' . ($d > 1 ? 's' : '') . ' ago'; }
-    return date('d M Y', $past->getTimestamp());
+    $now=new DateTime('now',new DateTimeZone('Asia/Kuala_Lumpur'));
+    $past=new DateTime($datetime,new DateTimeZone('Asia/Kuala_Lumpur'));
+    $diff=$now->getTimestamp()-$past->getTimestamp();
+    if($diff<60)return 'just now';
+    if($diff<3600)return floor($diff/60).' min ago';
+    if($diff<86400)return floor($diff/3600).' hr ago';
+    if($diff<604800){$d=floor($diff/86400);return $d.' day'.($d>1?'s':'').' ago';}
+    return date('d M Y',$past->getTimestamp());
 }
-
 function getInitials(string $name): string {
-    $parts = explode(' ', trim($name));
-    $ini   = strtoupper(substr($parts[0], 0, 1));
-    if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
+    $parts=explode(' ',trim($name));
+    $ini=strtoupper(substr($parts[0],0,1));
+    if(count($parts)>1)$ini.=strtoupper(substr($parts[count($parts)-1],0,1));
     return $ini;
 }
-
 function isImageFile(string $path): bool {
-    return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg','jpeg','png','gif','webp']);
+    return in_array(strtolower(pathinfo($path,PATHINFO_EXTENSION)),['jpg','jpeg','png','gif','webp']);
 }
-
 function fileTypeIcon(string $path): array {
-    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    return match($ext) {
-        'pdf'         => ['label'=>'PDF','color'=>'#DC2626','bg'=>'#FEF2F2'],
-        'doc','docx'  => ['label'=>'DOC','color'=>'#1D4ED8','bg'=>'#EFF6FF'],
-        'txt'         => ['label'=>'TXT','color'=>'#374151','bg'=>'#F9FAFB'],
-        default       => ['label'=>strtoupper($ext),'color'=>'#6B7280','bg'=>'#F3F4F6'],
-    };
+    $ext=strtolower(pathinfo($path,PATHINFO_EXTENSION));
+    return match($ext){'pdf'=>['label'=>'PDF','color'=>'#DC2626','bg'=>'#FEF2F2'],'doc','docx'=>['label'=>'DOC','color'=>'#1D4ED8','bg'=>'#EFF6FF'],'txt'=>['label'=>'TXT','color'=>'#374151','bg'=>'#F9FAFB'],default=>['label'=>strtoupper($ext),'color'=>'#6B7280','bg'=>'#F3F4F6']};
 }
-
 function feedbackEmojiSvg(int $rating, int $size = 32): string {
     $emojis = [
         1 => ['stroke'=>'#EF4444','fill'=>'#FEE2E2','face'=>'<circle cx="17" cy="20" r="2.5" fill="#EF4444"/><circle cx="31" cy="20" r="2.5" fill="#EF4444"/><path d="M16 33c2-4 14-4 16 0" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><path d="M15 15l4 3M33 15l-4 3" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>'],
@@ -597,121 +543,31 @@ function feedbackEmojiSvg(int $rating, int $size = 32): string {
     $e = $emojis[$rating] ?? $emojis[3];
     return '<svg width="'.$size.'" height="'.$size.'" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="22" stroke="'.htmlspecialchars($e['stroke']).'" stroke-width="2.5" fill="'.htmlspecialchars($e['fill']).'"/>'.$e['face'].'</svg>';
 }
-
 function ratingLabel(int $rating): string {
     return match($rating) { 1=>'Very Unsatisfied', 2=>'Unsatisfied', 3=>'Neutral', 4=>'Satisfied', 5=>'Very Satisfied', default=>'Unknown' };
 }
-
 function ratingColors(int $rating): array {
-    return match($rating) {
-        1 => ['#FEF2F2','#DC2626','#EF4444'],
-        2 => ['#FFF7ED','#C2410C','#F97316'],
-        3 => ['#FEFCE8','#854D0E','#EAB308'],
-        4 => ['#F0FDF4','#166534','#22C55E'],
-        5 => ['#ECFDF5','#166534','#16A34A'],
-        default => ['#F3F4F6','#374151','#6B7280'],
-    };
+    return match($rating) { 1=>['#FEF2F2','#DC2626','#EF4444'], 2=>['#FFF7ED','#C2410C','#F97316'], 3=>['#FEFCE8','#854D0E','#EAB308'], 4=>['#F0FDF4','#166534','#22C55E'], 5=>['#ECFDF5','#166534','#16A34A'], default=>['#F3F4F6','#374151','#6B7280'] };
 }
+
+$isClosed   = $ticket && strtolower($ticket['status']) === 'closed';
+$hasFeedback= $feedback !== null;
 
 $activeNav    = 'tickets';
 $pageTitle    = 'Ticket Detail';
-$pageSubtitle = 'Maintenance Department';
+$pageSubtitle = 'Human Capital Department';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Ticket Detail | UniKL Help Desk – Maintenance</title>
+  <title>Ticket Detail | UniKL Help Desk – HCD</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
-  <!-- Reuse IT dept CSS (same structure) -->
-  <link rel="stylesheet" href="../it/css/tickets_details.css">
-  <style>
-    /* ── Maintenance cyan/teal accent overrides ── */
-    :root {
-      --accent: #0E7490;
-      --accent-dark: #0c5f73;
-      --accent-light: #ECFEFF;
-      --accent-border: #A5F3FC;
-    }
-
-    /* Tab active underline — teal */
-    .td-tab-btn.active { border-bottom-color: #0E7490; color: #0E7490; }
-    .td-tab-btn:hover  { border-bottom-color: #A5F3FC; }
-    .td-tab-btn.active .td-tab-badge { background: #0E7490; color: white; }
-
-    /* Header strip icon */
-    .ths-icon { background: #0E7490; }
-
-    /* Assigned pill — teal */
-    .assigned-pill { background: #ECFEFF; border-color: #A5F3FC; }
-    .assigned-avatar { background: linear-gradient(135deg,#164E63,#0E7490); }
-    .assigned-name { color: #164E63; }
-    .assigned-role-tag { color: #0E7490; background: #CFFAFE; }
-    .assigned-role-tag::before { background: #06B6D4; }
-
-    /* Reassign button — teal */
-    .reassign-btn { background: #0E7490; }
-    .reassign-btn:hover { background: #0c5f73; }
-    .reassign-select:focus { border-color: #0E7490; }
-
-    /* Update card header icon */
-    .update-header-icon { background: #ECFEFF !important; }
-    .update-header-icon svg { stroke: #0E7490 !important; }
-
-    /* Priority save button */
-    .btn-update-save { background: linear-gradient(135deg,#164E63,#0E7490) !important; }
-    .btn-update-save:hover { opacity:.92; transform:translateY(-1px); }
-
-    /* Conversation header — teal */
-    .conv-header { background: #0E7490 !important; }
-    .conv-header-icon svg { stroke: #A5F3FC !important; }
-    .conv-input-row:focus-within { border-color: #0E7490 !important; box-shadow: 0 0 0 3px rgba(14,116,144,.07) !important; }
-    .conv-attach-label:hover { color: #0E7490 !important; }
-    .conv-send-btn { background: linear-gradient(135deg,#164E63,#0E7490) !important; box-shadow: 0 2px 8px rgba(14,116,144,.3) !important; }
-
-    /* Feedback card header — teal gradient */
-    .feedback-card-header { background: linear-gradient(135deg,#0D2F3A 0%,#0f4d60 60%,#0E7490 100%) !important; }
-
-    /* Confirm modal button */
-    .btn-modal-confirm { background: #0E7490 !important; }
-    .btn-modal-confirm:hover { background: #0c5f73 !important; }
-
-    /* Priority modal close button */
-    /* #priModal button[onclick="closePriModal()"] { background: #0E7490 !important; } */
-
-    /* Ticket info card header icon */
-    .ticket-info-header-icon { background: #ECFEFF !important; }
-    .ticket-info-header-icon svg { stroke: #0E7490 !important; }
-
-    /* Dot on feedback tab */
-    .td-tab-dot { background: #0E7490; }
-
-    /* Staff avatar in messages */
-    .msg-avatar.staff-av { background: linear-gradient(135deg,#164E63,#0E7490); }
-
-    /* Staff message bubble */
-    .msg-row.from-staff .msg-bubble { background: linear-gradient(135deg,#0f4060,#0E7490); }
-
-    /* Send button */
-    .conv-send-btn { background: linear-gradient(135deg,#164E63,#0E7490) !important; }
-
-    /* Update save button */
-    .btn-update-save { background: linear-gradient(135deg,#164E63,#0E7490) !important; }
-
-    /* Modal confirm */
-    .td-modal-icon.save { background: #ECFEFF; }
-    .td-modal-icon.save svg { stroke: #0E7490; }
-
-    /* Page-btn active */
-    .tl-page-btn.active { border-color: #0E7490; background: #0E7490; }
-
-    /* Priority modal ticket ID chip */
-    #priModalTicketId { color: #0E7490 !important; background: #CFFAFE !important; }
-  </style>
+<link rel="stylesheet" href="css/tickets_details.css">
+  
 </head>
 <body>
-
 <?php require_once __DIR__ . '/_layout.php'; ?>
 
   <!-- Breadcrumb -->
@@ -744,39 +600,42 @@ $pageSubtitle = 'Maintenance Department';
   <div class="td-alert td-alert-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span><?php echo htmlspecialchars($updateError); ?></span></div>
   <?php endif; ?>
 
-  <!-- Ticket header strip -->
-  <div class="ticket-header-strip">
-    <div class="ths-icon">
-      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-    </div>
-    <div class="ths-info">
-      <div class="ths-title"><?php echo htmlspecialchars($ticket['title']); ?></div>
-      <?php if (!empty($ticket['description'])): ?>
-      <div class="ths-desc"><?php echo htmlspecialchars($ticket['description']); ?></div>
-      <?php endif; ?>
-      <div class="ths-bottom-row">
-        <div class="ths-badges">
+  <!-- Ticket header strip (always visible above tabs) -->
+<div class="ticket-header-strip">
+  <div class="ths-icon">
+    <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+  </div>
+  <div class="ths-info">
+    <div class="ths-title"><?php echo htmlspecialchars($ticket['title']); ?></div>
+    <?php if (!empty($ticket['description'])): ?>
+    <div class="ths-desc"><?php echo htmlspecialchars($ticket['description']); ?></div>
+    <?php endif; ?>
+    <div class="ths-bottom-row">
+      <div class="ths-badges">
     <?php echo statusBadge($ticket['status']); ?>
     <span id="thsPriorityFlag"><?php echo priFlag($ticket['priority'] ?? 'medium'); ?></span>
 </div>
-      </div>
     </div>
-    <div class="ths-id-badge"><?php echo htmlspecialchars($ticket['ticket_id']); ?></div>
   </div>
-
-  <!-- ══ TAB BAR ══ -->
+  <div class="ths-id-badge"><?php echo htmlspecialchars($ticket['ticket_id']); ?></div>
+</div>
+ <!-- ══ TAB BAR ══ -->
   <div class="td-tab-bar" role="tablist">
 
+    <!-- Tab 1: Detail -->
     <a href="?id=<?php echo urlencode($ticketId); ?>&tab=detail&from=<?php echo $backUrlEncoded; ?>"
-       class="td-tab-btn <?php echo $activeTab==='detail'?'active':''; ?>" role="tab">
+       class="td-tab-btn <?php echo $activeTab==='detail'?'active':''; ?>"
+       role="tab">
       <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
       Detail
     </a>
 
     
 
+    <!-- Tab 3: History -->
     <a href="?id=<?php echo urlencode($ticketId); ?>&tab=history&from=<?php echo $backUrlEncoded; ?>"
-       class="td-tab-btn <?php echo $activeTab==='history'?'active':''; ?>" role="tab">
+       class="td-tab-btn <?php echo $activeTab==='history'?'active':''; ?>"
+       role="tab">
       <svg viewBox="0 0 24 24"><polyline points="12,8 12,12 14,14"/><path d="M3.05 11a9 9 0 1 1 .5 4"/></svg>
       History
       <?php if (count($changeLogs) > 0): ?>
@@ -784,6 +643,7 @@ $pageSubtitle = 'Maintenance Department';
       <?php endif; ?>
     </a>
 
+    <!-- Tab 4: Feedback -->
     <?php if (!$isClosed): ?>
     <span class="td-tab-btn disabled" title="Ticket must be closed for feedback">
       <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -791,10 +651,13 @@ $pageSubtitle = 'Maintenance Department';
     </span>
     <?php else: ?>
     <a href="?id=<?php echo urlencode($ticketId); ?>&tab=feedback&from=<?php echo $backUrlEncoded; ?>"
-       class="td-tab-btn <?php echo $activeTab==='feedback'?'active':''; ?>" role="tab">
+       class="td-tab-btn <?php echo $activeTab==='feedback'?'active':''; ?>"
+       role="tab">
       <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       Feedback
-      <?php if ($hasFeedback): ?><span class="td-tab-dot"></span><?php endif; ?>
+      <?php if ($hasFeedback): ?>
+      <span class="td-tab-dot"></span>
+      <?php endif; ?>
     </a>
     <?php endif; ?>
 
@@ -809,6 +672,8 @@ $pageSubtitle = 'Maintenance Department';
 
       <!-- LEFT: Ticket info -->
       <div class="detail-left">
+
+        <!-- Ticket Info Card -->
         <div class="td-card ticket-info-card">
           <div class="td-card-header">
             <div class="td-card-header-icon ticket-info-header-icon">
@@ -821,26 +686,27 @@ $pageSubtitle = 'Maintenance Department';
           </div>
           <div class="td-card-body">
 
+            <!-- Meta grid -->
             <div class="ti-meta-grid">
               <div>
                 <div class="ti-meta-label">Category</div>
-                <div class="ti-meta-value"><?php echo htmlspecialchars($ticket['category_name'] ?? '—'); ?></div>
+                <div class="ti-meta-value"><?php echo htmlspecialchars($ticket['category_name']??'—'); ?></div>
               </div>
               <div>
                 <div class="ti-meta-label">From Department</div>
-                <div class="ti-meta-value"><?php echo htmlspecialchars($ticket['my_department'] ?? '—'); ?></div>
+                <div class="ti-meta-value"><?php echo htmlspecialchars($ticket['my_department']??'—'); ?></div>
               </div>
               <div>
                 <div class="ti-meta-label">Priority</div>
-                <div class="ti-meta-value" id="ticketPriorityChip"><?php echo priFlag($ticket['priority'] ?? 'medium'); ?></div>
+                <div class="ti-meta-value" id="ticketPriorityChip"><?php echo priFlag($ticket['priority']??'medium'); ?></div>
               </div>
               <div>
                 <div class="ti-meta-label">Submitted</div>
-                <div class="ti-meta-value"><?php echo date('d M Y, H:i', strtotime($ticket['created_at'])); ?></div>
+                <div class="ti-meta-value"><?php echo date('d M Y, H:i',strtotime($ticket['created_at'])); ?></div>
               </div>
               <div>
                 <div class="ti-meta-label">Last Updated</div>
-                <div class="ti-meta-value"><?php echo date('d M Y, H:i', strtotime($ticket['updated_at'])); ?></div>
+                <div class="ti-meta-value"><?php echo date('d M Y, H:i',strtotime($ticket['updated_at'])); ?></div>
               </div>
               <?php if(!empty($ticket['sla_start_at'])): ?>
               <div>
@@ -850,9 +716,10 @@ $pageSubtitle = 'Maintenance Department';
               <?php endif; ?>
             </div>
 
+            <!-- Description -->
             <div class="ti-desc-label">Description</div>
             <div class="ti-desc-box"><?php echo htmlspecialchars($ticket['description']); ?></div>
-            <?php if (!empty($ticket['attachment_path'])): ?>
+            <?php if(!empty($ticket['attachment_path'])): ?>
             <a class="ti-attach-link" href="../../<?php echo htmlspecialchars($ticket['attachment_path']); ?>" target="_blank">
               <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
               View Attachment
@@ -861,6 +728,7 @@ $pageSubtitle = 'Maintenance Department';
 
             <div class="ti-divider"></div>
 
+            <!-- Submitted by -->
             <div class="ti-section-label">
               <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               Submitted By
@@ -868,31 +736,31 @@ $pageSubtitle = 'Maintenance Department';
             <div class="ti-submitter-grid">
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Name</div>
-                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['name'] ?? '—'); ?></div>
+                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['name']??'—'); ?></div>
               </div>
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Email</div>
-                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['email'] ?? '—'); ?></div>
+                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['email']??'—'); ?></div>
               </div>
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Phone</div>
-                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone'] ?? '—'); ?></div>
+                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone']??'—'); ?></div>
               </div>
               <div class="ti-submitter-cell" style="border-right:none">
                 <div class="ti-submitter-lbl">Type</div>
-                <div class="ti-submitter-val" style="text-transform:capitalize"><?php echo htmlspecialchars($ticket['submitter_type'] ?? '—'); ?></div>
+                <div class="ti-submitter-val" style="text-transform:capitalize"><?php echo htmlspecialchars($ticket['submitter_type']??'—'); ?></div>
               </div>
             </div>
 
-         </div>
+          </div>
         </div>
 
-        <!-- SLA Status -->
+        <!-- SLA Status (moved from sidebar) -->
         <?php if ($slaData): ?>
         <div class="td-card">
           <div class="td-card-header">
-            <div class="td-card-header-icon sla-header-icon" style="background:#ECFEFF;">
-              <svg viewBox="0 0 24 24" style="stroke:#0E7490"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+            <div class="td-card-header-icon sla-header-icon">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
             </div>
             <div>
               <div class="td-card-header-title">SLA Status</div>
@@ -903,29 +771,29 @@ $pageSubtitle = 'Maintenance Department';
             <div class="sla-inline-grid">
               <div>
                 <?php if (strtolower($ticket['status']) !== 'in_progress' || empty($ticket['first_response_at'])): ?>
-                <div class="sla-status-chip" style="background:<?php echo $slaData['status_bg']; ?>;color:<?php echo $slaData['status_color']; ?>">
-                  <?php echo htmlspecialchars($slaData['status_label']); ?>
-                </div>
-                <?php else: ?>
-                <div class="sla-status-chip" style="background:#D1FAE5;color:#059669;">
-                  SLA Stopped
-                </div>
-                <?php endif; ?>
+<div class="sla-status-chip" style="background:<?php echo $slaData['status_bg']; ?>;color:<?php echo $slaData['status_color']; ?>">
+  <?php echo htmlspecialchars($slaData['status_label']); ?>
+</div>
+<?php else: ?>
+<div class="sla-status-chip" style="background:#D1FAE5;color:#059669;">
+  SLA Stopped
+</div>
+<?php endif; ?>
                 <?php if (strtolower($ticket['status']) !== 'closed' && empty($ticket['first_response_at'])): ?>
-                <div class="sla-remaining-big" style="color:<?php echo $slaData['status_color']; ?>">
-                  <?php echo htmlspecialchars($slaData['remaining_str']); ?>
-                </div>
-                <div class="sla-remaining-sub">until SLA deadline</div>
-                <?php elseif (strtolower($ticket['status']) === 'in_progress' && !empty($ticket['first_response_at'])): ?>
-                <div class="sla-remaining-big" style="color:#059669;">
-                  <?php
-                    $em = $slaData['elapsed_mins'];
-                    $eh = intdiv($em, 60); $emm = $em % 60;
-                    echo $eh > 0 ? "{$eh}h {$emm}m used" : "{$emm}m used";
-                  ?>
-                </div>
-                <div class="sla-remaining-sub"></div>
-                <?php endif; ?>
+<div class="sla-remaining-big" style="color:<?php echo $slaData['status_color']; ?>">
+  <?php echo htmlspecialchars($slaData['remaining_str']); ?>
+</div>
+<div class="sla-remaining-sub">until SLA deadline</div>
+<?php elseif (strtolower($ticket['status']) === 'in_progress' && !empty($ticket['first_response_at'])): ?>
+<div class="sla-remaining-big" style="color:#059669;">
+  <?php 
+    $em = $slaData['elapsed_mins'];
+    $eh = intdiv($em, 60); $emm = $em % 60;
+    echo $eh > 0 ? "{$eh}h {$emm}m used" : "{$emm}m used";
+  ?>
+</div>
+<div class="sla-remaining-sub"></div>
+<?php endif; ?>
               </div>
               <div class="sla-inline-right">
                 <?php $fillPct = min($slaData['percent_used'], 100); ?>
@@ -934,67 +802,76 @@ $pageSubtitle = 'Maintenance Department';
                 </div>
                 <div class="sla-tick-row"><span>0h</span><span>4h</span><span>8h</span></div>
                 <?php
-                  $ticketStatus = strtolower($ticket['status']);
-                  $em = $slaData['elapsed_mins'];
-                  $eh = intdiv($em, 60); $emm = $em % 60;
-                  if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
-                    $timeUsedStr = ($eh > 0 ? "{$eh}h {$emm}m" : "{$emm}m") . ' / ' . SLA_WORK_HOURS . 'h';
-                  } else {
-                    $timeUsedStr = ($eh > 0 ? "{$eh}h {$emm}m" : "{$emm}m") . ' used';
-                  }
-                  if ($ticketStatus === 'closed') {
-                    $timeUsedNote = 'Working hours from submission to close';
-                  } elseif (!empty($ticket['first_response_at'])) {
-                    $timeUsedNote = 'Working hours from submission to first response';
-                  } else {
-                    $timeUsedNote = 'Working hours elapsed since submission';
-                  }
-                  $respondedVal  = !empty($ticket['first_response_at'])
-                    ? date('d M Y, H:i', strtotime($ticket['first_response_at'])) : '—';
-                  $respondedNote = !empty($ticket['first_response_at'])
-                    ? 'Staff first moved ticket to In Progress or Closed' : 'No staff response yet';
-                  $closedVal  = ($ticketStatus === 'closed' && !empty($ticket['resolved_at']))
-                    ? date('d M Y, H:i', strtotime($ticket['resolved_at'])) : '—';
-                  $closedNote = ($ticketStatus === 'closed' && !empty($ticket['resolved_at']))
-                    ? 'Ticket was marked as closed'
-                    : ($ticketStatus === 'closed' ? 'Closed (no timestamp)' : 'Ticket not yet closed');
-                ?>
-                <div class="sla-info-grid" style="grid-template-columns: repeat(5,1fr);">
-                  <div>
-                    <div class="sla-info-label">Submitted</div>
-                    <div class="sla-info-value"><?php echo date('d M Y, H:i', strtotime($ticket['created_at'])); ?></div>
-                    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;">Ticket submission date &amp; time</div>
-                  </div>
-                  <div>
-                    <div class="sla-info-label">Deadline</div>
-                    <?php if ($ticketStatus === 'open' && empty($ticket['first_response_at'])): ?>
-                      <div class="sla-info-value"><?php echo $slaData['deadline_str']; ?></div>
-                      <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;">Must respond before this time</div>
-                    <?php else: ?>
-                      <div class="sla-info-value" style="color:#9CA3AF;">—</div>
-                      <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;">SLA clock stopped after response</div>
-                    <?php endif; ?>
-                  </div>
-                  <div>
-                    <div class="sla-info-label">Time Used</div>
-                    <div class="sla-info-value"><?php echo $timeUsedStr; ?></div>
-                    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;"><?php echo $timeUsedNote; ?></div>
-                  </div>
-                  <div>
-                    <div class="sla-info-label">Responded At</div>
-                    <div class="sla-info-value" style="<?php echo empty($ticket['first_response_at']) ? 'color:#9CA3AF;' : ''; ?>">
-                      <?php echo $respondedVal; ?>
-                    </div>
-                    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;"><?php echo $respondedNote; ?></div>
-                  </div>
-                  <div>
-                    <div class="sla-info-label">Closed At</div>
-                    <div class="sla-info-value" style="<?php echo ($ticketStatus !== 'closed') ? 'color:#9CA3AF;' : ''; ?>">
-                      <?php echo $closedVal; ?>
-                    </div>
-                    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;"><?php echo $closedNote; ?></div>
-                  </div>
-                </div>
+  $ticketStatus = strtolower($ticket['status']);
+  $em = $slaData['elapsed_mins'];
+  $eh = intdiv($em, 60); $emm = $em % 60;
+  if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
+    $timeUsedStr = ($eh > 0 ? "{$eh}h {$emm}m" : "{$emm}m") . ' / ' . SLA_WORK_HOURS . 'h';
+} else {
+    $timeUsedStr = ($eh > 0 ? "{$eh}h {$emm}m" : "{$emm}m") . ' used';
+}
+
+  if ($ticketStatus === 'closed') {
+      $timeUsedNote = 'Working hours from submission to close';
+  } elseif (!empty($ticket['first_response_at'])) {
+      $timeUsedNote = 'Working hours from submission to first response';
+  } else {
+      $timeUsedNote = 'Working hours elapsed since submission';
+  }
+
+  $respondedVal  = !empty($ticket['first_response_at'])
+      ? date('d M Y, H:i', strtotime($ticket['first_response_at'])) : '—';
+  $respondedNote = !empty($ticket['first_response_at'])
+      ? 'Staff first moved ticket to In Progress or Closed' : 'No staff response yet';
+
+  $closedVal  = ($ticketStatus === 'closed' && !empty($ticket['resolved_at']))
+      ? date('d M Y, H:i', strtotime($ticket['resolved_at'])) : '—';
+  $closedNote = ($ticketStatus === 'closed' && !empty($ticket['resolved_at']))
+      ? 'Ticket was marked as closed'
+      : ($ticketStatus === 'closed' ? 'Closed (no timestamp)' : 'Ticket not yet closed');
+?>
+<div class="sla-info-grid" style="grid-template-columns: repeat(5,1fr);">
+
+  <div>
+    <div class="sla-info-label">Submitted</div>
+    <div class="sla-info-value"><?php echo date('d M Y, H:i', strtotime($ticket['created_at'])); ?></div>
+    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;">Ticket submission date &amp; time</div>
+  </div>
+
+  <div>
+    <div class="sla-info-label">Deadline</div>
+    <?php if ($ticketStatus === 'open' && empty($ticket['first_response_at'])): ?>
+      <div class="sla-info-value"><?php echo $slaData['deadline_str']; ?></div>
+      <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;">Must respond before this time</div>
+    <?php else: ?>
+      <div class="sla-info-value" style="color:#9CA3AF;">—</div>
+      <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;">SLA clock stopped after response</div>
+    <?php endif; ?>
+  </div>
+
+  <div>
+    <div class="sla-info-label">Time Used</div>
+    <div class="sla-info-value"><?php echo $timeUsedStr; ?></div>
+    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;"><?php echo $timeUsedNote; ?></div>
+  </div>
+
+  <div>
+    <div class="sla-info-label">Responded At</div>
+    <div class="sla-info-value" style="<?php echo empty($ticket['first_response_at']) ? 'color:#9CA3AF;' : ''; ?>">
+      <?php echo $respondedVal; ?>
+    </div>
+    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;"><?php echo $respondedNote; ?></div>
+  </div>
+
+  <div>
+    <div class="sla-info-label">Closed At</div>
+    <div class="sla-info-value" style="<?php echo ($ticketStatus !== 'closed') ? 'color:#9CA3AF;' : ''; ?>">
+      <?php echo $closedVal; ?>
+    </div>
+    <div style="font-size:10px;color:#9CA3AF;margin-top:3px;line-height:1.4;"><?php echo $closedNote; ?></div>
+  </div>
+
+</div>
               </div>
             </div>
             <?php
@@ -1020,8 +897,8 @@ $pageSubtitle = 'Maintenance Department';
         <!-- Assigned To -->
         <div class="td-card">
           <div class="td-card-header">
-            <div class="td-card-header-icon" style="background:#ECFEFF">
-              <svg viewBox="0 0 24 24" style="stroke:#0E7490"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <div class="td-card-header-icon assigned-header-icon">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             <div>
               <div class="td-card-header-title">Assigned To</div>
@@ -1033,7 +910,7 @@ $pageSubtitle = 'Maintenance Department';
               <div class="assigned-avatar"><?php echo getInitials($assignedStaff['full_name']); ?></div>
               <div style="flex:1;min-width:0;">
                 <div class="assigned-name"><?php echo htmlspecialchars($assignedStaff['full_name']); ?></div>
-                <div class="assigned-role-tag">Maintenance Staff</div>
+                <div class="assigned-role-tag">HCD Staff</div>
               </div>
             </div>
             <?php else: ?>
@@ -1065,6 +942,8 @@ $pageSubtitle = 'Maintenance Department';
           </div>
         </div>
 
+       
+
         <!-- Update Ticket -->
         <div class="td-card">
           <div class="td-card-header">
@@ -1077,7 +956,7 @@ $pageSubtitle = 'Maintenance Department';
             </div>
           </div>
           <div class="td-card-body">
-            <?php $curPri = strtolower($ticket['priority'] ?? 'medium'); $curStat = strtolower($ticket['status'] ?? 'open'); ?>
+            <?php $curPri=strtolower($ticket['priority']??'medium'); $curStat=strtolower($ticket['status']??'open'); ?>
 
             <?php if ($isAssignedStaff): ?>
               <div class="pri-label-sm">Priority <span id="priSavingSpinner" style="display:none;font-size:10px;color:#9CA3AF;font-weight:400;margin-left:3px">saving…</span></div>
@@ -1122,6 +1001,8 @@ $pageSubtitle = 'Maintenance Department';
 <button type="button" class="btn-update-save" onclick="openConfirmModal()">Save Changes</button>
 </form>
 
+
+
             <?php else: ?>
   <div class="no-permission-box">
     <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -1146,11 +1027,6 @@ $pageSubtitle = 'Maintenance Department';
     <?php echo $curStat==='in_progress'?'In Progress':ucfirst($curStat); ?>
   </div>
 <?php endif; ?>
-
-
-
-
-            
           </div>
         </div>
 
@@ -1159,28 +1035,29 @@ $pageSubtitle = 'Maintenance Department';
   </div><!-- /.td-panel detail -->
 
 
+
   <!-- ══════════════════════════════════════════════════
        TAB 3: HISTORY
   ══════════════════════════════════════════════════ -->
   <div class="td-panel <?php echo $activeTab==='history'?'active':''; ?>">
     <div class="history-card">
       <div class="td-card-header" style="padding:14px 20px;border-bottom:1px solid #F3F4F6;">
-        <div class="td-card-header-icon" style="background:#ECFEFF;">
-          <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:#0E7490;stroke-width:1.8"><polyline points="12,8 12,12 14,14"/><path d="M3.05 11a9 9 0 1 1 .5 4"/></svg>
-        </div>
-        <div style="flex:1;min-width:0;">
-          <div class="td-card-header-title">Change History</div>
-          <div class="td-card-header-sub"><?php echo count($changeLogs); ?> change<?php echo count($changeLogs) !== 1 ? 's' : ''; ?> recorded</div>
-        </div>
-        <?php if (count($changeLogs) > 0): ?>
-        <select id="tlPerPage" class="tl-perpage-select">
-          <option value="5">5 per page</option>
-          <option value="10">10 per page</option>
-          <option value="25">25 per page</option>
-          <option value="50">50 per page</option>
-        </select>
-        <?php endif; ?>
-      </div>
+  <div class="td-card-header-icon" style="background:#F5F3FF;">
+    <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:#7C3AED;stroke-width:1.8"><polyline points="12,8 12,12 14,14"/><path d="M3.05 11a9 9 0 1 1 .5 4"/></svg>
+  </div>
+  <div style="flex:1;min-width:0;">
+    <div class="td-card-header-title">Change History</div>
+    <div class="td-card-header-sub"><?php echo count($changeLogs); ?> change<?php echo count($changeLogs)!==1?'s':''; ?> recorded</div>
+  </div>
+  <?php if (count($changeLogs) > 0): ?>
+  <select id="tlPerPage" class="tl-perpage-select">
+    <option value="5">5 per page</option>
+    <option value="10">10 per page</option>
+    <option value="25">25 per page</option>
+    <option value="50">50 per page</option>
+  </select>
+  <?php endif; ?>
+</div>
 
       <?php if (empty($changeLogs)): ?>
       <div class="history-empty">
@@ -1193,30 +1070,30 @@ $pageSubtitle = 'Maintenance Department';
       <?php else: ?>
 
       <div class="timeline" id="timelineContainer">
-        <?php foreach ($changeLogs as $idx => $log):
-          $fc = $log['field_changed'];
-          $dotCls = match($fc) {
-            'priority'     => 'pri',
-            'status'       => 'stat',
-            'assigned'     => 'asgn',
-            'conversation' => 'conv',
-            'message'      => 'msg',
-            default        => 'both'
-          };
+        <?php foreach($changeLogs as $idx=>$log):
+          $fc=$log['field_changed'];
+          $dotCls=match($fc){
+    'priority'=>'pri',
+    'status'=>'stat',
+    'assigned'=>'asgn',
+    'conversation'=>'conv',
+    'message'=>'msg',
+    default=>'both'
+};
         ?>
-        <div class="tl-item" data-log-index="<?php echo $idx; ?>" style="<?php echo $idx >= 10 ? 'display:none' : ''; ?>">
+        <div class="tl-item" data-log-index="<?php echo $idx; ?>" style="<?php echo $idx>=10?'display:none':''; ?>">
           <div class="tl-dot <?php echo $dotCls; ?>">
-            <?php if ($fc === 'priority'): ?>
+            <?php if($fc==='priority'):?>
               <svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-            <?php elseif ($fc === 'status'): ?>
+            <?php elseif($fc==='status'):?>
               <svg viewBox="0 0 24 24"><rect x="1" y="5" width="22" height="14" rx="7" ry="7"/><circle cx="16" cy="12" r="3"/></svg>
-            <?php elseif ($fc === 'assigned'): ?>
+            <?php elseif($fc==='assigned'):?>
               <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <?php elseif ($fc === 'conversation'): ?>
+            <?php elseif($fc==='conversation'):?>
               <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            <?php elseif ($fc === 'message'): ?>
+              <?php elseif($fc==='message'):?>
   <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10" stroke-linecap="round"/><line x1="9" y1="14" x2="13" y2="14" stroke-linecap="round"/></svg>
-            <?php else: ?>
+            <?php else:?>
               <svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg>
             <?php endif; ?>
           </div>
@@ -1227,14 +1104,13 @@ $pageSubtitle = 'Maintenance Department';
 </div>
 <span class="tl-when-full"><?php echo date('d M Y, H:i',strtotime($log['event_at'])); ?></span>
             <div class="tl-changes" style="margin-top:5px">
-              <?php if (in_array($fc, ['priority','both']) && $log['old_priority'] && $log['new_priority']): ?>
+              <?php if(in_array($fc,['priority','both'])&&$log['old_priority']&&$log['new_priority']):?>
               <div class="tl-row"><span class="tl-row-label">Priority</span><?php echo priChip($log['old_priority']); ?><span class="tl-arrow">→</span><?php echo priChip($log['new_priority']); ?></div>
               <?php endif; ?>
-              <?php if (in_array($fc, ['status','both']) && $log['old_status'] && $log['new_status']): ?>
+              <?php if(in_array($fc,['status','both'])&&$log['old_status']&&$log['new_status']):?>
               <div class="tl-row"><span class="tl-row-label">Status</span><?php echo statChip($log['old_status']); ?><span class="tl-arrow">→</span><?php echo statChip($log['new_status']); ?></div>
               <?php endif; ?>
-              
-              <?php if ($fc === 'assigned'): ?>
+              <?php if($fc==='assigned'): ?>
 <div class="tl-row">
     <span class="tl-row-label">Action</span>
     <span class="tl-chip-name" style="background:#EFF6FF;color:#1D4ED8;">Ticket Reassigned</span>
@@ -1258,7 +1134,7 @@ $pageSubtitle = 'Maintenance Department';
 </div>
 <?php endif; ?>
 <?php endif; ?>
-              <?php if ($fc === 'conversation'): ?>
+              <?php if($fc==='conversation'): ?>
               <div class="tl-row">
                 <span class="tl-row-label">Chat</span>
                 <span class="tl-chip-conv">Started first reply to ticket</span>
@@ -1284,18 +1160,19 @@ $pageSubtitle = 'Maintenance Department';
 </div>
 <?php endif; ?>
 <?php endif; ?>
+
             </div>
           </div>
         </div>
         <?php endforeach; ?>
       </div>
 
-      <?php if (count($changeLogs) > 0): ?>
-      <div class="tl-pagination" id="tlPagination">
-        <span class="tl-page-info" id="tlPageInfo"></span>
-        <div class="tl-page-btns" id="tlPageBtns"></div>
-      </div>
-      <?php endif; ?>
+     <?php if (count($changeLogs) > 0): ?>
+<div class="tl-pagination" id="tlPagination">
+  <span class="tl-page-info" id="tlPageInfo"></span>
+  <div class="tl-page-btns" id="tlPageBtns"></div>
+</div>
+<?php endif; ?>
 
       <?php endif; ?>
     </div>
@@ -1308,18 +1185,20 @@ $pageSubtitle = 'Maintenance Department';
   <div class="td-panel <?php echo $activeTab==='feedback'?'active':''; ?>">
 
     <?php if (!$isClosed): ?>
+    <!-- Ticket still open — locked state -->
     <div class="feedback-locked-state">
       <div class="feedback-lock-icon">
         <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </div>
       <div class="feedback-lock-emojis">
-        <?php for ($i = 1; $i <= 5; $i++) echo feedbackEmojiSvg($i, 22); ?>
+        <?php for($i=1;$i<=5;$i++) echo feedbackEmojiSvg($i, 22); ?>
       </div>
       <div class="feedback-lock-title">Awaiting Closure</div>
       <div class="feedback-lock-sub">Customer feedback will be available once this ticket is marked as <strong>Closed</strong>.</div>
     </div>
 
     <?php else: ?>
+    <!-- Ticket closed -->
     <div class="feedback-card">
       <div class="feedback-card-header">
         <div class="feedback-card-header-icon">
@@ -1328,7 +1207,7 @@ $pageSubtitle = 'Maintenance Department';
         <div>
           <div class="feedback-card-header-title">Customer Feedback</div>
           <div class="feedback-card-header-sub">
-            <?php echo $hasFeedback ? 'Submitted by ' . htmlspecialchars($feedback['student_name'] ?? 'student') : 'Awaiting student feedback'; ?>
+            <?php echo $hasFeedback ? 'Submitted by '.htmlspecialchars($feedback['student_name'] ?? 'student') : 'Awaiting student feedback'; ?>
           </div>
         </div>
         <?php if ($hasFeedback): ?>
@@ -1346,8 +1225,8 @@ $pageSubtitle = 'Maintenance Department';
               <div class="fb-compact-label" style="color:<?php echo $chipFg; ?>"><?php echo ratingLabel($r); ?></div>
               <div class="fb-compact-meta">
                 <?php echo htmlspecialchars($feedback['student_name'] ?? '—'); ?> &nbsp;·&nbsp;
-                <?php echo date('d M Y, H:i', strtotime($feedback['created_at'])); ?>
-                <?php if ($feedback['is_auto_submitted']): ?>&nbsp;<span class="fb-auto-chip">Auto</span><?php endif; ?>
+                <?php echo date('d M Y, H:i',strtotime($feedback['created_at'])); ?>
+                <?php if($feedback['is_auto_submitted']): ?>&nbsp;<span class="fb-auto-chip">Auto</span><?php endif; ?>
               </div>
             </div>
             <div class="fb-compact-score">
@@ -1356,11 +1235,11 @@ $pageSubtitle = 'Maintenance Department';
             </div>
           </div>
           <div class="fb-mini-faces">
-            <?php for ($i = 1; $i <= 5; $i++): ?>
-            <div class="fb-mini-face<?php echo $i === $r ? ' active' : ''; ?>"><?php echo feedbackEmojiSvg($i, 22); ?></div>
+            <?php for($i=1;$i<=5;$i++): ?>
+            <div class="fb-mini-face<?php echo $i===$r?' active':''; ?>"><?php echo feedbackEmojiSvg($i,22); ?></div>
             <?php endfor; ?>
           </div>
-          <?php if (!empty($feedback['comment'])): ?>
+          <?php if(!empty($feedback['comment'])): ?>
           <div class="fb-compact-comment" style="border-left-color:<?php echo $chipFg; ?>">
             <?php echo htmlspecialchars($feedback['comment']); ?>
           </div>
@@ -1369,14 +1248,14 @@ $pageSubtitle = 'Maintenance Department';
           <?php endif; ?>
           <div class="fb-compact-footer">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
-            <?php echo date('d M Y, H:i', strtotime($feedback['created_at'])); ?>
-            <?php if ($feedback['is_auto_submitted']): ?><span class="fb-auto-chip">Auto-submitted</span><?php endif; ?>
+            <?php echo date('d M Y, H:i',strtotime($feedback['created_at'])); ?>
+            <?php if($feedback['is_auto_submitted']): ?><span class="fb-auto-chip">Auto-submitted</span><?php endif; ?>
           </div>
 
         <?php else: ?>
           <div class="fb-no-feedback-wrap">
             <div class="fb-no-feedback-faces">
-              <?php for ($i = 1; $i <= 5; $i++) echo feedbackEmojiSvg($i, 22); ?>
+              <?php for($i=1;$i<=5;$i++) echo feedbackEmojiSvg($i,22); ?>
             </div>
             <div>
               <div class="fb-no-feedback-title">No feedback yet</div>
@@ -1403,12 +1282,12 @@ $pageSubtitle = 'Maintenance Department';
     <div style="font-family:'DM Serif Display',serif;font-size:20px;color:#0D1F3C;margin-bottom:5px">Changes Saved!</div>
     <div id="priModalSubtext" style="font-size:13.5px;color:#6B7280;margin-bottom:20px;line-height:1.55"></div>
     <div style="background:#F9FAFB;border-radius:9px;padding:3px 0;margin-bottom:20px;border:1px solid #E5E7EB;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:12.5px;"><span style="color:#9CA3AF;">Ticket</span><span id="priModalTicketId" style="font-family:monospace;font-weight:700;font-size:11px;background:#CFFAFE;color:#0E7490;padding:2px 9px;border-radius:5px;"></span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:12.5px;"><span style="color:#9CA3AF;">Ticket</span><span id="priModalTicketId" style="font-family:monospace;font-weight:700;color:#001f5c;font-size:11px;background:#E2E8F7;padding:2px 9px;border-radius:5px;"></span></div>
       <div style="height:1px;background:#E5E7EB;"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:12.5px;"><span style="color:#9CA3AF;">Priority</span><span id="priModalChip" style="font-weight:700;padding:2px 13px;border-radius:20px;font-size:12.5px;"></span></div>
     </div>
-    <button onclick="closePriModal()" style="width:100%;padding:11px;border-radius:9px;border:none;background:#0E7490;color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
-    <div id="priModalProgressBar" style="position:absolute;bottom:0;left:0;right:0;height:4px;background:#CFFAFE;border-radius:0 0 14px 14px;overflow:hidden;"><div id="priModalProgressFill" style="height:100%;width:100%;background:#0E7490;border-radius:0 0 14px 14px;"></div></div>
+    <button onclick="closePriModal()" style="width:100%;padding:11px;border-radius:9px;border:none;background:#001f5c;color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
+    <div id="priModalProgressBar" style="position:absolute;bottom:0;left:0;right:0;height:4px;background:#E2E8F7;border-radius:0 0 14px 14px;overflow:hidden;"><div id="priModalProgressFill" style="height:100%;width:100%;background:#001f5c;border-radius:0 0 14px 14px;"></div></div>
   </div>
 </div>
 
@@ -1428,6 +1307,8 @@ $pageSubtitle = 'Maintenance Department';
 <!-- ══ Validation Alert Modal ══ -->
 <div class="modal-backdrop" id="validationModal">
   <div class="td-modal" style="max-width:360px;position:relative;overflow:hidden;padding:0;text-align:left;">
+    
+    <!-- Red alert header band -->
     <div style="background:#DC2626;padding:20px 24px 18px;display:flex;align-items:center;gap:12px;">
       <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -1437,16 +1318,24 @@ $pageSubtitle = 'Maintenance Department';
         <div style="font-size:16px;font-weight:700;color:white;line-height:1.2;">No Status Selected</div>
       </div>
     </div>
+
+    <!-- Body -->
     <div style="padding:20px 24px 22px;">
       <p style="font-size:13.5px;color:#374151;line-height:1.65;margin:0 0 14px;">You must select a <strong>new status</strong> from the dropdown before saving. The status cannot stay the same.</p>
+      
+      <!-- Current status highlight box -->
       <div style="background:#FEF2F2;border:1.5px solid #FECACA;border-left:4px solid #DC2626;border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:18px;display:flex;align-items:center;gap:9px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         <span style="font-size:12.5px;color:#991B1B;line-height:1.5;">Current status is already <strong id="validationCurrentStatus"></strong> — you must pick a different one.</span>
       </div>
+
+      <!-- Action button -->
       <button onclick="closeValidationModal()" style="width:100%;padding:11px;border-radius:8px;border:1.5px solid #E5E7EB;background:white;color:#374151;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;" onmouseover="this.style.background='#F9FAFB'" onmouseout="this.style.background='white'">Dismiss</button>
     </div>
+
   </div>
 </div>
+
 
 <!-- ══ Confirm Modal ══ -->
 <div class="modal-backdrop" id="confirmModal">
@@ -1471,7 +1360,7 @@ $pageSubtitle = 'Maintenance Department';
 </div>
 
 <script>
-// ── Reassign select ───────────────────────────────────────────────────────────
+// ── Reassign select — show remarks + button only when a staff is chosen ───────
 function handleReassignChange(sel) {
   var remarksBox = document.getElementById('reassignRemarksBox');
   var saveBtn    = document.getElementById('reassignSaveBtn');
@@ -1481,71 +1370,29 @@ function handleReassignChange(sel) {
 }
 
 // ── Priority auto-save ────────────────────────────────────────────────────────
-var priConfig = {
-  low:    {emoji:'🔵',label:'Low',    chip:'#EFF6FF',chipColor:'#3B82F6',subtext:'Marked as low priority.'},
-  medium: {emoji:'🟡',label:'Medium', chip:'#FFFBEB',chipColor:'#F59E0B',subtext:'Marked as medium priority.'},
-  high:   {emoji:'🔴',label:'High',   chip:'#FFF1F2',chipColor:'#EF4444',subtext:'Escalated to high priority.'}
+var priConfig={
+  low:{emoji:'🔵',label:'Low',chip:'#EFF6FF',chipColor:'#3B82F6',subtext:'Marked as low priority.'},
+  medium:{emoji:'🟡',label:'Medium',chip:'#FFFBEB',chipColor:'#F59E0B',subtext:'Marked as medium priority.'},
+  high:{emoji:'🔴',label:'High',chip:'#FFF1F2',chipColor:'#EF4444',subtext:'Escalated to high priority.'}
 };
-var priModalAutoClose = null;
+var priModalAutoClose=null;
 
-function openPriModal(priority) {
-  var cfg = priConfig[priority] || priConfig['medium'];
-  document.getElementById('priModalIcon').textContent = cfg.emoji;
-  document.getElementById('priModalIcon').style.background = cfg.chip;
-  document.getElementById('priModalSubtext').textContent = cfg.subtext;
-  document.getElementById('priModalTicketId').textContent = '<?php echo addslashes($ticketId); ?>';
-  var chip = document.getElementById('priModalChip');
-  chip.textContent = cfg.label; chip.style.background = cfg.chip; chip.style.color = cfg.chipColor;
-  var bd = document.getElementById('priModalBackdrop'); bd.style.display = 'flex';
-  var fill = document.getElementById('priModalProgressFill');
-  fill.style.transition = 'none'; fill.style.width = '100%';
-  requestAnimationFrame(function() { requestAnimationFrame(function() {
-    fill.style.transition = 'width 4s linear'; fill.style.width = '0%';
-  }); });
-  clearTimeout(priModalAutoClose);
-  priModalAutoClose = setTimeout(closePriModal, 4000);
+function openPriModal(priority){
+  var cfg=priConfig[priority]||priConfig['medium'];
+  document.getElementById('priModalIcon').textContent=cfg.emoji;
+  document.getElementById('priModalIcon').style.background=cfg.chip;
+  document.getElementById('priModalSubtext').textContent=cfg.subtext;
+  document.getElementById('priModalTicketId').textContent='<?php echo addslashes($ticketId); ?>';
+  var chip=document.getElementById('priModalChip');
+  chip.textContent=cfg.label; chip.style.background=cfg.chip; chip.style.color=cfg.chipColor;
+  var bd=document.getElementById('priModalBackdrop'); bd.style.display='flex';
+  var fill=document.getElementById('priModalProgressFill');
+  fill.style.transition='none'; fill.style.width='100%';
+  requestAnimationFrame(function(){requestAnimationFrame(function(){fill.style.transition='width 4s linear';fill.style.width='0%';});});
+  clearTimeout(priModalAutoClose); priModalAutoClose=setTimeout(closePriModal,4000);
 }
-function closePriModal() { clearTimeout(priModalAutoClose); document.getElementById('priModalBackdrop').style.display = 'none'; }
-document.getElementById('priModalBackdrop').addEventListener('click', function(e) { if (e.target === this) closePriModal(); });
+function closePriModal(){clearTimeout(priModalAutoClose);document.getElementById('priModalBackdrop').style.display='none';}
 
-var priFlagMap = {
-  low:    '<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#3B82F6;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#3B82F6"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"/></svg>Low</span>',
-  medium: '<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#F59E0B;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#F59E0B"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/></svg>Medium</span>',
-  high:   '<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#EF4444;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#EF4444"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/></svg>High</span>'
-};
-
-function selectPriorityAutoSave(priority, btn) {
-  if (!document.getElementById('priorityInput')) return;
-  document.querySelectorAll('.pri-btn').forEach(function(b) { b.classList.remove('active'); b.classList.add('saving'); });
-  btn.classList.add('active');
-  document.getElementById('priorityInput').value = priority;
-  var spinner = document.getElementById('priSavingSpinner'); if (spinner) spinner.style.display = 'inline';
-  var currentStat = document.getElementById('status') ? document.getElementById('status').value : '<?php echo $curStat ?? 'open'; ?>';
-  var fd = new FormData(); fd.append('action','update'); fd.append('priority',priority); fd.append('status',currentStat);
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', 'ticket_detail.php?id=<?php echo urlencode($ticketId); ?>', true);
-  xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    document.querySelectorAll('.pri-btn').forEach(function(b) { b.classList.remove('saving'); });
-    if (spinner) spinner.style.display = 'none';
-    if (xhr.status === 200) {
-      try {
-        var r = JSON.parse(xhr.responseText);
-        if (r.success) {
-          openPriModal(priority);
-          var ce = document.getElementById('ticketPriorityChip');
-          if (ce && priFlagMap[priority]) ce.innerHTML = priFlagMap[priority];
-          var thsPri = document.getElementById('thsPriorityFlag');
-          if (thsPri && priFlagMap[priority]) thsPri.innerHTML = priFlagMap[priority];
-        } else { alert('Failed to update.'); }
-      } catch(e) { openPriModal(priority); }
-    } else { alert('Failed to update.'); }
-  };
-  xhr.send(fd);
-}
-
-// ── Status change handler ─────────────────────────────────────────────────────
 function handleStatusChange(val) {
   document.querySelector('.btn-update-save').style.display = 'block';
   var msgBox = document.getElementById('msgBox');
@@ -1553,17 +1400,52 @@ function handleStatusChange(val) {
     msgBox.style.display = (val === 'in_progress' || val === 'closed') ? 'block' : 'none';
   }
 }
+document.getElementById('priModalBackdrop').addEventListener('click',function(e){if(e.target===this)closePriModal();});
 
-// ── Confirm modal ─────────────────────────────────────────────────────────────
-var currentTicketStatus = '<?php echo addslashes($curStat ?? 'open'); ?>';
-
-var statChipHtml = {
-  open:        '<span style="display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px;background:#FEF3C7;color:#D97706">Open</span>',
-  in_progress: '<span style="display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px;background:#DBEAFE;color:#1D4ED8">In Progress</span>',
-  closed:      '<span style="display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px;background:#D1FAE5;color:#059669">Closed</span>'
+var priFlagMap={
+  low:'<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#3B82F6;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#3B82F6" xmlns="http://www.w3.org/2000/svg"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"/></svg>Low</span>',
+  medium:'<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#F59E0B;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#F59E0B" xmlns="http://www.w3.org/2000/svg"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/></svg>Medium</span>',
+  high:'<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#EF4444;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#EF4444" xmlns="http://www.w3.org/2000/svg"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/></svg>High</span>'
 };
 
-function openConfirmModal() {
+function selectPriorityAutoSave(priority,btn){
+  if(!document.getElementById('priorityInput'))return;
+  document.querySelectorAll('.pri-btn').forEach(function(b){b.classList.remove('active');b.classList.add('saving');});
+  btn.classList.add('active'); document.getElementById('priorityInput').value=priority;
+  var spinner=document.getElementById('priSavingSpinner'); if(spinner)spinner.style.display='inline';
+  var currentStat=document.getElementById('status')?document.getElementById('status').value:'<?php echo $curStat ?? 'open'; ?>';
+  var fd=new FormData(); fd.append('action','update'); fd.append('priority',priority); fd.append('status',currentStat);
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST','ticket_detail.php?id=<?php echo urlencode($ticketId); ?>',true);
+  xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
+  xhr.onreadystatechange=function(){
+    if(xhr.readyState!==4)return;
+    document.querySelectorAll('.pri-btn').forEach(function(b){b.classList.remove('saving');});
+    if(spinner)spinner.style.display='none';
+    if(xhr.status===200){
+      try{
+        var r=JSON.parse(xhr.responseText);
+       if(r.success){
+    openPriModal(priority);
+    // Update sidebar chip (already exists)
+    var ce=document.getElementById('ticketPriorityChip');
+    if(ce&&priFlagMap[priority])ce.innerHTML=priFlagMap[priority];
+    // ← ADD THIS: Update header strip priority flag
+    var thsPri=document.getElementById('thsPriorityFlag');
+    if(thsPri&&priFlagMap[priority])thsPri.innerHTML=priFlagMap[priority];
+}else{alert('Failed to update.');}
+      }catch(e){openPriModal(priority);}
+    }else{alert('Failed to update.');}
+  };
+  xhr.send(fd);
+}
+
+// ── SLA reset warning ─────────────────────────────────────────────────────────
+var currentTicketStatus='<?php echo addslashes($curStat ?? 'open'); ?>';
+
+
+// ── Confirm modal ─────────────────────────────────────────────────────────────
+function openConfirmModal(){
   var status = document.getElementById('status').value;
   var currentStatus = '<?php echo addslashes($curStat); ?>';
 
@@ -1575,43 +1457,41 @@ function openConfirmModal() {
     return;
   }
 
-  var isReopening = (currentTicketStatus === 'closed' && status !== 'closed');
-  document.getElementById('modalStatVal').innerHTML = statChipHtml[status] || status;
-  var slaRow = document.getElementById('slaResetRow');
-  if (slaRow) slaRow.style.display = isReopening ? 'flex' : 'none';
-  var titleEl = document.getElementById('confirmModalTitle');
-  var descEl  = document.getElementById('confirmModalDesc');
-  if (isReopening) {
-    if (titleEl) titleEl.textContent = 'Reopen & Reset SLA?';
-    if (descEl)  descEl.textContent  = 'This will reopen the ticket and start a fresh 8-hour SLA window from now.';
-  } else {
-    if (titleEl) titleEl.textContent = 'Update Status?';
-    if (descEl)  descEl.textContent  = 'Confirm the status change you are about to apply.';
-  }
+  var isReopening=(currentTicketStatus==='closed'&&status!=='closed');
+  var map={
+    open:'<span style="display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px;background:#FEF3C7;color:#D97706">Open</span>',
+    in_progress:'<span style="display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px;background:#DBEAFE;color:#1D4ED8">In Progress</span>',
+    closed:'<span style="display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:20px;background:#D1FAE5;color:#059669">Closed</span>'
+  };
+  document.getElementById('modalStatVal').innerHTML=map[status]||status;
+  var slaRow=document.getElementById('slaResetRow');
+  if(slaRow)slaRow.style.display=isReopening?'flex':'none';
+  var titleEl=document.getElementById('confirmModalTitle');
+  var descEl=document.getElementById('confirmModalDesc');
+  if(isReopening){if(titleEl)titleEl.textContent='Reopen & Reset SLA?';if(descEl)descEl.textContent='This will reopen the ticket and start a fresh 8-hour SLA window from now.';}
+  else{if(titleEl)titleEl.textContent='Update Status?';if(descEl)descEl.textContent='Confirm the status change you are about to apply.';}
   document.getElementById('confirmModal').classList.add('show');
 }
-function closeConfirmModal() { document.getElementById('confirmModal').classList.remove('show'); }
-function closeValidationModal() { document.getElementById('validationModal').classList.remove('show'); }
-document.getElementById('validationModal').addEventListener('click', function(e) { if (e.target === this) closeValidationModal(); });
-function submitUpdate() { closeConfirmModal(); document.getElementById('updateForm').submit(); }
-document.getElementById('confirmModal').addEventListener('click', function(e) { if (e.target === this) closeConfirmModal(); });
+function closeConfirmModal(){document.getElementById('confirmModal').classList.remove('show');}
+function closeValidationModal(){document.getElementById('validationModal').classList.remove('show');}
+document.getElementById('validationModal').addEventListener('click',function(e){if(e.target===this)closeValidationModal();});
+function submitUpdate(){closeConfirmModal();document.getElementById('updateForm').submit();}
+document.getElementById('confirmModal').addEventListener('click',function(e){if(e.target===this)closeConfirmModal();});
+
+
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
-var lb = document.getElementById('lightboxBackdrop');
-var li = document.getElementById('lightboxImg');
-var lc = document.getElementById('lightboxCaption');
-var lo = document.getElementById('lightboxOpenFull');
-function openLightbox(url, filename) { if(!lb) return; li.src = url; li.alt = filename || ''; lc.textContent = filename || ''; lo.href = url; lb.classList.add('show'); document.body.style.overflow = 'hidden'; }
-function closeLightbox() { if(!lb) return; lb.classList.remove('show'); document.body.style.overflow = ''; setTimeout(function() { if(li) li.src = ''; }, 300); }
-var lbClose = document.getElementById('lightboxClose');
-if (lbClose) lbClose.addEventListener('click', closeLightbox);
-if (lb) lb.addEventListener('click', function(e) { if (e.target === this) closeLightbox(); });
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') { closeLightbox(); closeConfirmModal(); closePriModal(); closeValidationModal(); }
-});
+var lb=document.getElementById('lightboxBackdrop'),li=document.getElementById('lightboxImg'),lc=document.getElementById('lightboxCaption'),lo=document.getElementById('lightboxOpenFull');
+function openLightbox(url,filename){if(!lb)return;li.src=url;li.alt=filename||'';lc.textContent=filename||'';lo.href=url;lb.classList.add('show');document.body.style.overflow='hidden';}
+function closeLightbox(){if(!lb)return;lb.classList.remove('show');document.body.style.overflow='';setTimeout(function(){if(li)li.src='';},300);}
+var lbClose=document.getElementById('lightboxClose');
+if(lbClose)lbClose.addEventListener('click',closeLightbox);
+if(lb)lb.addEventListener('click',function(e){if(e.target===this)closeLightbox();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeLightbox();closeConfirmModal();closePriModal();closeValidationModal();}});
+
 
 // ── Timeline pagination ───────────────────────────────────────────────────────
-(function() {
+(function(){
   var logs = document.querySelectorAll('.tl-item');
   if (!logs.length) return;
   var total = logs.length, perPage = 5, currentPage = 1;
@@ -1622,7 +1502,9 @@ document.addEventListener('keydown', function(e) {
     currentPage = Math.max(1, Math.min(page, totalPages()));
     var start = (currentPage - 1) * perPage;
     var end = Math.min(start + perPage, total);
-    logs.forEach(function(el, i) { el.style.display = (i >= start && i < end) ? '' : 'none'; });
+    logs.forEach(function(el, i) {
+      el.style.display = (i >= start && i < end) ? '' : 'none';
+    });
     var info = document.getElementById('tlPageInfo');
     if (info) info.textContent = (start + 1) + '–' + end + ' of ' + total;
     renderBtns();
@@ -1633,19 +1515,23 @@ document.addEventListener('keydown', function(e) {
     if (!btns) return;
     btns.innerHTML = '';
     var tp = totalPages();
+
     var prev = document.createElement('button');
     prev.className = 'tl-page-btn';
     prev.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="15,18 9,12 15,6"/></svg>';
     prev.disabled = currentPage === 1;
     prev.onclick = function() { showPage(currentPage - 1); };
     btns.appendChild(prev);
+
     for (var p = 1; p <= tp; p++) {
       var b = document.createElement('button');
       b.className = 'tl-page-btn' + (p === currentPage ? ' active' : '');
       b.textContent = p;
+      b.dataset.page = p;
       b.onclick = (function(pg) { return function() { showPage(pg); }; })(p);
       btns.appendChild(b);
     }
+
     var next = document.createElement('button');
     next.className = 'tl-page-btn';
     next.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="9,18 15,12 9,6"/></svg>';
@@ -1654,6 +1540,7 @@ document.addEventListener('keydown', function(e) {
     btns.appendChild(next);
   }
 
+  // Per-page selector
   var perPageEl = document.getElementById('tlPerPage');
   if (perPageEl) {
     perPageEl.addEventListener('change', function() {
@@ -1664,6 +1551,9 @@ document.addEventListener('keydown', function(e) {
 
   showPage(1);
 })();
+
+
+
 </script>
 </body>
 </html>

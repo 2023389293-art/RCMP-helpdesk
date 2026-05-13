@@ -1,6 +1,6 @@
 /* =============================================================
-   staff-report.js  —  IT Dept Admin · Staff Activity Tab
-   + Custom date range filter (matches Tickets tab behaviour)
+   staff-report.js  —  CCU Dept Admin · Staff Activity Tab
+   + Custom date range filter (matches Tickets tab behaviour) 
    ============================================================= */
 
 (function () {
@@ -408,13 +408,14 @@
   window.staffDownloadCSV = function () {
     const rows  = staffActiveRows.length ? staffActiveRows : getAllStaffRows();
     const label = getStaffPeriodLabel().replace(/\s+/g, '-').replace(/[→]/g, 'to').toLowerCase();
-    const lines = [['Rank','Staff Name','Staff Code','Tickets Assigned','Resolved (Closed)','In Progress','Open','Resolution Rate (%)'].join(',')];
-    rows.forEach(r => {
-      lines.push([
-        r.dataset.rank,
-        `"${(r.dataset.name  || '').replace(/"/g,'""')}"`,
-        r.dataset.code,
-        r.dataset.handled,
+    const lines = [['No','Staff Name','Staff Code','Role','Tickets Assigned','Closed','In Progress','Open','Resolution Rate (%)'].join(',')];
+rows.forEach(r => {
+  lines.push([
+    r.dataset.rank,
+    `"${(r.dataset.name  || '').replace(/"/g,'""')}"`,
+    r.dataset.code,
+    r.dataset.role || '—',
+    r.dataset.handled,
         r.dataset.resolved,
         r.dataset.inprog,
         r.dataset.open,
@@ -431,18 +432,34 @@
   /* ══════════════════════════════════════════════
      DOWNLOAD PDF
   ══════════════════════════════════════════════ */
-  window.staffDownloadPDF = function () {
+  window.staffDownloadPDF = async function () {
     const { jsPDF } = window.jspdf;
-    const doc   = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const label = getStaffPeriodLabel();
 
     doc.setFillColor(87, 68, 118);
-    doc.rect(0, 0, 297, 18, 'F');
+    doc.rect(0, 0, 297, 22, 'F');
+
+    try {
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      logoImg.src = '../../img/RCMP.png';
+      await new Promise(res => { logoImg.onload = res; logoImg.onerror = res; });
+      const canvas = document.createElement('canvas');
+      canvas.width  = logoImg.naturalWidth  || 100;
+      canvas.height = logoImg.naturalHeight || 100;
+      const ctx2d = canvas.getContext('2d');
+      ctx2d.fillStyle = '#574476';
+      ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+      ctx2d.drawImage(logoImg, 0, 0);
+      doc.addImage(canvas.toDataURL('image/png'), 'PNG', 6, 3.5, 26, 15);
+    } catch (e) {}
+
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
-    doc.text('UniKL Help Desk — IT Department Staff Activity Report', 14, 12);
+    doc.text('UniKL Help Desk — Corporate Communication Unit Staff Activity Report', 36, 10);
     doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-    doc.text('Generated: ' + new Date().toLocaleString(), 205, 12);
+    doc.text('Generated: ' + new Date().toLocaleString(), 36, 16);
 
     doc.setTextColor(87, 68, 118); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
     const filterLine = [
@@ -450,7 +467,7 @@
       staffFilterByName !== 'all' ? `Staff: ${staffFilterByName}` : null,
       staffSearchQuery  ? `Search: "${staffSearchQuery}"` : null,
     ].filter(Boolean).join('   |   ');
-    doc.text(filterLine, 14, 23);
+    doc.text(filterLine, 14, 28);
 
     const rows = staffActiveRows;
     let totalHandled = 0, totalResolved = 0, totalInProg = 0, totalOpen = 0;
@@ -462,33 +479,42 @@
     });
     doc.setTextColor(30, 41, 59); doc.setFontSize(8.5);
     doc.text(
-      `Staff: ${rows.length}  |  Assigned: ${totalHandled}  |  Resolved: ${totalResolved}  |  In Progress: ${totalInProg}  |  Open: ${totalOpen}`,
-      14, 30
+      `Staff: ${rows.length}  |  Assigned: ${totalHandled}  |  Closed: ${totalResolved}  |  In Progress: ${totalInProg}  |  Open: ${totalOpen}`,
+      14, 36
     );
 
     doc.autoTable({
-      startY: 35,
-      head: [['Rank','Staff Name','Staff Code','Tickets Assigned','Resolved (Closed)','In Progress','Open','Resolution Rate']],
-      body: rows.map(r => [
-        r.dataset.rank, r.dataset.name, r.dataset.code,
-        r.dataset.handled, r.dataset.resolved, r.dataset.inprog, r.dataset.open,
-        r.dataset.rate ? r.dataset.rate + '%' : '—'
-      ]),
-      styles: { fontSize: 8, cellPadding: 3 },
-      headStyles: { fillColor: [87, 68, 118], textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
+      startY: 42,
+      margin: { left: 14, right: 14 },
+      tableWidth: 'auto',
+      head: [['No','Staff Name','Staff Code','Role','Assigned','Closed','In Progress','Open','Resolution Rate']],
+body: rows.map(r => [
+  r.dataset.rank, r.dataset.name, r.dataset.code,
+  r.dataset.role || '—',
+  r.dataset.handled, r.dataset.resolved, r.dataset.inprog, r.dataset.open,
+  r.dataset.rate ? r.dataset.rate + '%' : '—'
+]),
+      styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
+      headStyles: { fillColor: [87, 68, 118], textColor: 255, fontStyle: 'bold', fontSize: 8 },
       alternateRowStyles: { fillColor: [248, 247, 252] },
       columnStyles: {
-        0: { cellWidth: 15 }, 1: { cellWidth: 60 }, 2: { cellWidth: 25 },
-        3: { cellWidth: 30 }, 4: { cellWidth: 30 }, 5: { cellWidth: 25 },
-        6: { cellWidth: 20 }, 7: { cellWidth: 30 }
-      },
+  0: { cellWidth: 12 },   // No
+  1: { cellWidth: 65 },   // Staff Name
+  2: { cellWidth: 28 },   // Staff Code
+  3: { cellWidth: 18 },   // Role
+  4: { cellWidth: 22 },   // Assigned
+  5: { cellWidth: 22 },   // Closed
+  6: { cellWidth: 28 },   // In Progress
+  7: { cellWidth: 16 },   // Open
+  8: { cellWidth: 36 },   // Resolution Rate
+},
       didParseCell: data => {
         if (data.section === 'body') {
-          if (data.column.index === 3) { data.cell.styles.textColor = [99,102,241];  data.cell.styles.fontStyle = 'bold'; }
-          if (data.column.index === 4) { data.cell.styles.textColor = [22,163,74];   data.cell.styles.fontStyle = 'bold'; }
-          if (data.column.index === 5) { data.cell.styles.textColor = [99,102,241]; }
-          if (data.column.index === 6) { data.cell.styles.textColor = [245,158,11]; }
-          if (data.column.index === 7) {
+          if (data.column.index === 4) { data.cell.styles.textColor = [99,102,241];  data.cell.styles.fontStyle = 'bold'; }
+if (data.column.index === 5) { data.cell.styles.textColor = [22,163,74];   data.cell.styles.fontStyle = 'bold'; }
+if (data.column.index === 6) { data.cell.styles.textColor = [99,102,241]; }
+if (data.column.index === 7) { data.cell.styles.textColor = [245,158,11]; }
+if (data.column.index === 8) {
             const rate = parseFloat(data.cell.raw);
             if (!isNaN(rate)) {
               data.cell.styles.textColor = rate >= 70 ? [22,163,74] : (rate >= 40 ? [249,115,22] : [220,38,38]);
@@ -503,7 +529,7 @@
     for (let i = 1; i <= pc; i++) {
       doc.setPage(i);
       doc.setFontSize(7); doc.setTextColor(148, 163, 184);
-      doc.text(`Page ${i} of ${pc} — UniKL Help Desk IT Dept`, 14, 200);
+      doc.text(`Page ${i} of ${pc} — UniKL Help Desk CCU`, 14, 200);
     }
 
     doc.save(`staff-activity-${label.replace(/[\s→]+/g, '-').toLowerCase()}.pdf`);

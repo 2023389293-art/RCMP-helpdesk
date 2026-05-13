@@ -19,7 +19,8 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php'); // dashboard | tickets | 
 function nav_item(string $href, string $icon, string $label, string $id, string $current): string {
     $active = ($id === $current);
     $cls    = $active ? 'nav-item active' : 'nav-item';
-
+    
+    // Calculate the "pip" HTML before putting it into the string
     $pip = $active ? '<span class="nav-pip"></span>' : '';
 
     return <<<HTML
