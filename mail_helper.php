@@ -269,3 +269,36 @@ HTML;
 
     return $anySuccess;
 }
+
+/**
+ * Send a plain-text email via PHPMailer (used for requisition notifications).
+ */
+function sendRawEmail(string $to, string $subject, string $body): bool
+{
+    if (empty($to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'farahwdi33@gmail.com';
+        $mail->Password   = 'wvgq vqdn dbiw vcjn';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+        $mail->SMTPDebug  = 0;
+
+        $mail->setFrom('farahwdi33@gmail.com', 'UniKL RCMP Help Desk');
+        $mail->addAddress($to);
+        $mail->isHTML(false);
+        $mail->CharSet = 'UTF-8';
+        $mail->Subject = $subject;
+        $mail->Body    = $body;
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("[UniKL Mail] sendRawEmail FAILED -> {$to}: " . $mail->ErrorInfo);
+        return false;
+    }
+}

@@ -477,6 +477,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     </form>
 
+    <!-- Divider -->
+    <div style="display:flex; align-items:center; gap:10px; margin:20px 0;">
+      <div style="flex:1; height:1px; background:rgba(255,255,255,0.12);"></div>
+      <span style="color:rgba(255,255,255,0.35); font-size:12px;">or</span>
+      <div style="flex:1; height:1px; background:rgba(255,255,255,0.12);"></div>
+    </div>
+
+    <!-- SSO Button -->
+    <a href="auth/sso_login.php" class="btn-login" style="
+        text-decoration:none;
+        background: rgba(255,255,255,0.10);
+        color: #fff;
+        border: 1.5px solid rgba(255,255,255,0.20);
+        box-shadow: none;
+        margin-bottom: 4px;">
+      <svg viewBox="0 0 21 21" width="16" height="16" style="flex-shrink:0;">
+        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+      </svg>
+      Log in with Microsoft (UniKL SSO)
+    </a>
+
+    <!-- Back link (only once) -->
     <div class="bottom-link">
       <a href="index.php">&larr; Back to Homepage</a>
     </div>

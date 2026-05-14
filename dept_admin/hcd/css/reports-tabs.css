@@ -1,0 +1,291 @@
+/* =============================================================
+   reports-tabs.css  —  HCD Dept Admin · Multi-Tab Reports 
+   ============================================================= */
+
+/* ── Section Tabs ── */ 
+.section-tabs {
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  background: #fff;
+  padding: .45rem .5rem;
+  border-radius: 14px;
+  box-shadow: 0 1px 5px rgba(0,0,0,.07);
+}
+
+.section-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .5rem 1.1rem;
+  border-radius: 10px;
+  font-size: .82rem;
+  font-weight: 600;
+  color: #64748b;
+  text-decoration: none;
+  transition: all .18s;
+  border: 1.5px solid transparent;
+}
+
+.section-tab svg {
+  width: 15px; height: 15px;
+  fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.section-tab:hover {
+  background: #F8F7FC;
+  color: #574476;
+  border-color: #E0D7EE;
+}
+
+.section-tab.active {
+  background: #574476;
+  color: #fff;
+  border-color: #574476;
+  box-shadow: 0 3px 10px rgba(87,68,118,.3);
+}
+
+/* Tab badges */
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: .67rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.tab-badge.breach { background: #FEF2F2; color: #DC2626; }
+.section-tab.active .tab-badge.breach { background: rgba(255,255,255,.2); color: #fff; }
+.tab-badge.rating  { background: #FFFBEB; color: #D97706; }
+.section-tab.active .tab-badge.rating { background: rgba(255,255,255,.2); color: #fff; }
+
+/* ── Tab Panel ── */
+.tab-panel {
+  animation: fadeUp .22s ease both;
+}
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* ── Chart Row (side by side) ── */
+.chart-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+.chart-row .chart-card {
+  margin-bottom: 0;
+}
+
+/* ── Performance Bar ── */
+.perf-bar-bg {
+  flex: 1;
+  height: 7px;
+  background: #F1F5F9;
+  border-radius: 99px;
+  overflow: hidden;
+  max-width: 100px;
+}
+.perf-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .4s ease;
+}
+
+/* ── Feedback Components ── */
+.feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.feedback-item {
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  border: 1.5px solid #F1F5F9;
+  background: #FAFBFF;
+  transition: border-color .15s, box-shadow .15s;
+}
+.feedback-item:hover {
+  border-color: #E0D7EE;
+  box-shadow: 0 2px 8px rgba(87,68,118,.08);
+}
+
+.feedback-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .4rem;
+}
+
+.feedback-ticket {
+  font-family: 'Courier New', monospace;
+  font-size: .7rem;
+  background: #F1F5F9;
+  padding: 1px 7px;
+  border-radius: 5px;
+  color: #475569;
+  display: inline-block;
+  margin-bottom: .2rem;
+}
+
+.feedback-title {
+  font-size: .83rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.feedback-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: .2rem;
+  flex-shrink: 0;
+}
+
+.star-rating {
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+
+.feedback-student {
+  font-size: .73rem;
+  color: #94a3b8;
+  margin-bottom: .4rem;
+}
+
+.feedback-comment {
+  font-size: .82rem;
+  color: #475569;
+  line-height: 1.55;
+  font-style: italic;
+}
+
+.auto-badge {
+  font-size: .62rem;
+  background: #F1F5F9;
+  color: #94a3b8;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-weight: 600;
+}
+
+/* ── Star Bars (Rating Distribution) ── */
+.star-bars {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  padding: .5rem 0;
+}
+
+.star-bar-row {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+}
+
+.star-bar-label {
+  font-size: .75rem;
+  font-weight: 700;
+  color: #475569;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.star-bar-track {
+  flex: 1;
+  height: 10px;
+  background: #F1F5F9;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.star-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .5s ease;
+}
+
+.star-bar-count {
+  font-size: .75rem;
+  font-weight: 700;
+  color: #334155;
+  width: 20px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Top Issues List ── */
+.top-issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+  padding: .3rem 0;
+}
+
+.top-issue-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.top-issue-rank {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #574476;
+  color: #fff;
+  font-size: .68rem;
+  font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.top-issue-title {
+  font-size: .8rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-issue-cat {
+  font-size: .68rem;
+  color: #94a3b8;
+  margin-bottom: .25rem;
+}
+
+.top-issue-bar-bg {
+  height: 5px;
+  background: #F1F5F9;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.top-issue-bar-fill {
+  height: 100%;
+  background: #574476;
+  border-radius: 99px;
+}
+
+.top-issue-count {
+  font-size: .8rem;
+  font-weight: 800;
+  color: #574476;
+  flex-shrink: 0;
+}
+
+/* ── Responsive ── */ 
+@media (max-width: 768px) {
+  .section-tabs { gap: .2rem; }
+  .section-tab  { padding: .4rem .7rem; font-size: .76rem; }
+  .chart-row    { flex-direction: column; }
+}

@@ -1,5 +1,5 @@
 <?php 
-// uniKL/complaint/complaint/homepage.php - UniKL CMS Dashboard 
+// uniKL/complaint/complaint/homepage.php
 session_start();
 
 $allowedRoles = ['student', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
@@ -129,6 +129,13 @@ $extraHead = '
 .qa-card.qa-new-complaint:hover {
   box-shadow: 0 6px 20px rgba(133,79,11,.10);
   border-color: #fac775;
+}
+
+.qa-card.qa-request-equipment .qa-icon { background: #ede9ff; }
+.qa-card.qa-request-equipment .qa-icon svg { stroke: #5b21b6; }
+.qa-card.qa-request-equipment:hover {
+  box-shadow: 0 6px 20px rgba(91,33,182,.10);
+  border-color: #c4b5fd;
 }
 
 .qt { font-weight: 600; font-size: 14px; color: #1e2235; }
@@ -373,6 +380,21 @@ require 'layout.php';
     <div class="qa-text">
       <div class="qt">My Complaints</div>
       <div class="qs">Track your submissions</div>
+    </div>
+  </a>
+
+  <a href="new_requisition.php" class="qa-card qa-request-equipment">
+    <div class="qa-icon">
+      <svg viewBox="0 0 24 24">
+        <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+        <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>
+        <line x1="12" y1="12" x2="12" y2="16"/>
+        <line x1="10" y1="14" x2="14" y2="14"/>
+      </svg>
+    </div>
+    <div class="qa-text">
+      <div class="qt">Request Equipment</div>
+      <div class="qs">Order office items & supplies</div>
     </div>
   </a>
 
