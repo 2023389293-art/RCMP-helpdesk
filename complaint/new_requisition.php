@@ -204,45 +204,8 @@ Help Desk
 ";
                     sendRawEmail($submitterEmail, $subjectUser, $bodyUser);
 
-// 2) Notification to ALL active AFSMD staff (dept_id = 1)
-$subjectAdmin = "[UniKL RCMP] New Equipment Request – {$refNumber}";
-$bodyAdmin    = "
-New Equipment Request Received
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Reference Number : {$refNumber}
-  Submitted By     : {$userName} ({$submitterType})
-  Contact          : +60{$phone}
-  Email            : {$submitterEmail}
-  Department       : {$my_department}
-  Category         : {$category}
-  Item Requested   : {$item_name}
-  Quantity         : {$quantity}
-  Location         : {$location}
-  Urgency          : " . ucfirst($urgency) . "
-  Submitted On     : " . $now->format('d M Y, g:ia') . " MYT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Justification:
-{$reason}
-
-Please log in to the admin portal to review and process this request.
-
-UniKL RCMP Portal System
-";
-
-$afsmdStaff = $conn->prepare(
-    "SELECT full_name, email FROM staff WHERE dept_id = 1 AND status = 'active'"
-);
-$afsmdStaff->execute();
-$afsmdList = $afsmdStaff->get_result()->fetch_all(MYSQLI_ASSOC);
-$afsmdStaff->close();
-
-foreach ($afsmdList as $afsmdMember) {
-    if (!empty($afsmdMember['email'])) {
-        sendRawEmail($afsmdMember['email'], $subjectAdmin, $bodyAdmin);
-    }
-}
+// 2) HTML notification to ALL active AFSMD staff
+sendRequisitionEmail($conn, $refNumber, $userName, $submitterType, $userEmail, $phone, $my_department, $category, $item_name, $quantity, $location, $reason, $urgency, $now->format('d M Y, g:ia'));
                 } else {
                     $error = 'Failed to submit request. Please try again. (' . $stmt->error . ')';
                 }
@@ -532,7 +495,7 @@ require 'layout.php';
     Back to Dashboard
   </a><br>
   <h1>Request Equipment</h1>
-  <p>Submit a request to AFSMD for office equipment, furniture, or facility items.</p>
+  <p>Submit a request to Administration & Facilities Management Department for office equipment, furniture, or facility items.</p>
 </div>
 
 <!-- ── Steps ── -->
@@ -556,7 +519,7 @@ require 'layout.php';
 <div class="wh-banner wh-open">
   <div class="wh-banner-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
   <div class="wh-banner-body">
-    <strong>AFSMD is available — your request will be processed today!</strong>
+    <strong>Administration & Facilities Management Department is available — your request will be processed today!</strong>
     UniKL RCMP Help Desk is currently open.
     <div class="wh-hours-chips">
       <span class="wh-chip">Mon – Fri</span>
@@ -595,7 +558,7 @@ require 'layout.php';
   <div class="form-locked-overlay">
     <div class="flo-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
     <div class="flo-title">Submissions Closed</div>
-    <div class="flo-body">The request form is only available during official working hours. Please come back when AFSMD is open.</div>
+    <div class="flo-body">The request form is only available during official working hours. Please come back when Administration & Facilities Management Department is open.</div>
     <div class="flo-hours"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Monday – Friday &nbsp;|&nbsp; 8:00 AM – 5:00 PM MYT</div>
     <div class="flo-next"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Next available: <?php echo $nextDisplay; ?></div>
   </div>
@@ -632,7 +595,7 @@ require 'layout.php';
       </div>
       <div class="fch-text">
         <h3>Equipment Request</h3>
-        <p>Your request will be sent directly to AFSMD for processing</p>
+        <p>Your request will be sent directly to Administration & Facilities Management Department for processing</p>
       </div>
     </div>
 
@@ -846,7 +809,7 @@ require 'layout.php';
 
       <div class="preview-notice">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Once submitted, this request will be forwarded to AFSMD and you will receive a confirmation email.
+        Once submitted, this request will be forwarded to Administration & Facilities Management Department and you will receive a confirmation email.
       </div>
     </div>
     <div class="preview-actions">
@@ -869,14 +832,14 @@ require 'layout.php';
   <div class="success-card">
     <div class="success-icon-wrap"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
     <h2>Request Submitted!</h2>
-    <p>Your equipment request has been forwarded to AFSMD. A confirmation email has been sent to you.</p>
+    <p>Your equipment request has been forwarded to Administration & Facilities Management Department. A confirmation email has been sent to you.</p>
     <div class="success-ref">
       <div class="ref-label">Your Reference Number</div>
       <div class="ref-id"><?php echo htmlspecialchars($refNumber); ?></div>
     </div>
     <div class="success-info">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      <div>AFSMD will review your request and contact you if additional information is needed.</div>
+      <div>Administration & Facilities Management Department will review your request and contact you if additional information is needed.</div>
     </div>
     <div class="success-actions">
       <a href="new_requisition.php" class="btn-ghost">Submit Another</a>

@@ -1,0 +1,9 @@
+# credentials
+.auth/callback.php
+.auth/sso_config.php
+.auth/sso_login.php
+
+# composer
+vendor/
+PHPMailer-master
+composer.lock
