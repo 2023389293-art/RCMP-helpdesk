@@ -31,25 +31,66 @@ $stmt->execute();
 $stats = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
+// Requisition stats (add to totals)
+$stmtReq = $conn->prepare("
+    SELECT COUNT(*) AS req_total
+    FROM requisitions
+    WHERE submitter_id = ? AND submitter_type = ?
+");
+$stmtReq->bind_param("is", $userId, $submitterType);
+$stmtReq->execute();
+$reqStats = $stmtReq->get_result()->fetch_assoc();
+$stmtReq->close();
+$stats['total'] = ($stats['total'] ?? 0) + ($reqStats['req_total'] ?? 0);
+
 $stats['pending']     = $stats['pending']     ?? 0;
 $stats['in_progress'] = $stats['in_progress'] ?? 0;
 $stats['resolved']    = $stats['resolved']    ?? 0;
 $stats['total']       = $stats['total']       ?? 0;
 
+// Recent complaints
 $stmt2 = $conn->prepare("
-    SELECT c.ticket_id, c.title, c.status, c.created_at, cat.category_name
+    SELECT
+        c.ticket_id  AS ref_id,
+        c.title,
+        c.status,
+        c.created_at,
+        cat.category_name AS category_name,
+        'complaint'  AS row_type
     FROM complaints c
     JOIN categories cat ON c.category_id = cat.category_id
     WHERE c.submitter_id = ? AND c.submitter_type = ?
-    ORDER BY
-        FIELD(c.status, 'open', 'in_progress', 'resolved', 'closed') ASC,
-        c.created_at DESC
+    ORDER BY c.created_at DESC
     LIMIT 5
 ");
 $stmt2->bind_param("is", $userId, $submitterType);
 $stmt2->execute();
 $recentComplaints = $stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt2->close();
+
+// Recent requisitions
+$stmt3 = $conn->prepare("
+    SELECT
+        r.ref_number AS ref_id,
+        r.item_name  AS title,
+        r.status,
+        r.created_at,
+        r.category   AS category_name,
+        'requisition' AS row_type
+    FROM requisitions r
+    WHERE r.submitter_id = ? AND r.submitter_type = ?
+    ORDER BY r.created_at DESC
+    LIMIT 5
+");
+$stmt3->bind_param("is", $userId, $submitterType);
+$stmt3->execute();
+$recentRequisitions = $stmt3->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt3->close();
+
+// Merge and sort by created_at DESC, show latest 5
+$recentActivity = array_merge($recentComplaints, $recentRequisitions);
+usort($recentActivity, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
+$recentActivity = array_slice($recentActivity, 0, 5);
 
 $statusMeta = [
     'open'        => ['label' => 'Open',        'class' => 'pill-open'],
@@ -285,6 +326,21 @@ $extraHead = '
 .pill-closed   { background: #F3F4F6; color: #6B7280; }
 .pill-closed   .rc-pill-dot { background: #9CA3AF; }
 
+/* ── Type badges ── */
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.type-complaint   { background: #EEF3FB; color: #185FA5; border: 0.5px solid #C8DCEF; }
+.type-requisition { background: #faeeda; color: #854f0b; border: 0.5px solid #f5c97a; }
+
 .rc-date {
   font-size: 12px;
   color: #adb3c8;
@@ -361,25 +417,13 @@ require 'layout.php';
 <div class="section-header"><h2>Quick Actions</h2></div>
 <div class="quick-actions">
 
-  <a href="new_complaint.php" class="qa-card">
+<a href="new_complaint.php" class="qa-card">
     <div class="qa-icon">
       <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </div>
     <div class="qa-text">
       <div class="qt">Submit Complaint</div>
       <div class="qs">Report a new issue</div>
-    </div>
-  </a>
-
-  <a href="my_complaints.php" class="qa-card qa-my-complaints">
-    <div class="qa-icon">
-      <svg viewBox="0 0 24 24">
-        <path d="M9 12h6m-6 4h6M5 7h14M5 7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2"/>
-      </svg>
-    </div>
-    <div class="qa-text">
-      <div class="qt">My Complaints</div>
-      <div class="qs">Track your submissions</div>
     </div>
   </a>
 
@@ -398,11 +442,23 @@ require 'layout.php';
     </div>
   </a>
 
+  <a href="my_complaints.php" class="qa-card qa-my-complaints">
+    <div class="qa-icon">
+      <svg viewBox="0 0 24 24">
+        <path d="M9 12h6m-6 4h6M5 7h14M5 7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2"/>
+      </svg>
+    </div>
+    <div class="qa-text">
+      <div class="qt">My Submissions</div>
+      <div class="qs">View & track all submissions</div>
+    </div>
+  </a>
+
 </div>
 
-<!-- ── Recent Complaints ── -->
+<!-- ── Recent Activity ── -->
 <div class="section-header">
-  <h2>Recent Complaints</h2>
+  <h2>Recent Activity</h2>
   <a href="my_complaints.php">
     View all
     <svg viewBox="0 0 24 24"><polyline points="9,18 15,12 9,6"/></svg>
@@ -413,6 +469,7 @@ require 'layout.php';
   <table class="rc-table">
     <colgroup>
       <col class="col-id">
+      <col style="width:14%"><!-- Type -->
       <col class="col-complaint">
       <col class="col-status">
       <col class="col-date">
@@ -420,36 +477,49 @@ require 'layout.php';
     </colgroup>
     <thead>
       <tr>
-        <th>Ticket ID</th>
-        <th>Complaint</th>
+        <th>Reference/Ticket ID</th>
+        <th>Type</th>
+        <th>Title / Item</th>
         <th>Status</th>
         <th>Date</th>
         <th class="th-action">Action</th>
       </tr>
     </thead>
     <tbody>
-      <?php if (empty($recentComplaints)): ?>
+      <?php if (empty($recentActivity)): ?>
       <tr class="rc-empty">
-        <td colspan="5">
+        <td colspan="6">
           <svg class="rc-empty-icon" viewBox="0 0 24 24" fill="none" stroke="#adb3c8" stroke-width="1.5">
             <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
           </svg>
-          No complaints yet.
-          <a href="new_complaint.php" style="color:#3b6bff;font-weight:600;margin-left:4px;">Submit your first one &rarr;</a>
+          No activity yet.
+          <a href="new_complaint.php" style="color:#3b6bff;font-weight:600;margin-left:4px;">Submit your first complaint &rarr;</a>
         </td>
       </tr>
-      <?php else: foreach ($recentComplaints as $c):
-        $meta = $statusMeta[$c['status']] ?? ['label' => ucfirst($c['status']), 'class' => 'pill-closed'];
+      <?php else: foreach ($recentActivity as $row):
+        $meta     = $statusMeta[$row['status']] ?? ['label' => ucfirst($row['status']), 'class' => 'pill-closed'];
+        $isReq    = ($row['row_type'] === 'requisition');
+        $detailUrl = $isReq
+            ? 'my_requisition_detail.php?ref=' . urlencode($row['ref_id'])
+            : 'my_ticket_detail.php?id='       . urlencode($row['ref_id']);
       ?>
-      <tr onclick="window.location='my_ticket_detail.php?id=<?php echo urlencode($c['ticket_id']); ?>'">
+      <tr onclick="window.location='<?php echo $detailUrl; ?>'">
 
         <td>
-          <span class="rc-tid"><?php echo htmlspecialchars($c['ticket_id']); ?></span>
+          <span class="rc-tid"><?php echo htmlspecialchars($row['ref_id']); ?></span>
         </td>
 
         <td>
-          <span class="rc-title"><?php echo htmlspecialchars($c['title']); ?></span>
-          <span class="rc-cat"><?php echo htmlspecialchars($c['category_name']); ?></span>
+          <?php if ($isReq): ?>
+            <span class="type-badge type-requisition">⚙ Equipment</span>
+          <?php else: ?>
+            <span class="type-badge type-complaint">✉ Complaint</span>
+          <?php endif; ?>
+        </td>
+
+        <td>
+          <span class="rc-title"><?php echo htmlspecialchars($row['title']); ?></span>
+          <span class="rc-cat"><?php echo htmlspecialchars($row['category_name']); ?></span>
         </td>
 
         <td>
@@ -460,11 +530,11 @@ require 'layout.php';
         </td>
 
         <td>
-          <span class="rc-date"><?php echo date('d M Y', strtotime($c['created_at'])); ?></span>
+          <span class="rc-date"><?php echo date('d M Y', strtotime($row['created_at'])); ?></span>
         </td>
 
         <td class="td-action">
-          <a href="my_ticket_detail.php?id=<?php echo urlencode($c['ticket_id']); ?>"
+          <a href="<?php echo $detailUrl; ?>"
              class="rc-view-btn"
              onclick="event.stopPropagation()">
             View
