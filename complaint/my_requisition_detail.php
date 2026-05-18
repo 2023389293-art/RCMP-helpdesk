@@ -327,11 +327,11 @@ require 'layout.php';
     $isApproved  = ($requisition['status'] === 'approved');
 
     // Progress line fill: pending=0%, approved=50%, completed=100%
-    $linePct = match($requisition['status']) {
-        'approved'  => 50,
-        'completed' => 100,
-        default     => 0,
-    };
+    switch ($requisition['status']) {
+    case 'approved':  $linePct = 50;  break;
+    case 'completed': $linePct = 100; break;
+    default:          $linePct = 0;   break;
+}
 
     // Step state helper
     function stepState(int $num, int $cur, bool $rejected): string {

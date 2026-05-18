@@ -26,9 +26,9 @@ function autoAssignTicket(mysqli $conn, int $deptId, string $ticketId): int
 
     // 2. Extract sub-category
     $subCategory = $categoryName;
-    if (str_contains($categoryName, ' / ')) {
-        $subCategory = trim(explode(' / ', $categoryName, 2)[1]);
-    }
+if (strpos($categoryName, ' / ') !== false) {
+    $subCategory = trim(explode(' / ', $categoryName, 2)[1]);
+}
 
     // 3. Find matching staff list (by staff_categories junction table)
     $staffList = [];
@@ -142,7 +142,7 @@ function processQueue(mysqli $conn, int $deptId, int $staffId): void
 
     if (!empty($staffCategories)) {
     $orClauses  = implode(' OR ', array_fill(0, count($staffCategories), 'cat.category_name LIKE ?'));
-    $likeParams = array_map(fn($c) => '%/ ' . $c, $staffCategories);
+    $likeParams = array_map(function($c) { return '%/ ' . $c; }, $staffCategories);
 
     $qStmt = $conn->prepare("
         SELECT tq.ticket_id FROM ticket_queue tq

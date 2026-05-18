@@ -89,7 +89,7 @@ $stmt3->close();
 
 // Merge and sort by created_at DESC, show latest 5
 $recentActivity = array_merge($recentComplaints, $recentRequisitions);
-usort($recentActivity, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
+usort($recentActivity, function($a, $b) { return strtotime($b['created_at']) - strtotime($a['created_at']); });
 $recentActivity = array_slice($recentActivity, 0, 5);
 
 $statusMeta = [

@@ -70,26 +70,26 @@ if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq->close();
 }
 
-function feedbackEmojiLabel(int $rating): string {
-    return match($rating) {
-        1 => 'Very Unsatisfied',
-        2 => 'Unsatisfied',
-        3 => 'Neutral',
-        4 => 'Satisfied',
-        5 => 'Very Satisfied',
-        default => 'Unknown'
-    };
+function feedbackEmojiLabel($rating) {
+    switch ($rating) {
+        case 1: return 'Very Unsatisfied';
+        case 2: return 'Unsatisfied';
+        case 3: return 'Neutral';
+        case 4: return 'Satisfied';
+        case 5: return 'Very Satisfied';
+        default: return 'Unknown';
+    }
 }
 
-function feedbackRatingColors(int $rating): array {
-    return match($rating) {
-        1 => ['#FEF2F2', '#DC2626'],
-        2 => ['#FFF7ED', '#F97316'],
-        3 => ['#FEFCE8', '#EAB308'],
-        4 => ['#F0FDF4', '#22C55E'],
-        5 => ['#ECFDF5', '#16A34A'],
-        default => ['#F3F4F6', '#6B7280']
-    };
+function feedbackRatingColors($rating) {
+    switch ($rating) {
+        case 1: return ['#FEF2F2', '#DC2626'];
+        case 2: return ['#FFF7ED', '#F97316'];
+        case 3: return ['#FEFCE8', '#EAB308'];
+        case 4: return ['#F0FDF4', '#22C55E'];
+        case 5: return ['#ECFDF5', '#16A34A'];
+        default: return ['#F3F4F6', '#6B7280'];
+    }
 }
 
 function getInitials(string $name): string {
@@ -103,15 +103,17 @@ function isImageAttachment(?string $path): bool {
     return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg','jpeg','png','gif','webp']);
 }
 
-function fileCardMeta(string $path): array {
+function fileCardMeta($path) {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    return match($ext) {
-        'pdf'        => ['label' => 'PDF',  'bg' => '#FEF2F2', 'color' => '#DC2626'],
-        'doc','docx' => ['label' => 'DOC',  'bg' => '#EFF6FF', 'color' => '#1D4ED8'],
-        'xls','xlsx' => ['label' => 'XLS',  'bg' => '#F0FDF4', 'color' => '#15803D'],
-        'txt'        => ['label' => 'TXT',  'bg' => '#F9FAFB', 'color' => '#374151'],
-        default      => ['label' => strtoupper($ext) ?: 'FILE', 'bg' => '#F3F4F6', 'color' => '#6B7280'],
-    };
+    switch ($ext) {
+        case 'pdf':  return ['label' => 'PDF', 'bg' => '#FEF2F2', 'color' => '#DC2626'];
+        case 'doc':
+        case 'docx': return ['label' => 'DOC', 'bg' => '#EFF6FF', 'color' => '#1D4ED8'];
+        case 'xls':
+        case 'xlsx': return ['label' => 'XLS', 'bg' => '#F0FDF4', 'color' => '#15803D'];
+        case 'txt':  return ['label' => 'TXT', 'bg' => '#F9FAFB', 'color' => '#374151'];
+        default:     return ['label' => strtoupper($ext) ?: 'FILE', 'bg' => '#F3F4F6', 'color' => '#6B7280'];
+    }
 }
 
 $statusMap = [

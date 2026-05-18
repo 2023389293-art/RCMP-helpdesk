@@ -1,5 +1,5 @@
 <?php
-// dept_admin/it/tickets.php 
+// dept_admin/it/tickets.php (reference only)
 require '_layout.php';
 
 $status   = $_GET['status']   ?? '';
