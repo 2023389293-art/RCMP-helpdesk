@@ -1,5 +1,5 @@
 <?php
-// dept_admin/it/users.php
+// dept_admin/it/users.php 
 require '_layout.php';
 
 $msg   = '';
@@ -127,7 +127,7 @@ $catQ->close();
 // Step 2: Find unassigned complaints matching this staff's categories
 if (!empty($staffCategories)) {
     $orClauses = implode(' OR ', array_fill(0, count($staffCategories), 'cat.category_name LIKE ?'));
-    $likeParams = array_map(fn($c) => '%/ ' . $c, $staffCategories);
+    $likeParams = array_map(function($c) { return '%/ ' . $c; }, $staffCategories);
 
     $unassignedStmt = $conn->prepare("
         SELECT c.ticket_id 
