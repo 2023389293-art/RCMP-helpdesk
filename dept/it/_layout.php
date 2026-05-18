@@ -1,5 +1,5 @@
 <?php
-// dept/it/_layout.php
+// dept/it/_layout.php 
 $inProgressCount = $inProgressCount ?? 0;
 $openCount   = $openCount   ?? 0;
 $closedCount = $closedCount ?? 0;
