@@ -6,7 +6,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UniKL RCMP | Help Desk Portal</title>
+  <title>UniKL RCMP | RUSH — RCMP User Helpdesk</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -400,6 +400,71 @@ nav { padding: 0 14px; height: 60px; }
       .hero-badge { font-size: 11px; }
       .btn-gold { font-size: 12px; padding: 10px 20px; }
     }
+    .hero-eyebrow-label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--gold); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 10px;
+}
+.hero-eyebrow-label::before {
+  content: ''; display: block; width: 24px; height: 1px;
+  background: var(--gold); opacity: 0.5;
+}
+
+.hero-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0px;
+  margin-bottom: 6px;
+}
+
+.rush-logo-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: clamp(72px, 10vw, 110px);
+}
+
+.rush-logo-wrap img {
+  height: clamp(72px, 10vw, 110px);
+  width: auto;
+  object-fit: contain;
+  filter: sepia(1) saturate(3) hue-rotate(5deg) brightness(0.7);
+  margin-right: -18px;
+  transform-origin: center bottom;
+  animation: runBob 0.4s ease-in-out infinite alternate,
+             runLean 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes runBob {
+  from { transform: translateY(0px); }
+  to   { transform: translateY(-6px); }
+}
+
+@keyframes runLean {
+  from { transform: rotate(-5deg); }
+  to   { transform: rotate(0deg); }
+}
+
+.rush-speed-lines { display: none; }
+
+.ush-text {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(64px, 10vw, 100px);
+  font-weight: 700; line-height: 1;
+  color: var(--navy-dark);
+  font-style: italic;
+  letter-spacing: -0.02em;
+}
+
+.hero-sub-title {
+  font-size: clamp(11px, 1.5vw, 13px);
+  font-weight: 400; color: var(--text-muted);
+  letter-spacing: 0.28em; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+
   </style>
 </head>
 <body>
@@ -421,8 +486,8 @@ nav { padding: 0 14px; height: 60px; }
       <div class="nav-logo"><img src="img/RCMP.png" alt="UniKL RCMP Logo" /></div>
       <div class="nav-divider"></div>
       <div class="nav-text-group">
-        <span class="nav-org">UniKL RCMP</span>
-        <span class="nav-title">Help Desk Portal</span>
+<span class="nav-org">UniKL RCMP</span>
+<span class="nav-title">RUSH — RCMP User Helpdesk</span>
       </div>
     </a>
     <div class="nav-actions">
@@ -444,16 +509,23 @@ nav { padding: 0 14px; height: 60px; }
       <!-- Top: heading/sub/CTAs  |  Quick Reference -->
       <div class="hero-top">
         <div class="hero-left fade-up d1">
-          <div class="hero-badge">
-            <span class="hero-badge-dot"></span>
-            Official Support Portal — UniKL RCMP
+          
+<div class="hero-eyebrow-label">Official Helpdesk Portal</div>
+
+          <div class="hero-wordmark">
+            <div class="rush-logo-wrap">
+              <div class="rush-speed-lines">
+                <span></span><span></span><span></span>
+              </div>
+              <img src="img/Rush.png" alt="R" />
+            </div>
+            <span class="ush-text">USH</span>
           </div>
-          <h1 class="hero-heading">
-            <span class="accent">Help Desk</span><br>
-            Management System
-          </h1>
-          <p class="hero-sub"><br>
-            Submit, track, and manage service requests across all UniKL RCMP departments. Every ticket is logged, assigned, and resolved with full transparency — from submission to closure.
+
+          <p class="hero-sub-title">RCMP &mdash; User Helpdesk</p>
+
+          <p class="hero-sub">
+            RUSH is UniKL RCMP's official helpdesk portal. Submit, track, and manage service requests across all departments — every ticket is logged, assigned, and resolved with full transparency.
           </p>
           <div class="hero-cta-row">
             <a href="login.php" class="btn-gold">
@@ -588,7 +660,7 @@ nav { padding: 0 14px; height: 60px; }
         Room booking → <a href="#" style="color:rgba(212,160,23,0.9);text-decoration:underline;text-underline-offset:2px;margin-left:3px;">Vequip</a>
       </div>
     </div>
-    <div class="footer-right">© <?php echo date('Y'); ?> Universiti Kuala Lumpur — UniKL RCMP</div>
+    <div class="footer-right">© <?php echo date('Y'); ?> UniKL RCMP · RUSH — RCMP User Helpdesk</div>
   </footer>
 
 </body>
