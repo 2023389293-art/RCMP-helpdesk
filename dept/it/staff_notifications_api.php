@@ -15,8 +15,8 @@ header('Content-Type: application/json');
 
 date_default_timezone_set('Asia/Kuala_Lumpur'); // ← ADD THIS LINE
 
-$deptId  = (int)($deptId  ?? 0);
-$staffId = (int)($staffId ?? 0);
+$deptId  = (int)($deptId  ?? $_SESSION['dept_id']  ?? 0);
+$staffId = (int)($staffId ?? $_SESSION['staff_id'] ?? 0);
 
 if (!$staffId || !$deptId) {
     http_response_code(401);

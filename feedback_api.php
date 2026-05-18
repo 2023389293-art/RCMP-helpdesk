@@ -8,11 +8,17 @@ if (session_status() === PHP_SESSION_NONE) {
 header('Content-Type: application/json');
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
-$studentId = (int)($_SESSION['user_id'] ?? 0);
-if ($studentId <= 0) {
+$submitterId   = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
+$submitterType = ($_SESSION['user_role'] ?? '') === 'student' ? 'student' : 'staff';
+$submitterId   = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
+
+if ($submitterId <= 0) {
     echo json_encode(['error' => 'unauthenticated']);
     exit;
 }
+
+// PHP 8.2: ensure $submitterType is never null in bind_param
+$submitterType = (string)$submitterType;
 
 require __DIR__ . '/db_connect.php';
 
@@ -33,27 +39,27 @@ if ($action === 'check') {
     $threshold   = 8 * 3600; // 8 office hours in seconds
 
     // Fetch ALL closed tickets with no feedback for this student, oldest first
-    $stmt = $conn->prepare("
-        SELECT c.ticket_id, c.title,
-               tl.changed_at AS closed_at
-        FROM complaints c
-        JOIN ticket_logs tl ON tl.ticket_id = c.ticket_id
-            AND tl.new_status = 'closed'
-            AND tl.log_id = (
-                SELECT MAX(tl2.log_id)
-                FROM ticket_logs tl2
-                WHERE tl2.ticket_id = c.ticket_id
-                  AND tl2.new_status = 'closed'
-            )
-        LEFT JOIN ticket_feedback tf ON tf.ticket_id = c.ticket_id
-                                     AND tf.student_id = ?
-        WHERE c.submitter_id   = ?
-          AND c.submitter_type = 'student'
-          AND c.status         = 'closed'
-          AND tf.feedback_id   IS NULL
-        ORDER BY tl.changed_at ASC
-    ");
-    $stmt->bind_param("ii", $studentId, $studentId);
+$stmt = $conn->prepare("
+    SELECT c.ticket_id, c.title,
+           tl.changed_at AS closed_at
+    FROM complaints c
+    JOIN ticket_logs tl ON tl.ticket_id = c.ticket_id
+        AND tl.new_status = 'closed'
+        AND tl.log_id = (
+            SELECT MAX(tl2.log_id)
+            FROM ticket_logs tl2
+            WHERE tl2.ticket_id = c.ticket_id
+              AND tl2.new_status = 'closed'
+        )
+    LEFT JOIN ticket_feedback tf ON tf.ticket_id = c.ticket_id
+                                 AND tf.submitter_id = ?
+    WHERE c.submitter_id   = ?
+      AND c.submitter_type = ?
+      AND c.status         = 'closed'
+      AND tf.feedback_id   IS NULL
+    ORDER BY tl.changed_at ASC
+");
+$stmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
@@ -103,13 +109,13 @@ if ($action === 'check') {
 
     // Silently auto-submit 5/5 for ALL expired tickets (no popup ever shown)
     if (!empty($expiredTickets)) {
-        $ins = $conn->prepare("
-            INSERT IGNORE INTO ticket_feedback
-                (ticket_id, student_id, rating, comment, is_auto_submitted, created_at)
-            VALUES (?, ?, 5, '', 1, NOW())
-        ");
-        foreach ($expiredTickets as $expired) {
-            $ins->bind_param("si", $expired['ticket_id'], $studentId);
+$ins = $conn->prepare("
+    INSERT IGNORE INTO ticket_feedback
+        (ticket_id, submitter_id, rating, comment, is_auto_submitted, created_at)
+    VALUES (?, ?, 5, '', 1, NOW())
+");
+foreach ($expiredTickets as $expired) {
+    $ins->bind_param("si", $expired['ticket_id'], $submitterId);
             $ins->execute();
         }
         $ins->close();
@@ -150,32 +156,32 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $ticketId = trim($_POST['ticket_id'] ?? '');
     $rating   = (int)($_POST['rating']    ?? 0);
     $comment  = trim($_POST['comment']    ?? '');
-    $isAuto   = ($_POST['auto'] ?? '0') === '1';
+    $isAuto   = (string)($_POST['auto'] ?? '0') === '1';
 
     if (empty($ticketId) || $rating < 1 || $rating > 5) {
         echo json_encode(['success' => false, 'error' => 'invalid_input']);
         exit;
     }
 
-    // Confirm ticket belongs to this student and is closed
-    $check = $conn->prepare("
-        SELECT ticket_id FROM complaints
-        WHERE ticket_id = ? AND submitter_id = ? AND submitter_type = 'student' AND status = 'closed'
-        LIMIT 1
-    ");
-    $check->bind_param("si", $ticketId, $studentId);
-    $check->execute();
-    $valid = $check->get_result()->fetch_assoc();
-    $check->close();
+// Confirm ticket is closed (ownership check loosened for staff)
+$check = $conn->prepare("
+    SELECT ticket_id FROM complaints
+    WHERE ticket_id = ? AND submitter_id = ? AND submitter_type = ? AND status = 'closed'
+    LIMIT 1
+");
+$check->bind_param("sis", $ticketId, $submitterId, $submitterType);
+$check->execute();
+$valid = $check->get_result()->fetch_assoc();
+$check->close();
 
-    if (!$valid) {
-        echo json_encode(['success' => false, 'error' => 'ticket_not_found_or_not_closed']);
-        exit;
-    }
+if (!$valid) {
+    echo json_encode(['success' => false, 'error' => 'ticket_not_found_or_not_closed']);
+    exit;
+}
 
     // Prevent duplicate feedback
-    $dup = $conn->prepare("SELECT feedback_id FROM ticket_feedback WHERE ticket_id = ? AND student_id = ? LIMIT 1");
-    $dup->bind_param("si", $ticketId, $studentId);
+    $dup = $conn->prepare("SELECT feedback_id FROM ticket_feedback WHERE ticket_id = ? AND submitter_id = ? LIMIT 1");
+    $dup->bind_param("si", $ticketId, $submitterId);
     $dup->execute();
     $existing = $dup->get_result()->fetch_assoc();
     $dup->close();
@@ -187,11 +193,14 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Insert feedback
     $ins = $conn->prepare("
-        INSERT INTO ticket_feedback (ticket_id, student_id, rating, comment, is_auto_submitted, created_at)
+        INSERT INTO ticket_feedback (ticket_id, submitter_id, rating, comment, is_auto_submitted, created_at)
         VALUES (?, ?, ?, ?, ?, NOW())
     ");
-    $autoInt = $isAuto ? 1 : 0;
-    $ins->bind_param("siisi", $ticketId, $studentId, $rating, $comment, $autoInt);
+    $autoInt  = $isAuto ? 1 : 0;
+    $comment  = (string)$comment;   // PHP 8.2: ensure not null
+    $rating   = (int)$rating;
+    $autoInt  = (int)$autoInt;
+    $ins->bind_param("siisi", $ticketId, $submitterId, $rating, $comment, $autoInt);
 
     if ($ins->execute()) {
         $ins->close();
@@ -203,25 +212,25 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $officeStart = 8;
         $officeEnd   = 17;
 
-        $remainStmt = $conn->prepare("
-            SELECT c.ticket_id, tl.changed_at AS closed_at
-            FROM complaints c
-            JOIN ticket_logs tl ON tl.ticket_id = c.ticket_id
-                AND tl.new_status = 'closed'
-                AND tl.log_id = (
-                    SELECT MAX(tl2.log_id)
-                    FROM ticket_logs tl2
-                    WHERE tl2.ticket_id = c.ticket_id
-                      AND tl2.new_status = 'closed'
-                )
-            LEFT JOIN ticket_feedback tf ON tf.ticket_id = c.ticket_id
-                                         AND tf.student_id = ?
-            WHERE c.submitter_id   = ?
-              AND c.submitter_type = 'student'
-              AND c.status         = 'closed'
-              AND tf.feedback_id   IS NULL
-        ");
-        $remainStmt->bind_param("ii", $studentId, $studentId);
+$remainStmt = $conn->prepare("
+    SELECT c.ticket_id, tl.changed_at AS closed_at
+    FROM complaints c
+    JOIN ticket_logs tl ON tl.ticket_id = c.ticket_id
+        AND tl.new_status = 'closed'
+        AND tl.log_id = (
+            SELECT MAX(tl2.log_id)
+            FROM ticket_logs tl2
+            WHERE tl2.ticket_id = c.ticket_id
+              AND tl2.new_status = 'closed'
+        )
+    LEFT JOIN ticket_feedback tf ON tf.ticket_id = c.ticket_id
+                                 AND tf.submitter_id = ?
+    WHERE c.submitter_id   = ?
+      AND c.submitter_type = ?
+      AND c.status         = 'closed'
+      AND tf.feedback_id   IS NULL
+");
+$remainStmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
         $remainStmt->execute();
         $remainRows = $remainStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $remainStmt->close();

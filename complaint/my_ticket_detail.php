@@ -119,7 +119,6 @@ function fileCardMeta($path) {
 $statusMap = [
     'open'        => ['label' => 'Open',        'color' => '#854F0B', 'bg' => '#FAEEDA', 'dot' => '#EF9F27'],
     'in_progress' => ['label' => 'In Progress',  'color' => '#0C447C', 'bg' => '#E6F1FB', 'dot' => '#378ADD'],
-    'resolved'    => ['label' => 'Resolved',     'color' => '#27500A', 'bg' => '#EAF3DE', 'dot' => '#639922'],
     'closed'      => ['label' => 'Closed',       'color' => '#27500A', 'bg' => '#EAF3DE', 'dot' => '#1D9E75'],
 ];
 $priorityMap = [

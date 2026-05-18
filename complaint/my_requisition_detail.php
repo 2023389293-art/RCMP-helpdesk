@@ -74,13 +74,15 @@ function isImageAttachment(?string $path): bool {
 }
 function fileCardMeta(string $path): array {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    return match($ext) {
-        'pdf'        => ['label' => 'PDF',  'bg' => '#FEF2F2', 'color' => '#DC2626'],
-        'doc','docx' => ['label' => 'DOC',  'bg' => '#EFF6FF', 'color' => '#1D4ED8'],
-        'xls','xlsx' => ['label' => 'XLS',  'bg' => '#F0FDF4', 'color' => '#15803D'],
-        'txt'        => ['label' => 'TXT',  'bg' => '#F9FAFB', 'color' => '#374151'],
-        default      => ['label' => strtoupper($ext) ?: 'FILE', 'bg' => '#F3F4F6', 'color' => '#6B7280'],
-    };
+    switch ($ext) {
+        case 'pdf':  return ['label' => 'PDF',  'bg' => '#FEF2F2', 'color' => '#DC2626'];
+        case 'doc':
+        case 'docx': return ['label' => 'DOC',  'bg' => '#EFF6FF', 'color' => '#1D4ED8'];
+        case 'xls':
+        case 'xlsx': return ['label' => 'XLS',  'bg' => '#F0FDF4', 'color' => '#15803D'];
+        case 'txt':  return ['label' => 'TXT',  'bg' => '#F9FAFB', 'color' => '#374151'];
+        default:     return ['label' => strtoupper($ext) ?: 'FILE', 'bg' => '#F3F4F6', 'color' => '#6B7280'];
+    }
 }
 
 // ── STATUS MAP  (pending → approved → completed | rejected) ──────────────────

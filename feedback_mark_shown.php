@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$studentId = (int)($_SESSION['user_id'] ?? 0);
-if ($studentId <= 0) {
+$submitterId = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
+if ($submitterId <= 0) {
     echo json_encode(['error' => 'unauthenticated']);
     exit;
 }

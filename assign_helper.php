@@ -155,11 +155,12 @@ function processQueue(mysqli $conn, int $deptId, int $staffId): void
 
     $types      = 'i' . str_repeat('s', count($likeParams));
     $bindValues = array_merge([$deptId], $likeParams);
-    $refs       = [&$types];
-    foreach ($bindValues as $k => $v) {
-        $refs[] = &$bindValues[$k];
+    $bindArgs   = [$types];
+    foreach ($bindValues as &$val) {
+        $bindArgs[] = &$val;
     }
-    call_user_func_array([$qStmt, 'bind_param'], $refs);
+    unset($val);
+    call_user_func_array([$qStmt, 'bind_param'], $bindArgs);
 
     $qStmt->execute();
     $qRow         = $qStmt->get_result()->fetch_assoc();

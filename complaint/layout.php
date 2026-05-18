@@ -5,7 +5,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-$_fbUserId = (int)($_SESSION['user_id'] ?? 0);
+$_fbUserId = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
 
 $_nameParts = explode(' ', $userName ?? 'User X');
 $_initials  = strtoupper(substr($_nameParts[0], 0, 1) . substr($_nameParts[1] ?? 'X', 0, 1));

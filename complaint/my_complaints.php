@@ -98,7 +98,6 @@ $stmtSummary->close();
 $statusMeta = [
     'open'        => ['label' => 'Open',        'color' => '#B45309', 'bg' => '#FFFBEB', 'dot' => '#F59E0B', 'border' => '#FDE68A'],
     'in_progress' => ['label' => 'In Progress',  'color' => '#1D4ED8', 'bg' => '#EFF6FF', 'dot' => '#3B82F6', 'border' => '#BFDBFE'],
-    'resolved'    => ['label' => 'Resolved',     'color' => '#166534', 'bg' => '#F0FDF4', 'dot' => '#22C55E', 'border' => '#BBF7D0'],
     'closed'      => ['label' => 'Closed',       'color' => '#374151', 'bg' => '#F9FAFB', 'dot' => '#9CA3AF', 'border' => '#E5E7EB'],
 ];
 
