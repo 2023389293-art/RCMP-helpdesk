@@ -10,15 +10,12 @@ header('Content-Type: application/json');
 // ── Auth guard ────────────────────────────────────────────────────────────────
 $submitterId   = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
 $submitterType = ($_SESSION['user_role'] ?? '') === 'student' ? 'student' : 'staff';
-$submitterId   = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
+$submitterType = (string)$submitterType;
 
 if ($submitterId <= 0) {
     echo json_encode(['error' => 'unauthenticated']);
     exit;
 }
-
-// PHP 8.2: ensure $submitterType is never null in bind_param
-$submitterType = (string)$submitterType;
 
 require __DIR__ . '/db_connect.php';
 
@@ -26,9 +23,6 @@ $action = $_GET['action'] ?? ($_POST['action'] ?? '');
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ACTION: check
-// Finds ALL closed tickets with no feedback.
-// - Expired (>= 8 office hours): silently auto-submit 5/5 server-side, no popup.
-// - Not yet expired: return the oldest one so the popup shows with a countdown.
 // ══════════════════════════════════════════════════════════════════════════════
 if ($action === 'check') {
 
@@ -36,30 +30,26 @@ if ($action === 'check') {
     $now         = new DateTime('now', $tz);
     $officeStart = 8;
     $officeEnd   = 17;
-    $threshold   = 8 * 3600; // 8 office hours in seconds
+    $threshold   = 8 * 3600;
 
-    // Fetch ALL closed tickets with no feedback for this student, oldest first
-$stmt = $conn->prepare("
-    SELECT c.ticket_id, c.title,
-           tl.changed_at AS closed_at
-    FROM complaints c
-    JOIN ticket_logs tl ON tl.ticket_id = c.ticket_id
-        AND tl.new_status = 'closed'
-        AND tl.log_id = (
-            SELECT MAX(tl2.log_id)
-            FROM ticket_logs tl2
-            WHERE tl2.ticket_id = c.ticket_id
-              AND tl2.new_status = 'closed'
-        )
-    LEFT JOIN ticket_feedback tf ON tf.ticket_id = c.ticket_id
-                                 AND tf.submitter_id = ?
-    WHERE c.submitter_id   = ?
-      AND c.submitter_type = ?
-      AND c.status         = 'closed'
-      AND tf.feedback_id   IS NULL
-    ORDER BY tl.changed_at ASC
-");
-$stmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
+    // ── FIX 1: No longer JOINs ticket_logs for new_status='closed'
+    //    because that log row doesn't exist in the live DB.
+    //    Instead use resolved_at / updated_at directly from complaints.
+    // ── FIX 2: Use student_id column (not submitter_id) for ticket_feedback
+    $stmt = $conn->prepare("
+        SELECT c.ticket_id, c.title,
+               COALESCE(c.resolved_at, c.updated_at, c.created_at) AS closed_at
+        FROM complaints c
+        LEFT JOIN ticket_feedback tf
+               ON tf.ticket_id  = c.ticket_id
+              AND tf.student_id = ?
+        WHERE c.submitter_id   = ?
+          AND c.submitter_type = ?
+          AND c.status         = 'closed'
+          AND tf.feedback_id   IS NULL
+        ORDER BY closed_at ASC
+    ");
+    $stmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
@@ -69,9 +59,7 @@ $stmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
         exit;
     }
 
-    // ── NEW: Re-verify each ticket is genuinely still 'closed' right now.
-    // Guards against race conditions where a ticket was closed then re-opened
-    // between page loads.
+    // Re-verify each ticket is still genuinely 'closed'
     $rows = array_filter($rows, function($row) use ($conn) {
         $chk = $conn->prepare(
             "SELECT ticket_id FROM complaints WHERE ticket_id = ? AND status = 'closed' LIMIT 1"
@@ -89,7 +77,6 @@ $stmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
         exit;
     }
 
-    // Separate expired vs still-within-window tickets
     $expiredTickets = [];
     $pendingTickets = [];
 
@@ -107,21 +94,20 @@ $stmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
         }
     }
 
-    // Silently auto-submit 5/5 for ALL expired tickets (no popup ever shown)
+    // Auto-submit 5/5 for expired tickets (student_id column)
     if (!empty($expiredTickets)) {
-$ins = $conn->prepare("
-    INSERT IGNORE INTO ticket_feedback
-        (ticket_id, submitter_id, rating, comment, is_auto_submitted, created_at)
-    VALUES (?, ?, 5, '', 1, NOW())
-");
-foreach ($expiredTickets as $expired) {
-    $ins->bind_param("si", $expired['ticket_id'], $submitterId);
+        $ins = $conn->prepare("
+            INSERT IGNORE INTO ticket_feedback
+                (ticket_id, student_id, rating, comment, is_auto_submitted, created_at)
+            VALUES (?, ?, 5, '', 1, NOW())
+        ");
+        foreach ($expiredTickets as $expired) {
+            $ins->bind_param("si", $expired['ticket_id'], $submitterId);
             $ins->execute();
         }
         $ins->close();
     }
 
-    // If there are still non-expired tickets, return the oldest for the popup
     if (!empty($pendingTickets)) {
         $oldest       = $pendingTickets[0];
         $pendingCount = count($pendingTickets);
@@ -139,7 +125,6 @@ foreach ($expiredTickets as $expired) {
         exit;
     }
 
-    // All tickets were expired and silently submitted → no popup needed
     echo json_encode([
         'pending'        => false,
         'pending_count'  => 0,
@@ -163,24 +148,31 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-// Confirm ticket is closed (ownership check loosened for staff)
-$check = $conn->prepare("
-    SELECT ticket_id FROM complaints
-    WHERE ticket_id = ? AND submitter_id = ? AND submitter_type = ? AND status = 'closed'
-    LIMIT 1
-");
-$check->bind_param("sis", $ticketId, $submitterId, $submitterType);
-$check->execute();
-$valid = $check->get_result()->fetch_assoc();
-$check->close();
+    // Confirm ticket belongs to this submitter and is closed
+    $check = $conn->prepare("
+        SELECT ticket_id FROM complaints
+        WHERE ticket_id      = ?
+          AND submitter_id   = ?
+          AND submitter_type = ?
+          AND status         = 'closed'
+        LIMIT 1
+    ");
+    $check->bind_param("sis", $ticketId, $submitterId, $submitterType);
+    $check->execute();
+    $valid = $check->get_result()->fetch_assoc();
+    $check->close();
 
-if (!$valid) {
-    echo json_encode(['success' => false, 'error' => 'ticket_not_found_or_not_closed']);
-    exit;
-}
+    if (!$valid) {
+        echo json_encode(['success' => false, 'error' => 'ticket_not_found_or_not_closed']);
+        exit;
+    }
 
-    // Prevent duplicate feedback
-    $dup = $conn->prepare("SELECT feedback_id FROM ticket_feedback WHERE ticket_id = ? AND submitter_id = ? LIMIT 1");
+    // Prevent duplicate (student_id column)
+    $dup = $conn->prepare("
+        SELECT feedback_id FROM ticket_feedback
+        WHERE ticket_id = ? AND student_id = ?
+        LIMIT 1
+    ");
     $dup->bind_param("si", $ticketId, $submitterId);
     $dup->execute();
     $existing = $dup->get_result()->fetch_assoc();
@@ -191,51 +183,44 @@ if (!$valid) {
         exit;
     }
 
-    // Insert feedback
+    // Insert feedback (student_id column)
     $ins = $conn->prepare("
-        INSERT INTO ticket_feedback (ticket_id, submitter_id, rating, comment, is_auto_submitted, created_at)
+        INSERT INTO ticket_feedback
+            (ticket_id, student_id, rating, comment, is_auto_submitted, created_at)
         VALUES (?, ?, ?, ?, ?, NOW())
     ");
-    $autoInt  = $isAuto ? 1 : 0;
-    $comment  = (string)$comment;   // PHP 8.2: ensure not null
-    $rating   = (int)$rating;
-    $autoInt  = (int)$autoInt;
+    $comment = (string)$comment;
+    $rating  = (int)$rating;
+    $autoInt = $isAuto ? 1 : 0;
     $ins->bind_param("siisi", $ticketId, $submitterId, $rating, $comment, $autoInt);
 
     if ($ins->execute()) {
         $ins->close();
 
-        // Count remaining non-expired tickets that still need popup feedback
         $tz          = new DateTimeZone('Asia/Kuala_Lumpur');
         $now         = new DateTime('now', $tz);
         $threshold   = 8 * 3600;
         $officeStart = 8;
         $officeEnd   = 17;
 
-$remainStmt = $conn->prepare("
-    SELECT c.ticket_id, tl.changed_at AS closed_at
-    FROM complaints c
-    JOIN ticket_logs tl ON tl.ticket_id = c.ticket_id
-        AND tl.new_status = 'closed'
-        AND tl.log_id = (
-            SELECT MAX(tl2.log_id)
-            FROM ticket_logs tl2
-            WHERE tl2.ticket_id = c.ticket_id
-              AND tl2.new_status = 'closed'
-        )
-    LEFT JOIN ticket_feedback tf ON tf.ticket_id = c.ticket_id
-                                 AND tf.submitter_id = ?
-    WHERE c.submitter_id   = ?
-      AND c.submitter_type = ?
-      AND c.status         = 'closed'
-      AND tf.feedback_id   IS NULL
-");
-$remainStmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
+        // ── FIX: same no-ticket_logs approach for remaining count ──
+        $remainStmt = $conn->prepare("
+            SELECT c.ticket_id,
+                   COALESCE(c.resolved_at, c.updated_at, c.created_at) AS closed_at
+            FROM complaints c
+            LEFT JOIN ticket_feedback tf
+                   ON tf.ticket_id  = c.ticket_id
+                  AND tf.student_id = ?
+            WHERE c.submitter_id   = ?
+              AND c.submitter_type = ?
+              AND c.status         = 'closed'
+              AND tf.feedback_id   IS NULL
+        ");
+        $remainStmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
         $remainStmt->execute();
         $remainRows = $remainStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $remainStmt->close();
 
-        // Only count tickets still within the window (expired handled on next check)
         $remainingCount = 0;
         foreach ($remainRows as $r) {
             $closedAt = new DateTime($r['closed_at'], $tz);
@@ -256,13 +241,11 @@ $remainStmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
     exit;
 }
 
-// Unknown action
 echo json_encode(['error' => 'unknown_action']);
 exit;
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Helper: count elapsed office-hour seconds between two DateTimes
-// Office hours: Mon–Fri 08:00–17:00 MYT
+// Helper: office hours elapsed (Mon–Fri 08:00–17:00 MYT)
 // ══════════════════════════════════════════════════════════════════════════════
 function officeHoursElapsed(DateTime $start, DateTime $end, int $dayStart, int $dayEnd): int {
     if ($end <= $start) return 0;
@@ -272,7 +255,7 @@ function officeHoursElapsed(DateTime $start, DateTime $end, int $dayStart, int $
     $cursor  = clampToOffice($cursor, $dayStart, $dayEnd);
 
     while ($cursor < $end) {
-        $dow = (int)$cursor->format('N'); // 1=Mon … 7=Sun
+        $dow = (int)$cursor->format('N');
         if ($dow >= 1 && $dow <= 5) {
             $todayClose = clone $cursor;
             $todayClose->setTime($dayEnd, 0, 0);

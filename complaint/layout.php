@@ -11,7 +11,7 @@ $_nameParts = explode(' ', $userName ?? 'User X');
 $_initials  = strtoupper(substr($_nameParts[0], 0, 1) . substr($_nameParts[1] ?? 'X', 0, 1));
 $_firstName = $_nameParts[0];
 
-$_fbApiUrl  = '/uniKL/complaint/feedback_api.php';
+$_fbApiUrl  = 'feedback_api.php';
 $_fbMarkUrl = '/uniKL/complaint/feedback_mark_shown.php';
 ?>
 <!DOCTYPE html>
