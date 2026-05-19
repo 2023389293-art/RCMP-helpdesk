@@ -425,7 +425,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
 (function () {
   'use strict';
 
-  var POPUP_API  = window.location.protocol + '//' + window.location.host + '/uniKL/complaint/new_ticket_popup_api.php';
+  var POPUP_API  = '../../new_ticket_popup_api.php';
   var DETAIL_URL = 'ticket_detail.php';
   var DURATION   = 10000;
   var MAX_TOASTS = 5;
