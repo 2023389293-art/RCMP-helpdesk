@@ -12,10 +12,11 @@ $stmt = $conn->prepare(
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
-$counts = $stmt->get_result()->fetch_assoc();
+$stmt->bind_result($openCount, $closedCount);
+$stmt->fetch();
+$openCount   = (int)($openCount  ?? 0);
+$closedCount = (int)($closedCount ?? 0);
 $stmt->close();
-$openCount   = (int)($counts['oc'] ?? 0);
-$closedCount = (int)($counts['cc'] ?? 0);
 
 // ── Handle POST actions (PRG pattern) ────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -29,10 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash_error'] = 'Category name cannot be empty.';
         } else {
             $chk = $conn->prepare("SELECT category_id FROM categories WHERE category_name = ? AND dept_id = ? LIMIT 1");
-            $chk->bind_param("si", $name, $deptId);
-            $chk->execute();
-            $chk->store_result();
-            if ($chk->num_rows > 0) {
+$chk->bind_param("si", $name, $deptId);
+$chk->execute();
+$chk->store_result();
+$chkRows = $chk->num_rows;
+$chk->free_result();
+$chk->close();
+if ($chkRows > 0) {
                 $_SESSION['flash_error'] = 'A category with that name already exists in this department.';
             } else {
                 $ins = $conn->prepare("INSERT INTO categories (category_name, dept_id, created_at) VALUES (?, ?, NOW())");
@@ -44,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $ins->close();
             }
-            $chk->close();
+            
         }
     }
 
@@ -77,10 +81,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash_error'] = 'Invalid category.';
         } else {
             $chk = $conn->prepare("SELECT COUNT(*) AS cnt FROM complaints WHERE category_id = ?");
-            $chk->bind_param("i", $id);
-            $chk->execute();
-            $cnt = (int)($chk->get_result()->fetch_assoc()['cnt'] ?? 0);
-            $chk->close();
+$chk->bind_param("i", $id);
+$chk->execute();
+$chk->bind_result($cnt);
+$chk->fetch();
+$cnt = (int)($cnt ?? 0);
+$chk->close();
             if ($cnt > 0) {
                 $_SESSION['flash_error'] = "Cannot delete: this category is used by <strong>{$cnt}</strong> complaint(s).";
             } else {
@@ -108,20 +114,17 @@ unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
 // ── Fetch all categories for this dept ────────────────────────────────────────
 $categories = [];
-$stmt = $conn->prepare(
+$result = $conn->query(
     "SELECT c.category_id, c.category_name, c.created_at,
             COUNT(comp.ticket_id) AS usage_count
      FROM categories c
      LEFT JOIN complaints comp ON comp.category_id = c.category_id
-     WHERE c.dept_id = ?
+     WHERE c.dept_id = " . (int)$deptId . "
      GROUP BY c.category_id
      ORDER BY c.created_at ASC"
 );
-$stmt->bind_param("i", $deptId);
-$stmt->execute();
-$res = $stmt->get_result();
-while ($row = $res->fetch_assoc()) $categories[] = $row;
-$stmt->close();
+while ($row = $result->fetch_assoc()) $categories[] = $row;
+$result->free();
 
 // ── Layout vars ───────────────────────────────────────────────────────────────
 $activeNav    = 'categories';
