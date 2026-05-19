@@ -1,5 +1,5 @@
 <?php
-// dept_admin/it/categories.php 
+// dept_admin/it/categories.php
 require_once __DIR__ . '/_layout.php';
 
 // ── Session for flash messages ────────────────────────────────────────────────
@@ -12,10 +12,11 @@ $stmt = $conn->prepare(
      FROM complaints WHERE dept_id = 4"
 );
 $stmt->execute();
-$counts = $stmt->get_result()->fetch_assoc();
+$stmt->bind_result($ocVal, $ccVal);
+$stmt->fetch();
 $stmt->close();
-$openCount   = (int)($counts['oc'] ?? 0);
-$closedCount = (int)($counts['cc'] ?? 0);
+$openCount   = (int)($ocVal ?? 0);
+$closedCount = (int)($ccVal ?? 0);
 
 // ── Handle POST (PRG pattern) ─────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -28,12 +29,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($suffix)) {
             $_SESSION['flash_error'] = 'Category name cannot be empty.';
         } else {
-            $chk = $conn->prepare("SELECT category_id FROM categories WHERE category_name = ? AND dept_id = ? LIMIT 1");
-            $chk->bind_param("si", $name, $deptId);
-            $chk->execute();
-            $chk->store_result();
-            if ($chk->num_rows > 0) {
-                $_SESSION['flash_error'] = 'A category with that name already exists.';
+$chk = $conn->prepare("SELECT COUNT(*) FROM categories WHERE category_name = ? AND dept_id = ? LIMIT 1");
+$chk->bind_param("si", $name, $deptId);
+$chk->execute();
+$chk->bind_result($dupCount);
+$chk->fetch();
+$chk->close();
+if ($dupCount > 0) {
+    $_SESSION['flash_error'] = 'A category with that name already exists.';
             } else {
                 $ins = $conn->prepare("INSERT INTO categories (category_name, dept_id, created_at) VALUES (?, ?, NOW())");
                 $ins->bind_param("si", $name, $deptId);
@@ -44,7 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $ins->close();
             }
-            $chk->close();
         }
     }
 
@@ -74,11 +76,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$id) {
             $_SESSION['flash_error'] = 'Invalid category.';
         } else {
-            $chk = $conn->prepare("SELECT COUNT(*) AS cnt FROM complaints WHERE category_id = ?");
-            $chk->bind_param("i", $id);
-            $chk->execute();
-            $cnt = (int)($chk->get_result()->fetch_assoc()['cnt'] ?? 0);
-            $chk->close();
+$chk = $conn->prepare("SELECT COUNT(*) FROM complaints WHERE category_id = ?");
+$chk->bind_param("i", $id);
+$chk->execute();
+$chk->bind_result($cnt);
+$chk->fetch();
+$chk->close();
+$cnt = (int)($cnt ?? 0);
             if ($cnt > 0) {
                 $_SESSION['flash_error'] = "Cannot delete: this category is used by <strong>{$cnt}</strong> complaint(s).";
             } else {
@@ -117,8 +121,15 @@ $stmt = $conn->prepare(
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
-$res = $stmt->get_result();
-while ($row = $res->fetch_assoc()) $categories[] = $row;
+$stmt->bind_result($cId, $cName, $cCreated, $cUsage);
+while ($stmt->fetch()) {
+    $categories[] = [
+        'category_id'   => $cId,
+        'category_name' => $cName,
+        'created_at'    => $cCreated,
+        'usage_count'   => $cUsage,
+    ];
+}
 $stmt->close();
 
 $currentPage = 'categories';

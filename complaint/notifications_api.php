@@ -20,7 +20,7 @@ if (!in_array($_SESSION['user_role'], $allowedRoles)) {
 
 require '../db_connect.php';
 
-$userId        = (int) $_SESSION['user_id'];
+$userId        = (int)($_SESSION['staff_id'] ?? $_SESSION['user_id'] ?? 0);
 $userRole      = $_SESSION['user_role'];
 $submitterType = ($userRole === 'student') ? 'student' : 'staff';
 
@@ -41,13 +41,13 @@ $sql1 = "
         ON  c.ticket_id      = r.ticket_id
         AND c.submitter_id   = ?
         AND c.submitter_type = ?
-    WHERE r.sender_role = 'staff'
+    WHERE r.sender_id != ?
     ORDER BY r.reply_id DESC
     LIMIT 20
 ";
 $stmt1 = $conn->prepare($sql1);
 if ($stmt1) {
-    $stmt1->bind_param("is", $userId, $submitterType);
+    $stmt1->bind_param("iis", $userId, $userId, $submitterType);
     $stmt1->execute();
     $rows1 = $stmt1->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt1->close();

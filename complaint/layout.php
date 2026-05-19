@@ -5,14 +5,14 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-$_fbUserId = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
+$_fbUserId = (int)($_SESSION['staff_id'] ?? $_SESSION['user_id'] ?? 0);
 
 $_nameParts = explode(' ', $userName ?? 'User X');
 $_initials  = strtoupper(substr($_nameParts[0], 0, 1) . substr($_nameParts[1] ?? 'X', 0, 1));
 $_firstName = $_nameParts[0];
 
 $_fbApiUrl  = 'feedback_api.php';
-$_fbMarkUrl = '/uniKL/complaint/feedback_mark_shown.php';
+$_fbMarkUrl = 'feedback_mark_shown.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -529,7 +529,7 @@ $_fbMarkUrl = '/uniKL/complaint/feedback_mark_shown.php';
 
 <script>
 (function () {
-  var POPUP_API    = '/uniKL/complaint/new_reply_popup_api.php';
+  var POPUP_API    = 'new_reply_popup_api.php';
   var SEEN_KEY     = 'unikl_toast_seen_reply_';   // + reply_id
   var SEEN_LOG_KEY = 'unikl_toast_seen_log_';     // + log_id
   var toast        = document.getElementById('replyToast');

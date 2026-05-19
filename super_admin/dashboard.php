@@ -1,5 +1,5 @@
 <?php
-// super_admin/dashboard.php 
+// super_admin/dashboard.php
 session_start();
 if (empty($_SESSION['staff_role']) || !in_array($_SESSION['staff_role'], ['super_admin', 'report_viewer'])) {
     header("Location: ../staff_login.php");

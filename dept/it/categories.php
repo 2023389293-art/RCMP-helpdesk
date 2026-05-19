@@ -4,10 +4,7 @@ require_once __DIR__ . '/../auth_guard.php';
 if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
 
-// ── Start session for flash messages (PRG pattern) ────────────────────────────
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+
 
 // ── Counts (for sidebar badges) ───────────────────────────────────────────────
 $openCount = $closedCount = 0;
@@ -101,7 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    header('Location: categories.php');
+    session_write_close();
+    header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
     exit;
 }
 
@@ -398,7 +396,7 @@ $pageSubtitle = 'Information Technology Department';
               <span>Editing: <strong id="editingName">—</strong></span>
             </div>
 
-            <form method="POST" action="categories.php" id="catForm">
+            <form method="POST" action="<?php echo htmlspecialchars($_SERVER['REQUEST_URI']); ?>" id="catForm">
               <input type="hidden" name="action" id="formAction" value="add"/>
               <input type="hidden" name="category_id" id="formCategoryId" value=""/>
 
@@ -449,8 +447,7 @@ $pageSubtitle = 'Information Technology Department';
     <p id="deleteModalText">Are you sure you want to delete this category? This action cannot be undone.</p>
     <div class="modal-actions">
       <button type="button" class="btn-cancel-modal" onclick="closeDeleteModal()">Cancel</button>
-      <form method="POST" action="categories.php" id="deleteForm" style="display:inline">
-        <input type="hidden" name="action" value="delete"/>
+      <form method="POST" action="<?php echo htmlspecialchars($_SERVER['REQUEST_URI']); ?>" id="deleteForm" style="display:inline">        <input type="hidden" name="action" value="delete"/>
         <input type="hidden" name="category_id" id="deleteModalId" value=""/>
         <button type="submit" class="btn-delete-modal">Yes, Delete</button>
       </form>

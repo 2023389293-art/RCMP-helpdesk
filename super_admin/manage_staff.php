@@ -1,5 +1,5 @@
 <?php
-// super_admin/manage_staff.php
+// super_admin/manage_staff.php 
 session_start();
 if (empty($_SESSION['staff_role']) || $_SESSION['staff_role'] !== 'super_admin') {
     header("Location: ../staff_login.php");
@@ -682,7 +682,8 @@ include 'layout.php';
 
         // Avatar initials & colour
         $words    = array_filter(explode(' ', $s['full_name']));
-        $initials = strtoupper(implode('', array_map(fn($w) => $w[0], array_slice($words, 0, 2))));
+        $words = array_slice(explode(' ', $s['full_name']), 0, 2);
+        $initials = strtoupper(implode('', array_map(function($w){ return $w[0]; }, $words)));
         $avatarBg = $avatarPalette[$s['staff_id'] % count($avatarPalette)];
       ?>
       <tr>

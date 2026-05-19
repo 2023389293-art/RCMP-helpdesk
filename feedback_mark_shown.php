@@ -16,13 +16,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$submitterId = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
+$submitterId = (int)($_SESSION['staff_id'] ?? $_SESSION['user_id'] ?? 0);
 if ($submitterId <= 0) {
     echo json_encode(['error' => 'unauthenticated']);
     exit;
 }
 
-$_SESSION['fb_popup_shown'] = true;
+$_SESSION['fb_popup_shown_' . $submitterId] = true;
 
 echo json_encode(['success' => true]);
 exit;

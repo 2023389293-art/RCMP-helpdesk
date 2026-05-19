@@ -1,5 +1,5 @@
 <?php
-// dept_admin/it/users.php 
+// dept_admin/it/users.php
 require '_layout.php';
 
 $msg   = '';
@@ -63,10 +63,12 @@ if (!$code || !$name || !$email || !$rawPw || empty($categories)) {
         if (!$cat) continue;
         $catIdStmt = $conn->prepare("
             SELECT category_id FROM categories
-            WHERE dept_id = 4 AND category_name LIKE CONCAT('%/ ', ?)
+            WHERE dept_id = 4
+              AND (SUBSTRING_INDEX(category_name, ' / ', -1) = ?
+                OR category_name = ?)
             LIMIT 1
         ");
-        $catIdStmt->bind_param("s", $cat);
+        $catIdStmt->bind_param("ss", $cat, $cat);
         $catIdStmt->execute();
         $catIdRow = $catIdStmt->get_result()->fetch_assoc();
         $catIdStmt->close();

@@ -8,7 +8,8 @@ if (session_status() === PHP_SESSION_NONE) {
 header('Content-Type: application/json');
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
-$submitterId   = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
+// Support both student (user_id) and staff (staff_id) sessions
+$submitterId = (int)($_SESSION['staff_id'] ?? $_SESSION['user_id'] ?? 0);
 $submitterType = ($_SESSION['user_role'] ?? '') === 'student' ? 'student' : 'staff';
 $submitterType = (string)$submitterType;
 

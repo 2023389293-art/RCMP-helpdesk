@@ -13,10 +13,35 @@ header('Content-Type: application/json');
 $staffId = (int)($_GET['staff_id'] ?? 0);
 if (!$staffId) { echo json_encode(['category_ids' => []]); exit; }
 
+// Try staff_categories junction table first
 $stmt = $conn->prepare("SELECT category_id FROM staff_categories WHERE staff_id = ?");
 $stmt->bind_param("i", $staffId);
 $stmt->execute();
 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-echo json_encode(['category_ids' => array_column($rows, 'category_id')]);
+if (!empty($rows)) {
+    echo json_encode(['category_ids' => array_column($rows, 'category_id')]);
+    exit;
+}
+
+// Fallback: derive category_id from staff.category column (handles legacy data)
+$fbStmt = $conn->prepare("
+    SELECT c.category_id
+    FROM staff s
+    JOIN categories c
+      ON c.dept_id = s.dept_id
+      AND (
+        c.category_name = s.category
+        OR SUBSTRING_INDEX(c.category_name, ' / ', -1) = s.category
+      )
+    WHERE s.staff_id = ?
+      AND s.category IS NOT NULL
+      AND s.category != ''
+");
+$fbStmt->bind_param("i", $staffId);
+$fbStmt->execute();
+$fbRows = $fbStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$fbStmt->close();
+
+echo json_encode(['category_ids' => array_column($fbRows, 'category_id')]);

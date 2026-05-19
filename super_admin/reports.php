@@ -572,10 +572,10 @@ include 'layout.php';
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 (function () {
-  const labels = <?= json_encode(array_map(fn($r) => ($deptShort[(int)$r['dept_id']] ?? $r['dept_name']), $deptRows)) ?>;
-  const openData   = <?= json_encode(array_map(fn($r) => (int)$r['open_count'],        $deptRows)) ?>;
-  const ipData     = <?= json_encode(array_map(fn($r) => (int)$r['inprogress_count'],  $deptRows)) ?>;
-  const closedData = <?= json_encode(array_map(fn($r) => (int)$r['closed_count'],      $deptRows)) ?>;
+  const labels = <?= json_encode(array_map(function($r) use ($deptShort){ return isset($deptShort[(int)$r['dept_id']]) ? $deptShort[(int)$r['dept_id']] : $r['dept_name']; }, $deptRows)) ?>;
+  const openData   = <?= json_encode(array_map(function($r){ return (int)$r['open_count']; },       $deptRows)) ?>;
+  const ipData     = <?= json_encode(array_map(function($r){ return (int)$r['inprogress_count']; }, $deptRows)) ?>;
+  const closedData = <?= json_encode(array_map(function($r){ return (int)$r['closed_count']; },     $deptRows)) ?>;
 
   const ctx = document.getElementById('barChart').getContext('2d');
   new Chart(ctx, {

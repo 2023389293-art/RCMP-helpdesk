@@ -1,5 +1,5 @@
 <?php
-// super_admin/manage_admins.php 
+// super_admin/manage_admins.php
 session_start();
 if (empty($_SESSION['staff_role']) || $_SESSION['staff_role'] !== 'super_admin') {
     header("Location: ../staff_login.php");
@@ -258,7 +258,7 @@ foreach ($staffRows as $row) {
 
 // Count helpers
 $totalAdmins    = count($admins);
-$activeAdmins   = count(array_filter($admins, fn($a) => $a['status'] === 'active'));
+$activeAdmins   = count(array_filter($admins, function($a){ return $a['status'] === 'active'; }));
 $inactiveAdmins = $totalAdmins - $activeAdmins;
 
 $deptColors = [
@@ -636,7 +636,8 @@ include 'layout.php';
           $dId    = (int)$admin['dept_id'];
           $color  = $deptColors[$dId] ?? '#888';
           $short  = $deptShort[$dId] ?? htmlspecialchars($admin['dept_name']);
-          $initials = strtoupper(implode('', array_map(fn($w) => $w[0], array_slice(explode(' ', $admin['full_name']), 0, 2))));
+          $words = array_slice(explode(' ', $admin['full_name']), 0, 2);
+$initials = strtoupper(implode('', array_map(function($w){ return $w[0]; }, $words)));
           $isActive = $admin['status'] === 'active';
           $addedDate = date('j M Y', strtotime($admin['created_at']));
         ?>
