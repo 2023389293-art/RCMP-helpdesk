@@ -144,17 +144,13 @@ if (empty($_SESSION['user_id']) && empty($_SESSION['staff_id'])) return;
                     data.ticket_id + (data.ticket_title ? ' — ' + data.ticket_title : '');
 
                 if (data.auto_ready) {
-                    // Pre-select 5 stars, show countdown
+                    // Pre-select 5 stars, show 30s countdown
                     document.getElementById('s5').checked = true;
                     enableSubmit();
-                    startCountdown(data.remaining_secs > 0 ? data.remaining_secs : 30);
+                    startCountdown(30);
                 } else {
-                    // Show remaining time, no pre-selection
-                    const h = Math.floor(data.remaining_secs / 3600);
-                    const m = Math.floor((data.remaining_secs % 3600) / 60);
-                    const cdEl = document.getElementById('fb-countdown');
-                    cdEl.style.display = 'block';
-                    cdEl.innerHTML = `<span>Auto-rating available in <strong>${h}h ${m}m</strong> (after 8 office hours)</span>`;
+                    // Show popup for manual rating immediately (no pre-selection, no countdown)
+                    // auto_ready=false means the 8-hour window hasn't passed yet — user still rates manually
                 }
 
                 setTimeout(showPopup, 1500);

@@ -36,14 +36,14 @@ if ($action === 'check') {
     // ── FIX 1: No longer JOINs ticket_logs for new_status='closed'
     //    because that log row doesn't exist in the live DB.
     //    Instead use resolved_at / updated_at directly from complaints.
-    // ── FIX 2: Use student_id column (not submitter_id) for ticket_feedback
+    // ── Uses submitter_id column in ticket_feedback
     $stmt = $conn->prepare("
         SELECT c.ticket_id, c.title,
                COALESCE(c.resolved_at, c.updated_at, c.created_at) AS closed_at
         FROM complaints c
         LEFT JOIN ticket_feedback tf
                ON tf.ticket_id  = c.ticket_id
-              AND tf.student_id = ?
+              AND tf.submitter_id = ?
         WHERE c.submitter_id   = ?
           AND c.submitter_type = ?
           AND c.status         = 'closed'
@@ -99,7 +99,7 @@ if ($action === 'check') {
     if (!empty($expiredTickets)) {
         $ins = $conn->prepare("
             INSERT IGNORE INTO ticket_feedback
-                (ticket_id, student_id, rating, comment, is_auto_submitted, created_at)
+                (ticket_id, submitter_id, rating, comment, is_auto_submitted, created_at)
             VALUES (?, ?, 5, '', 1, NOW())
         ");
         foreach ($expiredTickets as $expired) {
@@ -119,7 +119,7 @@ if ($action === 'check') {
             'ticket_id'      => $oldest['ticket_id'],
             'ticket_title'   => $oldest['title'],
             'closed_at'      => $oldest['closed_at'],
-            'auto_ready'     => false,
+            'auto_ready'     => true,
             'remaining_secs' => $oldest['remaining_secs'],
             'elapsed_secs'   => $oldest['elapsed_secs'],
         ]);
@@ -171,7 +171,7 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // Prevent duplicate (student_id column)
     $dup = $conn->prepare("
         SELECT feedback_id FROM ticket_feedback
-        WHERE ticket_id = ? AND student_id = ?
+        WHERE ticket_id = ? AND submitter_id = ?
         LIMIT 1
     ");
     $dup->bind_param("si", $ticketId, $submitterId);
@@ -187,7 +187,7 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // Insert feedback (student_id column)
     $ins = $conn->prepare("
         INSERT INTO ticket_feedback
-            (ticket_id, student_id, rating, comment, is_auto_submitted, created_at)
+            (ticket_id, submitter_id, rating, comment, is_auto_submitted, created_at)
         VALUES (?, ?, ?, ?, ?, NOW())
     ");
     $comment = (string)$comment;
@@ -211,7 +211,7 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             FROM complaints c
             LEFT JOIN ticket_feedback tf
                    ON tf.ticket_id  = c.ticket_id
-                  AND tf.student_id = ?
+                  AND tf.submitter_id = ?
             WHERE c.submitter_id   = ?
               AND c.submitter_type = ?
               AND c.status         = 'closed'
