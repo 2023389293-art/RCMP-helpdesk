@@ -2,12 +2,6 @@
 // FILE LOCATION: uniKL/complaint/new_ticket_popup_api.php  (popup for staff)
 // (same folder as db_connect.php)
  
-$sessionPath = __DIR__ . '/sessions';
-if (!is_dir($sessionPath)) {
-    mkdir($sessionPath, 0755, true);
-}
-session_save_path($sessionPath);
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -93,7 +87,7 @@ $stmt = $conn->prepare("
         ON  sf2.staff_id     = c.submitter_id
         AND c.submitter_type = 'staff'
     WHERE tl.field_changed = 'assigned'
-  AND tl.new_priority  = ?
+  AND tl.new_value     = ?
   AND tl.log_id        > ?
   AND c.status         = 'open'
     ORDER BY tl.log_id ASC
