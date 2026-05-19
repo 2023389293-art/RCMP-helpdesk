@@ -435,9 +435,11 @@ if ($ticket) {
 
 $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
-    $fq = $conn->prepare("SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at, s.full_name AS student_name FROM ticket_feedback tf LEFT JOIN students s ON s.student_id = tf.student_id WHERE tf.ticket_id = ? LIMIT 1");
-    $fq->bind_param("s", $ticketId); $fq->execute();
-    $feedback = $fq->get_result()->fetch_assoc(); $fq->close();
+    $fq = @$conn->prepare("SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at, s.full_name AS student_name FROM ticket_feedback tf LEFT JOIN students s ON s.student_id = tf.student_id WHERE tf.ticket_id = ? LIMIT 1");
+    if ($fq) {
+        $fq->bind_param("s", $ticketId); $fq->execute();
+        $feedback = $fq->get_result()->fetch_assoc(); $fq->close();
+    }
 }
 
 $slaData = null;
