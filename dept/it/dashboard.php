@@ -15,8 +15,12 @@ $stmt = $conn->prepare(
         SUM(status='open')        AS oc,
         SUM(status='in_progress') AS ic,
         SUM(status='closed')      AS cc
-     FROM complaints WHERE dept_id = ?
-     GROUP BY dept_id"
+     FROM (
+         SELECT ticket_id, status
+         FROM complaints
+         WHERE dept_id = ?
+         GROUP BY ticket_id
+     ) AS t"
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
@@ -46,7 +50,7 @@ $priTotal  = $priLow + $priMedium + $priHigh;
 // ── Top Departments Filing Complaints ────────────────────────────────────────
 $topDepts = [];
 $stmt = $conn->prepare(
-    "SELECT my_department, COUNT(*) AS total
+    "SELECT my_department, COUNT(DISTINCT ticket_id) AS total
      FROM complaints
      WHERE dept_id = ?
      GROUP BY my_department
@@ -243,7 +247,7 @@ $stmt->close();
 // ── All open tickets with assigned staff name ─────────────────────────────────
 $recentTickets = [];
 $stmt = $conn->prepare(
-    "SELECT DISTINCT c.ticket_id, c.title, c.status, c.priority, c.my_department,
+    "SELECT c.ticket_id, c.title, c.status, c.priority, c.my_department,
         c.created_at, c.assigned_to,
         s.full_name AS handled_by,
         s.staff_code AS handled_by_code,
@@ -252,6 +256,7 @@ $stmt = $conn->prepare(
  LEFT JOIN staff s ON s.staff_id = c.assigned_to
  LEFT JOIN categories cat ON cat.category_id = c.category_id
  WHERE c.dept_id = ? AND c.status != 'closed'
+ GROUP BY c.ticket_id
  ORDER BY c.created_at DESC"
 );
 $stmt->bind_param("i", $deptId);

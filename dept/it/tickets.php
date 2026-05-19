@@ -86,34 +86,36 @@ $offset = ($page - 1) * $perPage;
 $tickets = [];
 if ($filterStatus === 'all') {
     $stmt = $conn->prepare(
-        "SELECT complaints.ticket_id, complaints.title, complaints.status,
-                complaints.priority, complaints.my_department,
-                complaints.created_at, complaints.updated_at,
-                s.staff_id AS assigned_staff_id,
-                s.full_name AS assigned_staff_name,
-                cat.category_name
-         FROM complaints
-         LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
-         LEFT JOIN categories cat ON cat.category_id = complaints.category_id
-         WHERE complaints.dept_id = ? $extraWhere
-         ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
-    );
+    "SELECT complaints.ticket_id, complaints.title, complaints.status,
+            complaints.priority, complaints.my_department,
+            complaints.created_at, complaints.updated_at,
+            s.staff_id AS assigned_staff_id,
+            s.full_name AS assigned_staff_name,
+            cat.category_name
+     FROM complaints
+     LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+     LEFT JOIN categories cat ON cat.category_id = complaints.category_id
+     WHERE complaints.dept_id = ? $extraWhere
+     GROUP BY complaints.ticket_id
+     ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
+);
     if (empty($extraParams)) { $stmt->bind_param("iii",$deptId,$perPage,$offset); }
     else { bindAdvanced($stmt,"i",[$deptId],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
 } else {
     $stmt = $conn->prepare(
-        "SELECT complaints.ticket_id, complaints.title, complaints.status,
-                complaints.priority, complaints.my_department,
-                complaints.created_at, complaints.updated_at,
-                s.staff_id AS assigned_staff_id,
-                s.full_name AS assigned_staff_name,
-                cat.category_name
-         FROM complaints
-         LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
-         LEFT JOIN categories cat ON cat.category_id = complaints.category_id
-         WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere
-         ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
-    );
+    "SELECT complaints.ticket_id, complaints.title, complaints.status,
+            complaints.priority, complaints.my_department,
+            complaints.created_at, complaints.updated_at,
+            s.staff_id AS assigned_staff_id,
+            s.full_name AS assigned_staff_name,
+            cat.category_name
+     FROM complaints
+     LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+     LEFT JOIN categories cat ON cat.category_id = complaints.category_id
+     WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere
+     GROUP BY complaints.ticket_id
+     ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
+);
     if (empty($extraParams)) { $stmt->bind_param("isii",$deptId,$filterStatus,$perPage,$offset); }
     else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
 }
