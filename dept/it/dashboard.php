@@ -241,16 +241,16 @@ $stmt->close();
 // ── All open tickets with assigned staff name ─────────────────────────────────
 $recentTickets = [];
 $stmt = $conn->prepare(
-    "SELECT c.ticket_id, c.title, c.status, c.priority, c.my_department,
-            c.created_at, c.assigned_to,
-            s.full_name AS handled_by,
-            s.staff_code AS handled_by_code,
-            cat.category_name
-     FROM complaints c
-     LEFT JOIN staff s ON s.staff_id = c.assigned_to
-     LEFT JOIN categories cat ON cat.category_id = c.category_id
-     WHERE c.dept_id = ? AND c.status != 'closed'
-     ORDER BY c.created_at DESC"
+    "SELECT DISTINCT c.ticket_id, c.title, c.status, c.priority, c.my_department,
+        c.created_at, c.assigned_to,
+        s.full_name AS handled_by,
+        s.staff_code AS handled_by_code,
+        cat.category_name
+ FROM complaints c
+ LEFT JOIN staff s ON s.staff_id = c.assigned_to
+ LEFT JOIN categories cat ON cat.category_id = c.category_id
+ WHERE c.dept_id = ? AND c.status != 'closed'
+ ORDER BY c.created_at DESC"
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
