@@ -58,7 +58,7 @@ if ($lastSeenLogId === -1) {
 }
 
 // ── Find newest assignment log for this staff above cursor ────────────────────
-$stmt = $conn->prepare("
+$sql = "
     SELECT
         tl.log_id,
         tl.ticket_id,
@@ -87,12 +87,21 @@ $stmt = $conn->prepare("
         ON  sf2.staff_id     = c.submitter_id
         AND c.submitter_type = 'staff'
     WHERE tl.field_changed = 'assigned'
-  AND tl.new_value     = ?
-  AND tl.log_id        > ?
-  AND c.status         = 'open'
+      AND CAST(tl.new_value AS CHAR) = ?
+      AND tl.log_id        > ?
+      AND c.status         IN ('open', 'in_progress')
     ORDER BY tl.log_id ASC
     LIMIT 10
-");
+";
+
+$stmt = $conn->prepare($sql);
+
+if ($stmt === false) {
+    error_log('[new_ticket_popup_api] prepare failed: ' . $conn->error);
+    echo json_encode(['has_new' => false, 'error' => 'query_prepare_failed']);
+    exit;
+}
+
 $stmt->bind_param("isi", $deptId, $staffFullName, $lastSeenLogId);
 $stmt->execute();
 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
