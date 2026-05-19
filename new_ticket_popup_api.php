@@ -87,7 +87,7 @@ $sql = "
         ON  sf2.staff_id     = c.submitter_id
         AND c.submitter_type = 'staff'
     WHERE tl.field_changed = 'assigned'
-      AND CAST(tl.new_value AS CHAR) = ?
+      AND tl.new_priority = ?
       AND tl.log_id        > ?
       AND c.status         IN ('open', 'in_progress')
     ORDER BY tl.log_id ASC
