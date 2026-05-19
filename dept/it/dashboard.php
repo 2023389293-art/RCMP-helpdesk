@@ -15,7 +15,8 @@ $stmt = $conn->prepare(
         SUM(status='open')        AS oc,
         SUM(status='in_progress') AS ic,
         SUM(status='closed')      AS cc
-     FROM complaints WHERE dept_id = ?"
+     FROM complaints WHERE dept_id = ?
+     GROUP BY dept_id"
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
@@ -196,9 +197,10 @@ $stmt = $conn->prepare(
             ) AS first_log_response_at
      FROM complaints c
      WHERE c.dept_id = ? AND c.assigned_to = ? AND c.status != 'closed'
+     GROUP BY c.ticket_id
      ORDER BY
-       FIELD(priority, 'high', 'medium', 'low'),
-       created_at ASC
+       FIELD(c.priority, 'high', 'medium', 'low'),
+       c.created_at ASC
      LIMIT 5"
 );
 $stmt->bind_param("ii", $deptId, $staffId);

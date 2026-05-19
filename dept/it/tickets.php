@@ -49,12 +49,15 @@ function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTy
 }
 
 $stmt = $conn->prepare(
-    "SELECT SUM(complaints.status='open') AS oc,
-            SUM(complaints.status='in_progress') AS ipc,
-            SUM(complaints.status='closed') AS cc
-     FROM complaints
-     LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
-     WHERE complaints.dept_id = ? $extraWhere"
+    "SELECT SUM(t.status='open') AS oc,
+            SUM(t.status='in_progress') AS ipc,
+            SUM(t.status='closed') AS cc
+     FROM (
+         SELECT complaints.status
+         FROM complaints
+         WHERE complaints.dept_id = ? $extraWhere
+         GROUP BY complaints.ticket_id
+     ) AS t"
 );
 if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
 else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
@@ -65,11 +68,11 @@ $inProgressCount = (int)($counts['ipc'] ?? 0);
 $closedCount     = (int)($counts['cc']  ?? 0);
 
 if ($filterStatus === 'all') {
-    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
+    $stmt = $conn->prepare("SELECT COUNT(DISTINCT complaints.ticket_id) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("i",$deptId); }
     else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
 } else {
-    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
+    $stmt = $conn->prepare("SELECT COUNT(DISTINCT complaints.ticket_id) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("is",$deptId,$filterStatus); }
     else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes,$extraParams); }
 }
