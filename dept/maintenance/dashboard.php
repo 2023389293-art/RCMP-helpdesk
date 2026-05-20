@@ -15,7 +15,12 @@ $stmt = $conn->prepare(
         SUM(status='open')        AS oc,
         SUM(status='in_progress') AS ic,
         SUM(status='closed')      AS cc
-     FROM complaints WHERE dept_id = ?"
+     FROM (
+         SELECT ticket_id, status
+         FROM complaints
+         WHERE dept_id = ?
+         GROUP BY ticket_id
+     ) AS t"
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
@@ -45,7 +50,7 @@ $priTotal  = $priLow + $priMedium + $priHigh;
 // ── Top Departments Filing Complaints ─────────────────────────────────────────
 $topDepts = [];
 $stmt = $conn->prepare(
-    "SELECT my_department, COUNT(*) AS total
+    "SELECT my_department, COUNT(DISTINCT ticket_id) AS total
      FROM complaints
      WHERE dept_id = ?
      GROUP BY my_department
@@ -131,9 +136,10 @@ $stmt = $conn->prepare(
             ) AS first_log_response_at
      FROM complaints c
      WHERE c.dept_id = ? AND c.assigned_to = ? AND c.status != 'closed'
+     GROUP BY c.ticket_id
      ORDER BY
-       FIELD(priority, 'high', 'medium', 'low'),
-       created_at ASC
+       FIELD(c.priority, 'high', 'medium', 'low'),
+       c.created_at ASC
      LIMIT 5"
 );
 $stmt->bind_param("ii", $deptId, $staffId);
@@ -228,7 +234,8 @@ $stmt = $conn->prepare(
      LEFT JOIN staff s ON s.staff_id = c.assigned_to
      LEFT JOIN categories cat ON cat.category_id = c.category_id
      WHERE c.dept_id = ? AND c.status != 'closed'
-     ORDER BY c.created_at DESC"
+ GROUP BY c.ticket_id
+ ORDER BY c.created_at DESC"
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
@@ -466,7 +473,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
   <script>
   (function(){
     const data   = [<?php echo implode(',', array_column($topDepts, 'total')); ?>];
-    const labels = [<?php echo implode(',', array_map(fn($d) => json_encode($d['my_department'] ?? '—'), $topDepts)); ?>];
+    const labels = [<?php echo implode(',', array_map(function($d) { return json_encode($d['my_department'] ?? '—'); }, $topDepts)); ?>];
     const colors = ['#2563EB','#7C3AED','#DB2777','#D97706','#059669'];
 const canvas = document.getElementById('deptPieChart');
 const ctx    = canvas.getContext('2d');
