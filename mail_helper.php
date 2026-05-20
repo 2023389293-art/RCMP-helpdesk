@@ -170,7 +170,8 @@ function sendComplaintEmail($conn, int $dept_id, string $ticketId): bool
                 <tr>
                   <td style="border-left:3px solid #e8b200;background-color:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
                     <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#92700a;">Action Required</p>
-                    <p style="margin:0;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view the full complaint details, assign a priority level, and provide a response to the complainant in a timely manner.</p>
+                    <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view the full complaint details, assign a priority level, and provide a response to the complainant in a timely manner.</p>
+<a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
                   </td>
                 </tr>
               </table>
@@ -467,7 +468,8 @@ function sendRequisitionEmail($conn, string $refNumber, string $userName, string
                 <tr>
                   <td style="border-left:3px solid #00327a;background-color:#f0f4ff;padding:16px 20px;border-radius:0 4px 4px 0;">
                     <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#00327a;">Action Required</p>
-                    <p style="margin:0;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP admin portal to review and process this equipment request.</p>
+                    <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP admin portal to review and process this equipment request.</p>
+<a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
                   </td>
                 </tr>
               </table>
