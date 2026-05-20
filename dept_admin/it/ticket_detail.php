@@ -826,9 +826,9 @@ if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
               </div>
             </div>
             <?php
-              $slaStartTs  = strtotime($ticket['sla_start_at'] ?? $ticket['created_at']);
-              $createdTs   = strtotime($ticket['created_at']);
-              $wasReopened = ($slaStartTs > $createdTs + 60);
+$slaStartTs  = strtotime(!empty($ticket['sla_start_at']) ? $ticket['sla_start_at'] : $ticket['created_at']);
+$createdTs   = strtotime($ticket['created_at']);
+$wasReopened = ($slaStartTs > $createdTs + 60);
             ?>
             <?php if ($wasReopened && strtolower($ticket['status']) !== 'closed'): ?>
             <div class="sla-reset-notice" style="margin-top:12px;">
