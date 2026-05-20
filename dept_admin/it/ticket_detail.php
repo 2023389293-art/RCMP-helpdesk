@@ -454,9 +454,10 @@ $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq = $conn->prepare("
         SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at,
-               s.full_name AS student_name
+               COALESCE(s.full_name, st.full_name) AS student_name
         FROM ticket_feedback tf
-        LEFT JOIN students s ON s.student_id = tf.student_id
+        LEFT JOIN students s  ON s.student_id  = tf.submitter_id
+        LEFT JOIN staff    st ON st.staff_id   = tf.submitter_id
         WHERE tf.ticket_id = ?
         LIMIT 1
     ");
