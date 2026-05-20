@@ -245,7 +245,7 @@ function navIcon(string $name): string {
 
 <div class="main-content">
 
-  <?php if ($activePage !== 'dashboard' && $activePage !== 'reports' && $activePage !== 'staff'): ?>
+  <?php if ($activePage !== 'dashboard' && $activePage !== 'reports' && $activePage !== 'staff' && $activePage !== 'admins'): ?>
 <div class="topbar">
     <div class="topbar-breadcrumb">
       <span class="sep">›</span>
