@@ -173,8 +173,8 @@ if ($loginRole === 'reports' && !in_array($staffRole, ['super_admin', 'report_vi
     $_SESSION['dept_name']   = $deptNames[$deptId];
     $_SESSION['dept_folder'] = $deptFolders[$deptId];
 
-    $redirectUrl = buildRedirectUrl($staffRole, $deptFolders[$deptId]);
-die("DEBUG → Role: $staffRole | DeptId: $deptId | Folder: {$deptFolders[$deptId]} | Redirect: $redirectUrl");
+    header("Location: " . buildRedirectUrl($staffRole, $deptFolders[$deptId]));
+    exit;
 }
         }
     }
