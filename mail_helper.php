@@ -63,7 +63,7 @@ function sendComplaintEmail($conn, int $dept_id, string $ticketId): bool
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>UniKL RCMP Help Desk — New Complaint Assignment</title>
+  <title>UniKL RCMP Help Desk — New Complaint</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
 
@@ -112,7 +112,7 @@ function sendComplaintEmail($conn, int $dept_id, string $ticketId): bool
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="padding:12px 40px 16px;background-color:#002660;">
-                    <span style="font-size:12px;color:rgba(255,255,255,0.65);letter-spacing:0.06em;text-transform:uppercase;font-weight:500;">&#128203;&nbsp; Official Correspondence — New Complaint Assignment</span>
+                    <span style="font-size:12px;color:rgba(255,255,255,0.65);letter-spacing:0.06em;text-transform:uppercase;font-weight:500;">&#128203;&nbsp; Official Correspondence — New Complaint</span>
                   </td>
                 </tr>
               </table>
@@ -146,7 +146,7 @@ function sendComplaintEmail($conn, int $dept_id, string $ticketId): bool
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:24px;">
                 <tr>
                   <td colspan="2" style="background-color:#00327a;padding:10px 18px;">
-                    <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.85);">Assignment Particulars</span>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.85);">Complaint Particulars</span>
                   </td>
                 </tr>
                 <tr>
@@ -218,8 +218,8 @@ function sendComplaintEmail($conn, int $dept_id, string $ticketId): bool
 HTML;
 
         $plainBody =
-            "UNIKL RCMP HELP DESK — NEW COMPLAINT ASSIGNMENT\n" .
-            "=================================================\n\n" .
+            "UNIKL RCMP HELP DESK — NEW COMPLAINT\n" .
+            "=====================================\n\n" .
             "Reference No.        : {$ticketId}\n" .
             "Assigned Department  : {$deptName}\n" .
             "Date                 : {$currentDate}\n" .
@@ -254,7 +254,7 @@ HTML;
 
             $mail->isHTML(true);
             $mail->CharSet = 'UTF-8';
-            $mail->Subject = "New Complaint Assignment — Ref: {$ticketId}";
+            $mail->Subject = "New Complaint — Ref: {$ticketId}";
             $mail->Body    = $htmlBody;
             $mail->AltBody = $plainBody;
 
