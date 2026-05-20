@@ -493,11 +493,11 @@ nav { padding: 0 14px; height: 60px; }
     <div class="nav-actions">
       <a href="login.php" class="btn-ghost">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        Login / Submit Ticket
+        Submit Ticket
       </a>
       <a href="staff_login.php" class="btn-navy-solid">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Admin Login
+        Staff Login
       </a>
     </div>
   </nav>
