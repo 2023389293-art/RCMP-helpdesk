@@ -249,6 +249,22 @@ function staffInitials(string $name): string {
     return $ini;
 }
 
+// ── Helper: get priority flag color (PHP 8.2 compatible) ─────────────────────
+function getPriorityFlagColor(string $priority): string {
+    $pri = strtolower(trim($priority ?? 'medium'));
+    
+    // PHP 8.2 compatible conditional instead of match()
+    if ($pri === 'high') {
+        return '#DC2626';
+    } elseif ($pri === 'medium') {
+        return '#EAB308';
+    } elseif ($pri === 'low') {
+        return '#3B82F6';
+    } else {
+        return '#64748b';
+    }
+}
+
 // ── Layout variables ──────────────────────────────────────────────────────────
 $activeNav    = 'dashboard';
 $pageTitle    = 'Maintenance Department';
@@ -624,12 +640,7 @@ const cx=80, cy=80, r=68;
               $statusLabel   = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
               $handledBy     = $t['handled_by'] ?? null;
               $handledByCode = $t['handled_by_code'] ?? null;
-              $flagFill      = match($pri) {
-                'high'   => '#DC2626',
-                'medium' => '#EAB308',
-                'low'    => '#3B82F6',
-                default  => '#64748b',
-              };
+              $flagFill      = getPriorityFlagColor($pri);
             ?>
             <tr>
               <td>
