@@ -485,13 +485,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <!-- SSO Button -->
-    <a href="auth/sso_login.php" class="btn-login" style="
+    <a href="#" class="btn-login" onclick="return false;" style="
         text-decoration:none;
-        background: rgba(255,255,255,0.10);
-        color: #fff;
-        border: 1.5px solid rgba(255,255,255,0.20);
+        background: rgba(255,255,255,0.06);
+        color: rgba(255,255,255,0.35);
+        border: 1.5px solid rgba(255,255,255,0.10);
         box-shadow: none;
-        margin-bottom: 4px;">
+        margin-bottom: 4px;
+        cursor: not-allowed;
+        pointer-events: none;
+        opacity: 0.5;">
       <svg viewBox="0 0 21 21" width="16" height="16" style="flex-shrink:0;">
         <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
         <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
