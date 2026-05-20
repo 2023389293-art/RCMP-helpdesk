@@ -240,16 +240,16 @@ HTML;
 
         try {
             $mail->isSMTP();
-            $mail->Host        = 'smtp.gmail.com';
+            $mail->Host        = 'smtp.office365.com';
             $mail->SMTPAuth    = true;
-            $mail->Username    = 'farahwdi33@gmail.com';
-            $mail->Password    = 'wvgq vqdn dbiw vcjn';
+            $mail->Username    = 'rush.rcmp@unikl.edu.my';
+            $mail->Password    = 'Rcmp@4321';
             $mail->SMTPSecure  = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port        = 587;
-            $mail->SMTPDebug   = 2;
+            $mail->SMTPDebug   = 0;
             $mail->Debugoutput = 'error_log';
 
-            $mail->setFrom('farahwdi33@gmail.com', 'UniKL RCMP Help Desk');
+            $mail->setFrom('rush.rcmp@unikl.edu.my', 'UniKL RCMP Help Desk');
             $mail->addAddress($staff['email'], $staff['full_name']);
 
             $mail->isHTML(true);
@@ -532,16 +532,16 @@ HTML;
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
-            $mail->Host        = 'smtp.gmail.com';
+            $mail->Host        = 'smtp.office365.com';
             $mail->SMTPAuth    = true;
-            $mail->Username    = 'farahwdi33@gmail.com';
-            $mail->Password    = 'wvgq vqdn dbiw vcjn';
+            $mail->Username    = 'rush.rcmp@unikl.edu.my';
+            $mail->Password    = 'Rcmp@4321';
             $mail->SMTPSecure  = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port        = 587;
-            $mail->SMTPDebug   = 2;
+            $mail->SMTPDebug   = 0;
             $mail->Debugoutput = 'error_log';
 
-            $mail->setFrom('farahwdi33@gmail.com', 'UniKL RCMP Help Desk');
+            $mail->setFrom('rush.rcmp@unikl.edu.my', 'UniKL RCMP Help Desk');
             $mail->addAddress($staff['email'], $staff['full_name']);
             $mail->isHTML(true);
             $mail->CharSet = 'UTF-8';
@@ -571,15 +571,16 @@ function sendRawEmail(string $to, string $subject, string $body): bool
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'farahwdi33@gmail.com';
-        $mail->Password   = 'wvgq vqdn dbiw vcjn';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+            $mail->Host        = 'smtp.office365.com';
+            $mail->SMTPAuth    = true;
+            $mail->Username    = 'rush.rcmp@unikl.edu.my';
+            $mail->Password    = 'Rcmp@4321';
+            $mail->SMTPSecure  = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port        = 587;
+            $mail->SMTPDebug   = 0;
         $mail->SMTPDebug  = 0;
 
-        $mail->setFrom('farahwdi33@gmail.com', 'UniKL RCMP Help Desk');
+        $mail->setFrom('rush.rcmp@unikl.edu.my', 'UniKL RCMP Help Desk');
         $mail->addAddress($to);
         $mail->isHTML(false);
         $mail->CharSet = 'UTF-8';
