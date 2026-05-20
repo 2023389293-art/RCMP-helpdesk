@@ -280,11 +280,11 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
 HTML;
                         $mail = new PHPMailer(true);
                         try {
-                            $mail->isSMTP(); $mail->Host='smtp.gmail.com'; $mail->SMTPAuth=true;
-                            $mail->Username='farahwdi33@gmail.com'; $mail->Password='wvgq vqdn dbiw vcjn';
+                            $mail->isSMTP(); $mail->Host='smtp.office365.com'; $mail->SMTPAuth=true;
+                            $mail->Username='rush.rcmp@unikl.edu.my'; $mail->Password='Rcmp@4321';
                             $mail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $mail->Port=587;
-                            $mail->Debugoutput='error_log';
-                            $mail->setFrom('farahwdi33@gmail.com','UniKL RCMP Help Desk');
+                            $mail->SMTPDebug=0; $mail->Debugoutput='error_log';
+                            $mail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
                             $mail->addAddress($toEmail,$toName);
                             $mail->isHTML(true); $mail->CharSet='UTF-8';
                             $mail->Subject="Ticket Update ({$statusLabel}) — {$ticketId}";
