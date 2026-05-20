@@ -1,5 +1,5 @@
 <?php
-// super_admin/manage_admins.php
+// super_admin/manage_admins.php 
 session_start();
 if (empty($_SESSION['staff_role']) || $_SESSION['staff_role'] !== 'super_admin') {
     header("Location: ../staff_login.php");
@@ -573,6 +573,29 @@ include 'layout.php';
   .add-mode-btn:hover { background: var(--gray-100); color: var(--gray-700); }
   .add-mode-btn.active { background: var(--maroon); color: white; border-color: var(--maroon); }
 </style>
+
+<!-- ── Inlined Topbar ── -->
+<div style="
+  height: 65px; background: white;
+  border-bottom: 1px solid #DDE1ED;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px;
+  margin: -32px -32px 32px -32px;
+">
+  <div style="display:flex; align-items:center; gap:8px; font-size:15px; color:#7A8399;">
+    <span style="color:#BDC3D4;">›</span>
+    <span style="font-weight:600; color:#1A2038;">Manage Admins</span>
+  </div>
+  <div style="font-size:14px; color:#7A8399; display:flex; align-items:center; gap:6px;">
+    <svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;">
+      <rect x="3" y="4" width="18" height="18" rx="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    <?= date('D, j M Y') ?>
+  </div>
+</div>
 
 <!-- ── Alert ── -->
 <?php if ($successMsg): ?>
