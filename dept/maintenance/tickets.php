@@ -41,9 +41,13 @@ if ($filterCategory !== '') { $extraWhere .= " AND complaints.category_id = ?"; 
 function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTypes, array $extraParams): void {
     if (empty($extraTypes)) return;
     $types = $baseTypes . $extraTypes;
-    $refs  = $baseRefs;
-    foreach ($extraParams as &$v) $refs[] = &$v;
-    call_user_func_array([$stmt, 'bind_param'], array_merge([$types], $refs));
+    $allParams = array_merge($baseRefs, $extraParams);
+    $bindArgs = [$types];
+    foreach ($allParams as &$val) {
+        $bindArgs[] = &$val;
+    }
+    unset($val);
+    call_user_func_array([$stmt, 'bind_param'], $bindArgs);
 }
 
 // ── Counts (open / in_progress / closed) ─────────────────────────────────────
@@ -56,7 +60,7 @@ $stmt = $conn->prepare(
      WHERE complaints.dept_id = ? $extraWhere"
 );
 if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
-else { bindAdvanced($stmt, "i", [&$deptId], $extraTypes, $extraParams); }
+else { bindAdvanced($stmt, "i", [$deptId], $extraTypes, $extraParams); }
 $stmt->execute();
 $counts          = $stmt->get_result()->fetch_assoc();
 $stmt->close();
@@ -68,11 +72,11 @@ $closedCount     = (int)($counts['cc']  ?? 0);
 if ($filterStatus === 'all') {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
-    else { bindAdvanced($stmt, "i", [&$deptId], $extraTypes, $extraParams); }
+    else { bindAdvanced($stmt, "i", [$deptId], $extraTypes, $extraParams); }
 } else {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("is", $deptId, $filterStatus); }
-    else { bindAdvanced($stmt, "is", [&$deptId, &$filterStatus], $extraTypes, $extraParams); }
+    else { bindAdvanced($stmt, "is", [$deptId, $filterStatus], $extraTypes, $extraParams); }
 }
 $stmt->execute();
 $totalTickets = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -99,7 +103,7 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("iii", $deptId, $perPage, $offset); }
-    else { bindAdvanced($stmt, "i", [&$deptId], $extraTypes . 'ii', array_merge($extraParams, [$perPage, $offset])); }
+    else { bindAdvanced($stmt, "i", [$deptId], $extraTypes . 'ii', array_merge($extraParams, [$perPage, $offset])); }
 } else {
     $stmt = $conn->prepare(
         "SELECT complaints.ticket_id, complaints.title, complaints.status,
@@ -115,7 +119,7 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("isii", $deptId, $filterStatus, $perPage, $offset); }
-    else { bindAdvanced($stmt, "is", [&$deptId, &$filterStatus], $extraTypes . 'ii', array_merge($extraParams, [$perPage, $offset])); }
+    else { bindAdvanced($stmt, "is", [$deptId, $filterStatus], $extraTypes . 'ii', array_merge($extraParams, [$perPage, $offset])); }
 }
 $stmt->execute();
 $res = $stmt->get_result();

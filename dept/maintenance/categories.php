@@ -10,17 +10,18 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // ── Counts (for sidebar badges) ───────────────────────────────────────────────
-$openCount = $closedCount = 0;
+$openCount = $closedCount = $inProgressCount = 0;
 $stmt = $conn->prepare(
-    "SELECT SUM(status='open') AS oc, SUM(status='closed') AS cc
+    "SELECT SUM(status='open') AS oc, SUM(status='in_progress') AS ipc, SUM(status='closed') AS cc
      FROM complaints WHERE dept_id = ?"
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
 $counts = $stmt->get_result()->fetch_assoc();
 $stmt->close();
-$openCount   = (int)($counts['oc'] ?? 0);
-$closedCount = (int)($counts['cc'] ?? 0);
+$openCount       = (int)($counts['oc']  ?? 0);
+$inProgressCount = (int)($counts['ipc'] ?? 0);
+$closedCount     = (int)($counts['cc']  ?? 0);
 
 // ── Handle POST actions (PRG pattern) ────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -98,7 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    header('Location: categories.php');
+    session_write_close();
+    header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
     exit;
 }
 
@@ -391,6 +393,7 @@ $pageSubtitle = 'Maintenance Department';
   style="border-radius:9px"
 />
               </div>
+              <p class="form-hint" id="formHint">Prefix <strong>Maintenance Department /</strong> will be added automatically.</p>
             
 
               <button type="submit" class="btn-primary" id="submitBtn">

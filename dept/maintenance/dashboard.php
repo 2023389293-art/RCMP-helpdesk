@@ -50,7 +50,7 @@ $priTotal  = $priLow + $priMedium + $priHigh;
 // ── Top Departments Filing Complaints ─────────────────────────────────────────
 $topDepts = [];
 $stmt = $conn->prepare(
-    "SELECT my_department, COUNT(DISTINCT ticket_id) AS total
+    "SELECT my_department, COUNT(*) AS total
      FROM complaints
      WHERE dept_id = ?
      GROUP BY my_department
@@ -136,10 +136,9 @@ $stmt = $conn->prepare(
             ) AS first_log_response_at
      FROM complaints c
      WHERE c.dept_id = ? AND c.assigned_to = ? AND c.status != 'closed'
-     GROUP BY c.ticket_id
      ORDER BY
-       FIELD(c.priority, 'high', 'medium', 'low'),
-       c.created_at ASC
+       FIELD(priority, 'high', 'medium', 'low'),
+       created_at ASC
      LIMIT 5"
 );
 $stmt->bind_param("ii", $deptId, $staffId);
@@ -234,8 +233,7 @@ $stmt = $conn->prepare(
      LEFT JOIN staff s ON s.staff_id = c.assigned_to
      LEFT JOIN categories cat ON cat.category_id = c.category_id
      WHERE c.dept_id = ? AND c.status != 'closed'
- GROUP BY c.ticket_id
- ORDER BY c.created_at DESC"
+     ORDER BY c.created_at DESC"
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();

@@ -500,9 +500,10 @@ $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq = $conn->prepare("
         SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at,
-               s.full_name AS student_name
+               COALESCE(s.full_name, st.full_name) AS student_name
         FROM ticket_feedback tf
-        LEFT JOIN students s ON s.student_id = tf.student_id
+        LEFT JOIN students s  ON s.student_id = tf.submitter_id
+        LEFT JOIN staff    st ON st.staff_id  = tf.submitter_id
         WHERE tf.ticket_id = ?
         LIMIT 1
     ");
@@ -625,7 +626,7 @@ $pageSubtitle = 'Maintenance Department';
   <title>Ticket Detail | UniKL Help Desk – Maintenance</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
   <!-- Reuse IT dept CSS (same structure) -->
-  <link rel="stylesheet" href="../it/css/tickets_details.css">
+  <link rel="stylesheet" href="css/tickets_details.css">
   <style>
     /* ── Maintenance cyan/teal accent overrides ── */
     :root {
