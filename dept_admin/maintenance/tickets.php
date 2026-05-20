@@ -1,5 +1,5 @@
 <?php
-// dept_admin/maintenance/tickets.php
+// dept_admin/maintenance/tickets.php 
 require '_layout.php';
 
 $status   = $_GET['status']   ?? '';
@@ -63,14 +63,14 @@ $cats = $conn->query("SELECT category_id, category_name FROM categories WHERE de
 function qstr(array $extra = []): string {
     $p = array_merge($_GET, $extra);
     unset($p['page']);
-    $qs = http_build_query(array_filter($p, fn($v) => $v !== ''));
+    $qs = http_build_query(array_filter($p, function($v) { return $v !== ''; }));
     return $qs ? '?' . $qs : '?';
 }
 
 /* Build query string for pagination links — keeps page */
 function pgstr(array $extra = []): string {
     $p = array_merge($_GET, $extra);
-    $qs = http_build_query(array_filter($p, fn($v) => $v !== ''));
+    $qs = http_build_query(array_filter($p, function($v) { return $v !== ''; }));
     return $qs ? '?' . $qs : '?';
 }
 ?>

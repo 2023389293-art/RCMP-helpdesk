@@ -309,11 +309,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
 HTML;
                         $mail = new PHPMailer(true);
                         try {
-                            $mail->isSMTP(); $mail->Host='smtp.gmail.com'; $mail->SMTPAuth=true;
-                            $mail->Username='farahwdi33@gmail.com'; $mail->Password='wvgq vqdn dbiw vcjn';
+                            $mail->isSMTP(); $mail->Host='smtp.office365.com'; $mail->SMTPAuth=true;
+                            $mail->Username='rush.rcmp@unikl.edu.my'; $mail->Password='Rcmp@4321';
                             $mail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $mail->Port=587;
-                            $mail->Debugoutput='error_log';
-                            $mail->setFrom('farahwdi33@gmail.com','UniKL RCMP Help Desk');
+                            $mail->SMTPDebug=0; $mail->Debugoutput='error_log';
+                            $mail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
                             $mail->addAddress($toEmail,$toName);
                             $mail->isHTML(true); $mail->CharSet='UTF-8';
                             $mail->Subject="Ticket Update ({$statusLabel}) — {$ticketId}";
@@ -579,12 +579,15 @@ function isImageFile(string $path): bool {
 
 function fileTypeIcon(string $path): array {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    return match($ext) {
-        'pdf'         => ['label'=>'PDF','color'=>'#DC2626','bg'=>'#FEF2F2'],
-        'doc','docx'  => ['label'=>'DOC','color'=>'#1D4ED8','bg'=>'#EFF6FF'],
-        'txt'         => ['label'=>'TXT','color'=>'#374151','bg'=>'#F9FAFB'],
-        default       => ['label'=>strtoupper($ext),'color'=>'#6B7280','bg'=>'#F3F4F6'],
-    };
+    if ($ext === 'pdf') {
+        return ['label'=>'PDF','color'=>'#DC2626','bg'=>'#FEF2F2'];
+    } elseif ($ext === 'doc' || $ext === 'docx') {
+        return ['label'=>'DOC','color'=>'#1D4ED8','bg'=>'#EFF6FF'];
+    } elseif ($ext === 'txt') {
+        return ['label'=>'TXT','color'=>'#374151','bg'=>'#F9FAFB'];
+    } else {
+        return ['label'=>strtoupper($ext),'color'=>'#6B7280','bg'=>'#F3F4F6'];
+    }
 }
 
 function feedbackEmojiSvg(int $rating, int $size = 32): string {
@@ -600,18 +603,21 @@ function feedbackEmojiSvg(int $rating, int $size = 32): string {
 }
 
 function ratingLabel(int $rating): string {
-    return match($rating) { 1=>'Very Unsatisfied', 2=>'Unsatisfied', 3=>'Neutral', 4=>'Satisfied', 5=>'Very Satisfied', default=>'Unknown' };
+    if ($rating === 1) return 'Very Unsatisfied';
+    elseif ($rating === 2) return 'Unsatisfied';
+    elseif ($rating === 3) return 'Neutral';
+    elseif ($rating === 4) return 'Satisfied';
+    elseif ($rating === 5) return 'Very Satisfied';
+    else return 'Unknown';
 }
 
 function ratingColors(int $rating): array {
-    return match($rating) {
-        1 => ['#FEF2F2','#DC2626','#EF4444'],
-        2 => ['#FFF7ED','#C2410C','#F97316'],
-        3 => ['#FEFCE8','#854D0E','#EAB308'],
-        4 => ['#F0FDF4','#166534','#22C55E'],
-        5 => ['#ECFDF5','#166534','#16A34A'],
-        default => ['#F3F4F6','#374151','#6B7280'],
-    };
+    if ($rating === 1) return ['#FEF2F2','#DC2626','#EF4444'];
+    elseif ($rating === 2) return ['#FFF7ED','#C2410C','#F97316'];
+    elseif ($rating === 3) return ['#FEFCE8','#854D0E','#EAB308'];
+    elseif ($rating === 4) return ['#F0FDF4','#166534','#22C55E'];
+    elseif ($rating === 5) return ['#ECFDF5','#166534','#16A34A'];
+    else return ['#F3F4F6','#374151','#6B7280'];
 }
 
 $activeNav    = 'tickets';
@@ -1196,14 +1202,12 @@ $pageSubtitle = 'Maintenance Department';
       <div class="timeline" id="timelineContainer">
         <?php foreach ($changeLogs as $idx => $log):
           $fc = $log['field_changed'];
-          $dotCls = match($fc) {
-            'priority'     => 'pri',
-            'status'       => 'stat',
-            'assigned'     => 'asgn',
-            'conversation' => 'conv',
-            'message'      => 'msg',
-            default        => 'both'
-          };
+          if ($fc === 'priority') { $dotCls = 'pri'; }
+elseif ($fc === 'status') { $dotCls = 'stat'; }
+elseif ($fc === 'assigned') { $dotCls = 'asgn'; }
+elseif ($fc === 'conversation') { $dotCls = 'conv'; }
+elseif ($fc === 'message') { $dotCls = 'msg'; }
+else { $dotCls = 'both'; }
         ?>
         <div class="tl-item" data-log-index="<?php echo $idx; ?>" style="<?php echo $idx >= 10 ? 'display:none' : ''; ?>">
           <div class="tl-dot <?php echo $dotCls; ?>">

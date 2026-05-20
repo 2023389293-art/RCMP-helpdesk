@@ -11,7 +11,7 @@ require __DIR__ . '/../../PHPMailer-master/src/Exception.php';
 require __DIR__ . '/../../PHPMailer-master/src/PHPMailer.php';
 require __DIR__ . '/../../PHPMailer-master/src/SMTP.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+
 
 // ── Flash messages ────────────────────────────────────────────────────────────
 $updateMsg   = $_SESSION['flash_success'] ?? '';
@@ -521,12 +521,10 @@ function isImageFile(string $path): bool {
 }
 function fileTypeIcon(string $path): array {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    return match($ext) {
-        'pdf'        => ['label' => 'PDF',  'color' => '#DC2626', 'bg' => '#FEF2F2'],
-        'doc','docx' => ['label' => 'DOC',  'color' => '#1D4ED8', 'bg' => '#EFF6FF'],
-        'txt'        => ['label' => 'TXT',  'color' => '#374151', 'bg' => '#F9FAFB'],
-        default      => ['label' => strtoupper($ext), 'color' => '#6B7280', 'bg' => '#F3F4F6'],
-    };
+    if ($ext === 'pdf') return ['label' => 'PDF', 'color' => '#DC2626', 'bg' => '#FEF2F2'];
+    if ($ext === 'doc' || $ext === 'docx') return ['label' => 'DOC', 'color' => '#1D4ED8', 'bg' => '#EFF6FF'];
+    if ($ext === 'txt') return ['label' => 'TXT', 'color' => '#374151', 'bg' => '#F9FAFB'];
+    return ['label' => strtoupper($ext), 'color' => '#6B7280', 'bg' => '#F3F4F6'];
 }
 function feedbackEmojiSvg(int $rating, int $size = 32): string {
     $emojis = [
@@ -540,17 +538,18 @@ function feedbackEmojiSvg(int $rating, int $size = 32): string {
     return '<svg width="'.$size.'" height="'.$size.'" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="22" stroke="'.htmlspecialchars($e['stroke']).'" stroke-width="2.5" fill="'.htmlspecialchars($e['fill']).'"/>'.$e['face'].'</svg>';
 }
 function ratingLabel(int $rating): string {
-    return match($rating) { 1=>'Very Unsatisfied', 2=>'Unsatisfied', 3=>'Neutral', 4=>'Satisfied', 5=>'Very Satisfied', default=>'Unknown' };
+    $map = [1=>'Very Unsatisfied', 2=>'Unsatisfied', 3=>'Neutral', 4=>'Satisfied', 5=>'Very Satisfied'];
+    return $map[$rating] ?? 'Unknown';
 }
 function ratingColors(int $rating): array {
-    return match($rating) {
+    $map = [
         1 => ['#FEF2F2','#DC2626','#EF4444'],
         2 => ['#FFF7ED','#C2410C','#F97316'],
         3 => ['#FEFCE8','#854D0E','#EAB308'],
         4 => ['#F0FDF4','#166534','#22C55E'],
         5 => ['#ECFDF5','#166534','#16A34A'],
-        default => ['#F3F4F6','#374151','#6B7280'],
-    };
+    ];
+    return $map[$rating] ?? ['#F3F4F6','#374151','#6B7280'];
 }
 ?>
 <!DOCTYPE html>
@@ -828,7 +827,7 @@ if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
               </div>
             </div>
             <?php
-              $slaStartTs  = strtotime($ticket['sla_start_at'] ?? $ticket['created_at']);
+              $slaStartTs = strtotime(!empty($ticket['sla_start_at']) ? $ticket['sla_start_at'] : $ticket['created_at']);
               $createdTs   = strtotime($ticket['created_at']);
               $wasReopened = ($slaStartTs > $createdTs + 60);
             ?>
@@ -1075,14 +1074,8 @@ if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
       <div class="timeline" id="timelineContainer">
         <?php foreach ($changeLogs as $idx => $log):
           $fc = $log['field_changed'];
-          $dotCls = match($fc) {
-            'priority'     => 'pri',
-            'status'       => 'stat',
-            'assigned'     => 'asgn',
-            'conversation' => 'conv',
-            'message'      => 'msg',
-            default        => 'both'
-          };
+          $dotClsMap = ['priority'=>'pri','status'=>'stat','assigned'=>'asgn','conversation'=>'conv','message'=>'msg'];
+$dotCls = $dotClsMap[$fc] ?? 'both';
         ?>
         <div class="tl-item" data-log-index="<?= $idx ?>">
           <div class="tl-dot <?= $dotCls ?>">

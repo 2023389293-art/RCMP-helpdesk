@@ -43,10 +43,11 @@ function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTy
     $types = $baseTypes . $extraTypes;
     $allParams = array_merge($baseRefs, $extraParams);
     $bindArgs = [$types];
-    foreach ($allParams as &$val) {
-        $bindArgs[] = &$val;
+    $refs = [];
+    foreach ($allParams as $key => $val) {
+        $refs[$key] = $val;
+        $bindArgs[] = &$refs[$key];
     }
-    unset($val);
     call_user_func_array([$stmt, 'bind_param'], $bindArgs);
 }
 
@@ -127,12 +128,15 @@ while ($row = $res->fetch_assoc()) $tickets[] = $row;
 $stmt->close();
 
 // ── Layout vars ───────────────────────────────────────────────────────────────
-$activeNav = match($filterStatus) {
-    'open'        => 'tickets-open',
-    'in_progress' => 'tickets-inprogress',
-    'closed'      => 'tickets-closed',
-    default       => 'tickets',
-};
+if ($filterStatus === 'open') {
+    $activeNav = 'tickets-open';
+} elseif ($filterStatus === 'in_progress') {
+    $activeNav = 'tickets-inprogress';
+} elseif ($filterStatus === 'closed') {
+    $activeNav = 'tickets-closed';
+} else {
+    $activeNav = 'tickets';
+}
 $pageTitle    = 'All Tickets';
 $pageSubtitle = 'Maintenance Department';
 
@@ -147,7 +151,7 @@ function ticketUrl(array $overrides = []): string {
         'dept'      => $_GET['dept']      ?? '',
         'category'  => $_GET['category']  ?? '',
     ], $overrides);
-    $params = array_filter($params, fn($v) => $v !== '');
+    $params = array_filter($params, function($v) { return $v !== ''; });
     return 'tickets.php?' . http_build_query($params);
 }
 
@@ -396,7 +400,12 @@ function staffInitials(string $name): string {
     <!-- ── Toolbar ── -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <span class="sec-title"><?php echo match($filterStatus) { 'open'=>'Open Tickets', 'in_progress'=>'In Progress Tickets', 'closed'=>'Closed Tickets', default=>'All Tickets' }; ?></span>
+        <span class="sec-title"><?php
+  if ($filterStatus === 'open') echo 'Open Tickets';
+  elseif ($filterStatus === 'in_progress') echo 'In Progress Tickets';
+  elseif ($filterStatus === 'closed') echo 'Closed Tickets';
+  else echo 'All Tickets';
+?></span>
         <span class="result-count" id="result-label">— <?php echo $totalTickets; ?> ticket<?php echo $totalTickets!==1?'s':''; ?></span>
       </div>
       <div class="toolbar-right">
@@ -452,12 +461,10 @@ function staffInitials(string $name): string {
             $pri         = strtolower($t['priority'] ?? 'medium');
             $isHighOpen  = ($pri === 'high' && $s === 'open');
             $statusLabel = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
-            $flagFill    = match($pri) {
-              'high'   => '#DC2626',
-              'medium' => '#EAB308',
-              'low'    => '#3B82F6',
-              default  => '#64748b',
-            };
+            if ($pri === 'high') { $flagFill = '#DC2626'; }
+elseif ($pri === 'medium') { $flagFill = '#EAB308'; }
+elseif ($pri === 'low') { $flagFill = '#3B82F6'; }
+else { $flagFill = '#64748b'; }
           ?>
           <tr data-id="<?php echo strtolower(htmlspecialchars($t['ticket_id'])); ?>"
               data-title="<?php echo strtolower(htmlspecialchars($t['title'])); ?>"
