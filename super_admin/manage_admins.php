@@ -64,8 +64,8 @@ if (!$fullName || !$email || !$deptId || !$password) {
                     }
 
                     $hash = password_hash($password, PASSWORD_BCRYPT);
-                    $stmt = $conn->prepare("INSERT INTO staff (staff_code, full_name, email, password_hash, department, dept_id, role, phone, status) VALUES (?, ?, ?, ?, ?, ?, 'admin', ?, 'active')");
-                    $stmt->bind_param('sssssss', $staffCode, $fullName, $email, $hash, $deptName, $deptId, $phone);
+$stmt = $conn->prepare("INSERT INTO staff (staff_code, full_name, email, password_hash, department, dept_id, role, phone, status) VALUES (?, ?, ?, ?, ?, ?, 'admin', ?, 'active')");
+$stmt->bind_param('sssssis', $staffCode, $fullName, $email, $hash, $deptName, $deptId, $phone);
                     if ($stmt->execute()) {
                         $successMsg = "Admin <strong>" . htmlspecialchars($fullName) . "</strong> added successfully.";
                     } else {
