@@ -475,30 +475,39 @@ $isClosed    = $ticket && strtolower($ticket['status']) === 'closed';
 $hasFeedback = $feedback !== null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+if (!function_exists('statusBadge')) {
 function statusBadge(string $s): string {
     $map = ['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
     [$bg,$fg] = $map[strtolower($s)] ?? ['#F3F4F6','#6B7280'];
     $label = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
     return "<span style=\"display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:{$bg};color:{$fg}\">" . htmlspecialchars($label) . "</span>";
 }
+}
+if (!function_exists('priFlag')) {
 function priFlag(string $v): string {
     $map = ['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
     [$color,$label] = $map[strtolower($v)] ?? ['#6B7280',ucfirst($v)];
     $svg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="'.$color.'" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
     return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:'.$color.';">'.$svg.htmlspecialchars($label).'</span>';
 }
+}
+if (!function_exists('priChip')) {
 function priChip(string $v): string {
     $map = ['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
     [$color,$label] = $map[strtolower($v)] ?? ['#6B7280',ucfirst($v)];
     $svg = '<svg width="10" height="10" viewBox="0 0 24 24" fill="'.$color.'" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
     return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:'.$color.';">'.$svg.htmlspecialchars($label).'</span>';
 }
+}
+if (!function_exists('statChip')) {
 function statChip(string $v): string {
     $map = ['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
     [$bg,$fg] = $map[strtolower($v)] ?? ['#F3F4F6','#6B7280'];
     $label = $v === 'in_progress' ? 'In Progress' : ucfirst($v);
     return "<span style=\"display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;background:{$bg};color:{$fg}\">" . htmlspecialchars($label) . "</span>";
 }
+}
+if (!function_exists('timeAgo')) {
 function timeAgo(string $datetime): string {
     $now  = new DateTime('now', new DateTimeZone('Asia/Kuala_Lumpur'));
     $past = new DateTime($datetime, new DateTimeZone('Asia/Kuala_Lumpur'));
@@ -509,15 +518,21 @@ function timeAgo(string $datetime): string {
     if ($diff < 604800) { $d = floor($diff/86400); return $d . ' day' . ($d > 1 ? 's' : '') . ' ago'; }
     return date('d M Y', $past->getTimestamp());
 }
+}
+if (!function_exists('getInitials')) {
 function getInitials(string $name): string {
     $parts = explode(' ', trim($name));
     $ini   = strtoupper(substr($parts[0], 0, 1));
     if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts)-1], 0, 1));
     return $ini;
 }
+}
+if (!function_exists('isImageFile')) {
 function isImageFile(string $path): bool {
     return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg','jpeg','png','gif','webp']);
 }
+}
+if (!function_exists('fileTypeIcon')) {
 function fileTypeIcon(string $path): array {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
     if ($ext === 'pdf') return ['label' => 'PDF', 'color' => '#DC2626', 'bg' => '#FEF2F2'];
@@ -525,6 +540,8 @@ function fileTypeIcon(string $path): array {
     if ($ext === 'txt') return ['label' => 'TXT', 'color' => '#374151', 'bg' => '#F9FAFB'];
     return ['label' => strtoupper($ext), 'color' => '#6B7280', 'bg' => '#F3F4F6'];
 }
+}
+if (!function_exists('feedbackEmojiSvg')) {
 function feedbackEmojiSvg(int $rating, int $size = 32): string {
     $emojis = [
         1 => ['stroke'=>'#EF4444','fill'=>'#FEE2E2','face'=>'<circle cx="17" cy="20" r="2.5" fill="#EF4444"/><circle cx="31" cy="20" r="2.5" fill="#EF4444"/><path d="M16 33c2-4 14-4 16 0" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><path d="M15 15l4 3M33 15l-4 3" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>'],
@@ -536,10 +553,14 @@ function feedbackEmojiSvg(int $rating, int $size = 32): string {
     $e = $emojis[$rating] ?? $emojis[3];
     return '<svg width="'.$size.'" height="'.$size.'" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="22" stroke="'.htmlspecialchars($e['stroke']).'" stroke-width="2.5" fill="'.htmlspecialchars($e['fill']).'"/>'.$e['face'].'</svg>';
 }
+}
+if (!function_exists('ratingLabel')) {
 function ratingLabel(int $rating): string {
     $map = [1=>'Very Unsatisfied', 2=>'Unsatisfied', 3=>'Neutral', 4=>'Satisfied', 5=>'Very Satisfied'];
     return $map[$rating] ?? 'Unknown';
 }
+}
+if (!function_exists('ratingColors')) {
 function ratingColors(int $rating): array {
     $map = [
         1 => ['#FEF2F2','#DC2626','#EF4444'],
@@ -549,6 +570,7 @@ function ratingColors(int $rating): array {
         5 => ['#ECFDF5','#166534','#16A34A'],
     ];
     return $map[$rating] ?? ['#F3F4F6','#374151','#6B7280'];
+}
 }
 ?>
 <!DOCTYPE html>

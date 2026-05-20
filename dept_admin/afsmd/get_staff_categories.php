@@ -1,4 +1,5 @@
 <?php
+// dept_admin/afsmd/get_staff_categories.php
 require '_layout.php';
 header('Content-Type: application/json');
 

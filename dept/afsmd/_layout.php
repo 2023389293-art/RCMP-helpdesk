@@ -1,5 +1,5 @@
 <?php
-// dept/afsmd/_layout.php 
+// dept/afsmd/_layout.php
 $inProgressCount = $inProgressCount ?? 0;
 $openCount   = $openCount   ?? 0;
 $closedCount = $closedCount ?? 0;
@@ -152,7 +152,7 @@ $nav         = $activeNav   ?? 'dashboard';
 
   <div class="sb-footer">
     <div class="staff-card">
-      <div class="s-avatar"><?php echo mb_strtoupper(mb_substr($staffName, 0, 1)); ?></div>
+      <div class="s-avatar"><?php echo mb_strtoupper(mb_substr((string)($staffName ?? '?'), 0, 1)); ?></div>
       <div class="s-info">
         <div class="name"><?php echo htmlspecialchars($staffName); ?></div>
         <div class="role"><?php echo htmlspecialchars($staffRole); ?></div>

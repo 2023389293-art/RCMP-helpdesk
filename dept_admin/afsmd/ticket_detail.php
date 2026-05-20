@@ -306,11 +306,11 @@ if (!empty($inlineMessage)) {
 HTML;
                         $mail = new PHPMailer(true);
                         try {
-                            $mail->isSMTP(); $mail->Host='smtp.gmail.com'; $mail->SMTPAuth=true;
-                            $mail->Username='farahwdi33@gmail.com'; $mail->Password='wvgq vqdn dbiw vcjn';
+                            $mail->isSMTP(); $mail->Host='smtp.office365.com'; $mail->SMTPAuth=true;
+                            $mail->Username='rush.rcmp@unikl.edu.my'; $mail->Password='Rcmp@4321';
                             $mail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $mail->Port=587;
-                            $mail->Debugoutput='error_log';
-                            $mail->setFrom('farahwdi33@gmail.com','UniKL RCMP Help Desk');
+                            $mail->SMTPDebug=0; $mail->Debugoutput='error_log';
+                            $mail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
                             $mail->addAddress($toEmail,$toName);
                             $mail->isHTML(true); $mail->CharSet='UTF-8';
                             $mail->Subject="Ticket Update ({$statusLabel}) — {$ticketId}";
@@ -456,9 +456,10 @@ $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq = $conn->prepare("
         SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at,
-               s.full_name AS student_name
+               COALESCE(s.full_name, st.full_name) AS student_name
         FROM ticket_feedback tf
-        LEFT JOIN students s ON s.student_id = tf.student_id
+        LEFT JOIN students s  ON s.student_id  = tf.submitter_id
+        LEFT JOIN staff    st ON st.staff_id   = tf.submitter_id
         WHERE tf.ticket_id = ?
         LIMIT 1
     ");
@@ -476,30 +477,39 @@ $isClosed    = $ticket && strtolower($ticket['status']) === 'closed';
 $hasFeedback = $feedback !== null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+if (!function_exists('statusBadge')) {
 function statusBadge(string $s): string {
     $map = ['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
     [$bg,$fg] = $map[strtolower($s)] ?? ['#F3F4F6','#6B7280'];
     $label = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
     return "<span style=\"display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:{$bg};color:{$fg}\">" . htmlspecialchars($label) . "</span>";
 }
+}
+if (!function_exists('priFlag')) {
 function priFlag(string $v): string {
     $map = ['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
     [$color,$label] = $map[strtolower($v)] ?? ['#6B7280',ucfirst($v)];
     $svg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="'.$color.'" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
     return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:'.$color.';">'.$svg.htmlspecialchars($label).'</span>';
 }
+}
+if (!function_exists('priChip')) {
 function priChip(string $v): string {
     $map = ['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
     [$color,$label] = $map[strtolower($v)] ?? ['#6B7280',ucfirst($v)];
     $svg = '<svg width="10" height="10" viewBox="0 0 24 24" fill="'.$color.'" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
     return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:'.$color.';">'.$svg.htmlspecialchars($label).'</span>';
 }
+}
+if (!function_exists('statChip')) {
 function statChip(string $v): string {
     $map = ['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
     [$bg,$fg] = $map[strtolower($v)] ?? ['#F3F4F6','#6B7280'];
     $label = $v === 'in_progress' ? 'In Progress' : ucfirst($v);
     return "<span style=\"display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;background:{$bg};color:{$fg}\">" . htmlspecialchars($label) . "</span>";
 }
+}
+if (!function_exists('timeAgo')) {
 function timeAgo(string $datetime): string {
     $now  = new DateTime('now', new DateTimeZone('Asia/Kuala_Lumpur'));
     $past = new DateTime($datetime, new DateTimeZone('Asia/Kuala_Lumpur'));
@@ -510,15 +520,21 @@ function timeAgo(string $datetime): string {
     if ($diff < 604800) { $d = floor($diff/86400); return $d . ' day' . ($d > 1 ? 's' : '') . ' ago'; }
     return date('d M Y', $past->getTimestamp());
 }
+}
+if (!function_exists('getInitials')) {
 function getInitials(string $name): string {
     $parts = explode(' ', trim($name));
     $ini   = strtoupper(substr($parts[0], 0, 1));
     if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts)-1], 0, 1));
     return $ini;
 }
+}
+if (!function_exists('isImageFile')) {
 function isImageFile(string $path): bool {
     return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg','jpeg','png','gif','webp']);
 }
+}
+if (!function_exists('fileTypeIcon')) {
 function fileTypeIcon(string $path): array {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
     return match($ext) {
@@ -528,6 +544,8 @@ function fileTypeIcon(string $path): array {
         default      => ['label' => strtoupper($ext), 'color' => '#6B7280', 'bg' => '#F3F4F6'],
     };
 }
+}
+if (!function_exists('feedbackEmojiSvg')) {
 function feedbackEmojiSvg(int $rating, int $size = 32): string {
     $emojis = [
         1 => ['stroke'=>'#EF4444','fill'=>'#FEE2E2','face'=>'<circle cx="17" cy="20" r="2.5" fill="#EF4444"/><circle cx="31" cy="20" r="2.5" fill="#EF4444"/><path d="M16 33c2-4 14-4 16 0" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><path d="M15 15l4 3M33 15l-4 3" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>'],
@@ -539,9 +557,13 @@ function feedbackEmojiSvg(int $rating, int $size = 32): string {
     $e = $emojis[$rating] ?? $emojis[3];
     return '<svg width="'.$size.'" height="'.$size.'" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="22" stroke="'.htmlspecialchars($e['stroke']).'" stroke-width="2.5" fill="'.htmlspecialchars($e['fill']).'"/>'.$e['face'].'</svg>';
 }
+}
+if (!function_exists('ratingLabel')) {
 function ratingLabel(int $rating): string {
     return match($rating) { 1=>'Very Unsatisfied', 2=>'Unsatisfied', 3=>'Neutral', 4=>'Satisfied', 5=>'Very Satisfied', default=>'Unknown' };
 }
+}
+if (!function_exists('ratingColors')) {
 function ratingColors(int $rating): array {
     return match($rating) {
         1 => ['#FEF2F2','#DC2626','#EF4444'],
@@ -551,6 +573,7 @@ function ratingColors(int $rating): array {
         5 => ['#ECFDF5','#166534','#16A34A'],
         default => ['#F3F4F6','#374151','#6B7280'],
     };
+}
 }
 ?>
 <!DOCTYPE html>
@@ -828,7 +851,7 @@ if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
               </div>
             </div>
             <?php
-              $slaStartTs  = strtotime($ticket['sla_start_at'] ?? $ticket['created_at']);
+              $slaStartTs  = strtotime(!empty($ticket['sla_start_at']) ? $ticket['sla_start_at'] : $ticket['created_at']);
               $createdTs   = strtotime($ticket['created_at']);
               $wasReopened = ($slaStartTs > $createdTs + 60);
             ?>
@@ -1075,14 +1098,8 @@ if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
       <div class="timeline" id="timelineContainer">
         <?php foreach ($changeLogs as $idx => $log):
           $fc = $log['field_changed'];
-          $dotCls = match($fc) {
-            'priority'     => 'pri',
-            'status'       => 'stat',
-            'assigned'     => 'asgn',
-            'conversation' => 'conv',
-            'message'      => 'msg',
-            default        => 'both'
-          };
+          $dotClsMap = ['priority'=>'pri','status'=>'stat','assigned'=>'asgn','conversation'=>'conv','message'=>'msg'];
+          $dotCls = $dotClsMap[$fc] ?? 'both';
         ?>
         <div class="tl-item" data-log-index="<?= $idx ?>">
           <div class="tl-dot <?= $dotCls ?>">

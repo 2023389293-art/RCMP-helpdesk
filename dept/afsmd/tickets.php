@@ -39,9 +39,14 @@ if ($filterCategory !== '') { $extraWhere .= " AND complaints.category_id = ?"; 
 function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTypes, array $extraParams): void {
     if (empty($extraTypes)) return;
     $types = $baseTypes . $extraTypes;
-    $refs  = $baseRefs;
-    foreach ($extraParams as &$v) $refs[] = &$v;
-    call_user_func_array([$stmt, 'bind_param'], array_merge([$types], $refs));
+    $allParams = array_merge($baseRefs, $extraParams);
+    $bindArgs = [$types];
+    $refs = [];
+    foreach ($allParams as $key => $val) {
+        $refs[$key] = $val;
+        $bindArgs[] = &$refs[$key];
+    }
+    call_user_func_array([$stmt, 'bind_param'], $bindArgs);
 }
 
 $stmt = $conn->prepare(
@@ -53,7 +58,7 @@ $stmt = $conn->prepare(
      WHERE complaints.dept_id = ? $extraWhere"
 );
 if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
-else { bindAdvanced($stmt,"i",[&$deptId],$extraTypes,$extraParams); }
+else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
 $stmt->execute();
 $counts = $stmt->get_result()->fetch_assoc(); $stmt->close();
 $openCount       = (int)($counts['oc']  ?? 0);
@@ -63,11 +68,11 @@ $closedCount     = (int)($counts['cc']  ?? 0);
 if ($filterStatus === 'all') {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("i",$deptId); }
-    else { bindAdvanced($stmt,"i",[&$deptId],$extraTypes,$extraParams); }
+    else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
 } else {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("is",$deptId,$filterStatus); }
-    else { bindAdvanced($stmt,"is",[&$deptId,&$filterStatus],$extraTypes,$extraParams); }
+    else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes,$extraParams); }
 }
 $stmt->execute();
 $totalTickets = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0); $stmt->close();
@@ -92,7 +97,7 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("iii",$deptId,$perPage,$offset); }
-    else { bindAdvanced($stmt,"i",[&$deptId],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
+    else { bindAdvanced($stmt,"i",[$deptId],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
 } else {
     $stmt = $conn->prepare(
         "SELECT complaints.ticket_id, complaints.title, complaints.status,
@@ -108,14 +113,17 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("isii",$deptId,$filterStatus,$perPage,$offset); }
-    else { bindAdvanced($stmt,"is",[&$deptId,&$filterStatus],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
+    else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
 }
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) $tickets[] = $row;
 $stmt->close();
 
-$activeNav = match($filterStatus) { 'open'=>'tickets-open','in_progress'=>'tickets-inprogress','closed'=>'tickets-closed',default=>'tickets' };
+if ($filterStatus === 'open') { $activeNav = 'tickets-open'; }
+elseif ($filterStatus === 'in_progress') { $activeNav = 'tickets-inprogress'; }
+elseif ($filterStatus === 'closed') { $activeNav = 'tickets-closed'; }
+else { $activeNav = 'tickets'; }
 $pageTitle    = 'All Tickets';
 $pageSubtitle = 'Administration & Facilities Management Department';
 
@@ -353,7 +361,12 @@ function staffInitials(string $name): string {
     <!-- ── Toolbar ── -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <span class="sec-title"><?php echo match($filterStatus){'open'=>'Open Tickets','in_progress'=>'In Progress Tickets','closed'=>'Closed Tickets',default=>'All Tickets'}; ?></span>
+        <span class="sec-title"><?php
+  if ($filterStatus === 'open') echo 'Open Tickets';
+  elseif ($filterStatus === 'in_progress') echo 'In Progress Tickets';
+  elseif ($filterStatus === 'closed') echo 'Closed Tickets';
+  else echo 'All Tickets';
+?></span>
         <span class="result-count" id="result-label">— <?php echo $totalTickets; ?> ticket<?php echo $totalTickets!==1?'s':''; ?></span>
       </div>
       <div class="toolbar-right">
@@ -406,12 +419,10 @@ function staffInitials(string $name): string {
             $pri         = strtolower($t['priority'] ?? 'medium');
             $isHighOpen  = ($pri === 'high' && $s === 'open');
             $statusLabel = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
-            $flagFill    = match($pri) {
-              'high'   => '#DC2626',
-              'medium' => '#EAB308',
-              'low'    => '#3B82F6',
-              default  => '#64748b',
-            };
+            if ($pri === 'high') { $flagFill = '#DC2626'; }
+            elseif ($pri === 'medium') { $flagFill = '#EAB308'; }
+            elseif ($pri === 'low') { $flagFill = '#3B82F6'; }
+            else { $flagFill = '#64748b'; }
           ?>
           <tr data-id="<?php echo strtolower(htmlspecialchars($t['ticket_id'])); ?>"
               data-title="<?php echo strtolower(htmlspecialchars($t['title'])); ?>"

@@ -60,18 +60,24 @@ $tickets = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $cats = $conn->query("SELECT category_id, category_name FROM categories WHERE dept_id = 4 ORDER BY category_name")->fetch_all(MYSQLI_ASSOC);
 
 /* Build query string helper — preserves all active filters, drops page */
-function qstr(array $extra = []): string {
-    $p = array_merge($_GET, $extra);
-    unset($p['page']);
-    $qs = http_build_query(array_filter($p, function($v) { return $v !== ''; }));
-    return $qs ? '?' . $qs : '?';
+if (!function_exists('qstr')) {
+    function qstr(array $extra = []): string {
+        $p = array_merge($_GET, $extra);
+        unset($p['page']);
+        $filtered = array_filter($p, function($v) { return $v !== ''; });
+        $qs = http_build_query($filtered);
+        return $qs ? '?' . $qs : '?';
+    }
 }
 
 /* Build query string for pagination links — keeps page */
-function pgstr(array $extra = []): string {
-    $p = array_merge($_GET, $extra);
-    $qs = http_build_query(array_filter($p, function($v) { return $v !== ''; }));
-    return $qs ? '?' . $qs : '?';
+if (!function_exists('pgstr')) {
+    function pgstr(array $extra = []): string {
+        $p = array_merge($_GET, $extra);
+        $filtered = array_filter($p, function($v) { return $v !== ''; });
+        $qs = http_build_query($filtered);
+        return $qs ? '?' . $qs : '?';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -733,11 +739,13 @@ function pgstr(array $extra = []): string {
 <?php include '_foot_scripts.php'; ?>
 
 <?php
-function staffInitials(string $name): string {
-    $parts = explode(' ', trim($name));
-    $ini   = strtoupper(substr($parts[0], 0, 1));
-    if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
-    return $ini;
+if (!function_exists('staffInitials')) {
+    function staffInitials(string $name): string {
+        $parts = explode(' ', trim($name));
+        $ini   = strtoupper(substr($parts[0], 0, 1));
+        if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
+        return $ini;
+    }
 }
 ?>
 

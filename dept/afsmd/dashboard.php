@@ -1,5 +1,5 @@
 <?php
-// ../dept/it/dashboard.php 
+// ../dept/it/dashboard.php
 require_once __DIR__ . '/../auth_guard.php';
 
 if (isset($_GET['logout'])) { staffLogout(); }
@@ -823,7 +823,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
   <script>
   (function(){
     const data   = [<?php echo implode(',', array_column($topDepts, 'total')); ?>];
-    const labels = [<?php echo implode(',', array_map(fn($d) => json_encode($d['my_department'] ?? '—'), $topDepts)); ?>];
+    const labels = [<?php echo implode(',', array_map(function($d) { return json_encode($d['my_department'] ?? '—'); }, $topDepts)); ?>];
     const colors = ['#5B8CCC','#7C3AED','#DB2777','#D97706','#059669'];
 const canvas = document.getElementById('deptPieChart');
 const ctx    = canvas.getContext('2d');
@@ -970,17 +970,15 @@ const cx=80, cy=80, r=68;
             <?php else: ?>
             <?php foreach ($recentTickets as $t):
               $s             = strtolower($t['status']);
-              $pri           = strtolower($t['priority'] ?? 'medium');
+              $pri           = strtolower((string)($t['priority'] ?? 'medium'));
               $tid           = htmlspecialchars($t['ticket_id']);
               $statusLabel   = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
               $handledBy     = $t['handled_by'] ?? null;
               $handledByCode = $t['handled_by_code'] ?? null;
-              $flagFill      = match($pri) {
-                'high'   => '#DC2626',
-                'medium' => '#EAB308',
-                'low'    => '#3B82F6',
-                default  => '#64748b',
-              };
+              if ($pri === 'high') { $flagFill = '#DC2626'; }
+              elseif ($pri === 'medium') { $flagFill = '#EAB308'; }
+              elseif ($pri === 'low') { $flagFill = '#3B82F6'; }
+              else { $flagFill = '#64748b'; }
             ?>
             <tr>
 
