@@ -1,6 +1,9 @@
 <?php
-// dept_admin/it/tickets.php (reference only)
+// dept_admin/it/tickets.php
 require '_layout.php';
+
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
 
 if (!function_exists('staffInitials')) {
     function staffInitials(string $name): string {
@@ -619,7 +622,14 @@ if (!function_exists('pgstr')) {
           <td class="td-assigned" style="max-width:130px;">
             <?php if (!empty($t['assigned_staff_name'])): ?>
               <div class="assigned-cell">
-                <div class="staff-avatar-sm"><?= staffInitials($t['assigned_staff_name']) ?></div>
+                <div class="staff-avatar-sm">
+                  <?php
+                    $nameParts = explode(' ', trim($t['assigned_staff_name']));
+                    $ini = strtoupper(substr($nameParts[0], 0, 1));
+                    if (count($nameParts) > 1) $ini .= strtoupper(substr($nameParts[count($nameParts)-1], 0, 1));
+                    echo $ini;
+                  ?>
+                </div>
                 <span class="assigned-name" title="<?= htmlspecialchars($t['assigned_staff_name']) ?>">
                   <?= htmlspecialchars($t['assigned_staff_name']) ?>
                 </span>
