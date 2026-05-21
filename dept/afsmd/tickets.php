@@ -1,5 +1,5 @@
 <?php
-// dept/afsmd/tickets.php
+// dept/afsmd/tickets.php 
 require_once __DIR__ . '/../auth_guard.php';
 if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
@@ -41,11 +41,10 @@ function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTy
     $types = $baseTypes . $extraTypes;
     $allParams = array_merge($baseRefs, $extraParams);
     $bindArgs = [$types];
-    $refs = [];
-    foreach ($allParams as $key => $val) {
-        $refs[$key] = $val;
-        $bindArgs[] = &$refs[$key];
+    foreach ($allParams as &$val) {
+        $bindArgs[] = &$val;
     }
+    unset($val);
     call_user_func_array([$stmt, 'bind_param'], $bindArgs);
 }
 

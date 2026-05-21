@@ -1,5 +1,5 @@
 <?php
-// dept/afsmd/ticket_detail.php 
+// dept/afsmd/ticket_detail.php
 require_once __DIR__ . '/../auth_guard.php';
 if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
@@ -170,8 +170,8 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
             $statChanged = ($oldStatus   !== $newStatus);
             if ($priChanged || $statChanged) {
                 $fc           = ($priChanged && $statChanged) ? 'both' : ($priChanged ? 'priority' : 'status');
-                $logStaffId   = (int)$staffId;
-                $logStaffName = $staffName;
+                $logStaffId   = (int)($_SESSION['staff_id'] ?? 0);
+$logStaffName = $_SESSION['staff_name'] ?? 'Staff';
                 $logStmt = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,old_status,new_status) VALUES (?,?,?,?,?,?,?,?)");
                 if ($logStmt) {
                     $logStmt->bind_param("sissssss", $ticketId, $logStaffId, $logStaffName, $fc, $oldPriority, $newPriority, $oldStatus, $newStatus);
@@ -300,7 +300,7 @@ HTML;
 
             // ── Fire processQueue ALWAYS (not just when message sent) ──────────
             if ($statChanged && in_array($newStatus, ['in_progress', 'closed'])) {
-                processQueue($conn, $deptId, (int)$staffId);
+                processQueue($conn, $deptId, (int)($_SESSION['staff_id'] ?? 0));
             }
 
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.';
@@ -435,7 +435,15 @@ if ($ticket) {
 
 $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
-    $fq = $conn->prepare("SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at, s.full_name AS student_name FROM ticket_feedback tf LEFT JOIN students s ON s.student_id = tf.student_id WHERE tf.ticket_id = ? LIMIT 1");
+    $fq = $conn->prepare("
+    SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at,
+           COALESCE(s.full_name, st.full_name) AS student_name
+    FROM ticket_feedback tf
+    LEFT JOIN students s  ON s.student_id = tf.submitter_id
+    LEFT JOIN staff    st ON st.staff_id  = tf.submitter_id
+    WHERE tf.ticket_id = ?
+    LIMIT 1
+");
     $fq->bind_param("s", $ticketId); $fq->execute();
     $feedback = $fq->get_result()->fetch_assoc(); $fq->close();
 }

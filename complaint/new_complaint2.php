@@ -1,5 +1,5 @@
 <?php
-// complaint/new_complaint.php (new)
+// complaint/new_complaint.php
 session_start();
 
 $allowedRoles = ['student', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
@@ -98,94 +98,7 @@ $success  = false;
 $error    = $error ?? '';
 $ticketId = '';
 
-// ── HANDLE REQUISITION SUBMISSION ────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_type']) && $_POST['form_type'] === 'requisition' && $isWorkingHours) {
-    $req_category      = trim($_POST['req_category']      ?? '');
-    $req_item_name     = trim($_POST['req_item_name']     ?? '');
-    $req_quantity      = (int)($_POST['req_quantity']     ?? 0);
-    $req_my_department = trim($_POST['req_my_department'] ?? '');
-    $req_location      = trim($_POST['req_location']      ?? '');
-    $req_reason        = trim($_POST['req_reason']        ?? '');
-    $req_phone         = trim($_POST['req_phone']         ?? '');
-    $req_urgency       = trim($_POST['req_urgency']       ?? 'normal');
-
-    $allowedUrgency = ['normal','urgent','critical'];
-    $allowedReqCats = ['Office Furniture','Water Dispenser','Signage','Vending Machine','Office Keys','Office Equipment'];
-
-    if (empty($req_category) || !in_array($req_category, $allowedReqCats)) {
-        $error = 'Please select a valid equipment category.';
-    } elseif (empty($req_item_name)) {
-        $error = 'Please describe the item.';
-    } elseif ($req_quantity < 1 || $req_quantity > 999) {
-        $error = 'Quantity must be between 1 and 999.';
-    } elseif (empty($req_my_department)) {
-        $error = 'Please select your department.';
-    } elseif (empty($req_location)) {
-        $error = 'Please specify a location.';
-    } elseif (empty($req_reason)) {
-        $error = 'Please provide a justification.';
-    } elseif (empty($req_phone)) {
-        $error = 'Please enter your phone number.';
-    } elseif (!in_array($req_urgency, $allowedUrgency)) {
-        $error = 'Invalid urgency level.';
-    } else {
-        $dateStr   = date('dmY');
-        $seqRes    = $conn->query("SELECT COUNT(*) AS cnt FROM requisitions WHERE DATE(created_at) = CURDATE()");
-        $seqRow    = $seqRes ? $seqRes->fetch_assoc() : ['cnt' => 0];
-        $seq       = ($seqRow['cnt'] ?? 0) + 1;
-        $refNumber = 'REQ-AFSMD-' . $dateStr . '-' . str_pad($seq, 5, '0', STR_PAD_LEFT);
-
-        $attachmentPath = null;
-        if (!empty($_FILES['req_attachment']['name'])) {
-            $uploadDir = '../uploads/requisitions/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-            $ext     = strtolower(pathinfo($_FILES['req_attachment']['name'], PATHINFO_EXTENSION));
-            $allowed = ['jpg','jpeg','png','gif','pdf','doc','docx','txt'];
-            if (!in_array($ext, $allowed)) {
-                $error = 'Invalid file type.';
-            } elseif ($_FILES['req_attachment']['size'] > 5 * 1024 * 1024) {
-                $error = 'File too large. Max 5 MB.';
-            } else {
-                $filename       = $refNumber . '_' . time() . '.' . $ext;
-                $attachmentPath = 'uploads/requisitions/' . $filename;
-                move_uploaded_file($_FILES['req_attachment']['tmp_name'], $uploadDir . $filename);
-            }
-        }
-
-        if (empty($error)) {
-            $stmt = $conn->prepare("
-                INSERT INTO requisitions
-                    (ref_number, submitter_id, submitter_type, phone,
-                     my_department, category, item_name, quantity,
-                     location, reason, urgency, attachment_path,
-                     status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())
-            ");
-            $stmt->bind_param("sisssssissss",
-                $refNumber, $userId, $submitterType, $req_phone,
-                $req_my_department, $req_category, $req_item_name, $req_quantity,
-                $req_location, $req_reason, $req_urgency, $attachmentPath
-            );
-            if ($stmt->execute()) {
-    $reqSuccess   = true;
-    $reqRefNumber = $refNumber;
-
-    // Email 1: HTML confirmation to the person who submitted
-    sendRequisitionConfirmationEmail($userEmail, $userName, $refNumber, $req_category, $req_item_name, $req_quantity, $req_my_department, $req_location, $req_urgency, $now->format('d M Y, g:ia'));
-
-    // Email 2: Notification to AFSMD staff
-    sendRequisitionEmail($conn, $refNumber, $userName, $submitterType, $userEmail, $req_phone, $req_my_department, $req_category, $req_item_name, $req_quantity, $req_location, $req_reason, $req_urgency, $now->format('d M Y, g:ia'));
-} else {
-    $error = 'Failed to submit request: ' . $stmt->error;
-}
-            $stmt->close();
-        }
-    }
-}
-$reqSuccess   = $reqSuccess   ?? false;
-$reqRefNumber = $reqRefNumber ?? '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isWorkingHours && !isset($_POST['form_type'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isWorkingHours) {
     $title         = trim($_POST['title']         ?? '');
     $category_id   = (int)($_POST['category_id'] ?? 0);
     $description   = trim($_POST['description']  ?? '');
@@ -287,24 +200,6 @@ $activeNav    = 'new_complaint';
 ob_start();
 ?>
 <style>
-   /* ── DEPARTMENT TAB BAR ─────────────────────────────────────── */
-.dept-tabbar{width:100%;max-width:960px;background:#1a3a5c;border-radius:14px;overflow:hidden;margin-bottom:16px;box-shadow:0 6px 24px rgba(26,58,92,0.18);}
-.dept-tabbar-header{padding:18px 28px 0;text-align:center;}
-.dept-tabbar-title{font-family:'DM Serif Display',serif;font-size:20px;color:#fff;font-weight:400;letter-spacing:0.01em;transition:opacity 0.2s;}
-.dept-tabs{display:flex;overflow-x:auto;scrollbar-width:none;margin-top:12px;border-top:1px solid rgba(255,255,255,0.12);}
-.dept-tabs::-webkit-scrollbar{display:none;}
-.dept-tab{flex:1;min-width:0;padding:14px 10px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.5);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 0.2s,border-color 0.2s,background 0.2s;border:none;background:none;text-align:center;}
-.dept-tab:hover{color:rgba(255,255,255,0.85);background:rgba(255,255,255,0.06);}
-.dept-tab.active{color:#fff;border-bottom:3px solid #fff;background:rgba(255,255,255,0.10);}
-.dept-form-header{display:none;}
-.dept-page-title{width:100%;max-width:960px;margin-bottom:20px;padding-top:4px;}
-.dept-page-title h2{font-family:'DM Serif Display',serif;font-size:22px;color:var(--g900);margin:0 0 4px 0;font-weight:400;}
-.dept-page-title p{font-size:13px;color:var(--g500);margin:0;font-weight:300;}
-@media(max-width:768px){
-  .dept-tab{font-size:10px;padding:12px 8px;}
-  .dept-tabbar{max-width:100%;}
-  .dept-page-title{max-width:100%;}
-}
   /* ── EXISTING STYLES (unchanged) ─────────────────────────── */
   .form-progress-bar{position:fixed;top:0;left:var(--sidebar-w);right:0;height:3px;background:var(--g100);z-index:500;}
   .form-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),#4A90D9);border-radius:0 2px 2px 0;transition:width 0.4s cubic-bezier(0.4,0,0.2,1);}
@@ -319,7 +214,7 @@ ob_start();
   .tp-back-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:9px;border:0.5px solid var(--g200);background:white;color:var(--g700);font-size:13px;font-weight:500;text-decoration:none;transition:border-color .2s,background .2s,color .2s;font-family:'DM Sans',sans-serif;}
   .tp-back-btn:hover{border-color:#2d5986;background:#2d5986;color:#fff;}
   .tp-back-btn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;}
-  .steps-row{display:flex;align-items:stretch;width:100%;max-width:960px;margin-bottom:28px;background:white;border:1px solid var(--g300);border-radius:14px;overflow:hidden;}
+  .steps-row{display:flex;align-items:stretch;width:100%;max-width:820px;margin-bottom:28px;background:white;border:1px solid var(--g300);border-radius:14px;overflow:hidden;}
   .step{flex:1;display:flex;align-items:center;gap:12px;padding:18px 24px;position:relative;transition:background 0.25s;}
   .step:not(:last-child)::after{content:'';position:absolute;right:0;top:50%;transform:translateY(-50%);width:1px;height:40%;background:var(--g300);}
   .step.active{background:var(--blue-light);}
@@ -331,7 +226,7 @@ ob_start();
   .step.active .step-label{color:var(--blue);}
   .step.done .step-label{color:#3B6D11;}
   .step-sub{font-size:11px;color:var(--g500);margin-top:1px;}
-  .wh-banner{display:flex;align-items:flex-start;gap:14px;width:100%;max-width:960px;padding:16px 20px;border-radius:12px;margin-bottom:20px;font-size:13px;line-height:1.6;animation:fadeSlideIn 0.35s ease;}
+  .wh-banner{display:flex;align-items:flex-start;gap:14px;width:100%;max-width:820px;padding:16px 20px;border-radius:12px;margin-bottom:20px;font-size:13px;line-height:1.6;animation:fadeSlideIn 0.35s ease;}
   .wh-banner.wh-open{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;}
   .wh-banner.wh-closed{background:#fff8e1;border:1px solid #ffe082;color:#5d4037;}
   .wh-banner-icon{width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
@@ -355,7 +250,7 @@ ob_start();
   .alert svg{width:18px;height:18px;flex-shrink:0;margin-top:1px;}
   .alert-error{background:#FDECEA;color:#B71C1C;border:1px solid rgba(183,28,28,0.15);}
   .alert-error svg{fill:none;stroke:#B71C1C;stroke-width:2;}
-  #complaintForm{width:100%;max-width:960px;}
+  #complaintForm{width:100%;max-width:820px;}
   .form-card{background:white;border-radius:20px;border:1px solid var(--g300);overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.06),0 10px 40px -8px rgba(0,59,142,0.10);}
   .form-card-header{padding:26px 32px 22px;border-bottom:1px solid var(--g100);display:flex;align-items:center;gap:14px;background:linear-gradient(to right,#f7f9ff,#ffffff);}
   .fch-icon{width:44px;height:44px;border-radius:12px;background:var(--blue-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -386,8 +281,6 @@ ob_start();
   .select-wrap{position:relative;}
   .select-wrap::after{content:'';position:absolute;right:14px;top:50%;width:10px;height:10px;pointer-events:none;border-right:2px solid var(--g500);border-bottom:2px solid var(--g500);transform:translateY(-65%) rotate(45deg);}
   .select-wrap select{padding-right:36px;cursor:pointer;}
-  .select-wrap:has(select:disabled)::after{display:none;}
-  .select-wrap select:disabled{padding-right:16px;}
   .category-two-step{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
   @media(max-width:600px){.category-two-step{grid-template-columns:1fr;}}
   .cat-step-block{display:flex;flex-direction:column;gap:6px;}
@@ -510,36 +403,13 @@ ob_start();
   @media(max-width:1100px){.content{padding:28px 32px;}}
   @media(max-width:768px){
     .content{padding:20px 16px;align-items:stretch;}
-    .page-header,.dept-tabbar,.dept-page-title,.steps-row,.alert,.wh-banner,#complaintForm,#previewPanel,.form-locked-wrap{max-width:100%;}
+    .page-header,.steps-row,.alert,.wh-banner,#complaintForm,#previewPanel,.form-locked-wrap{max-width:100%;}
     .form-body,.preview-body{padding:20px 18px;}
     .form-card-header,.preview-card-header{padding:20px 18px 16px;}
     .form-actions,.preview-actions{padding:16px 18px;flex-wrap:wrap;}
     .steps-row{overflow-x:auto;}
     .step-sub{display:none;}
   }
-  .preview-urg-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:100px;font-size:12px;font-weight:600;border:1px solid;}
-.urg-normal{background:#EFF6FF;color:#1D4ED8;border-color:#93C5FD;}
-.urg-urgent{background:#FEF3E2;color:#92520C;border-color:#FCD34D;}
-.urg-critical{background:#FDECEA;color:#B71C1C;border-color:#FCA5A5;}
-.urg-option{display:none;}
-.urg-label{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:100px;border:1.5px solid var(--g300);background:white;font-size:13px;font-weight:500;color:var(--g700);cursor:pointer;transition:all .18s;}
-.urg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.urg-option[value="normal"]:checked+.urg-label{background:#EFF6FF;color:#1D4ED8;border-color:#93C5FD;}
-.urg-option[value="urgent"]:checked+.urg-label{background:#FEF3E2;color:#92520C;border-color:#FCD34D;}
-.urg-option[value="critical"]:checked+.urg-label{background:#FDECEA;color:#B71C1C;border-color:#FCA5A5;}
-.urg-option[value="normal"]+.urg-label .urg-dot{background:#3B82F6;}
-.urg-option[value="urgent"]+.urg-label .urg-dot{background:#F59E0B;}
-.urg-option[value="critical"]+.urg-label .urg-dot{background:#EF4444;}
-.cat-option{display:none;}
-.cat-label{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:16px;border-radius:14px;border:1.5px solid var(--g300);background:white;cursor:pointer;transition:all .2s;position:relative;}
-.cat-label:hover{border-color:#D4A017;box-shadow:0 4px 16px rgba(212,160,23,.12);}
-.cat-option:checked+.cat-label{border-color:#854f0b;background:#faeeda;box-shadow:0 4px 20px rgba(133,79,11,.15);}
-.cat-option:checked+.cat-label .cat-check{opacity:1;}
-.cat-icon{width:40px;height:40px;border-radius:10px;background:#f4f6fb;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.cat-name{font-size:13px;font-weight:600;color:var(--g900);line-height:1.2;}
-.cat-desc{font-size:11px;color:var(--g500);line-height:1.4;margin-top:2px;}
-.cat-check{position:absolute;top:10px;right:10px;width:18px;height:18px;border-radius:50%;background:#854f0b;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;}
-.cat-check svg{width:10px;height:10px;fill:none;stroke:white;stroke-width:3;}
 </style>
 <?php
 $extraHead = ob_get_clean();
@@ -557,69 +427,8 @@ require 'layout.php';
   <a href="homepage.php" class="tp-back-btn" style="margin-top:10px;">
     <svg viewBox="0 0 24 24"><polyline points="15,18 9,12 15,6"/></svg>
     Back to Dashboard
-  </a>
-</div>
-
-<!-- ── DEPARTMENT TAB BAR ── -->
-<div class="dept-tabbar">
-  <div class="dept-tabbar-header">
-    <div class="dept-tabbar-title" id="deptTabbarTitle">Choose Department</div>
-  </div>
-  <div class="dept-tabs" id="deptTabs">
-    <button class="dept-tab active" data-dept="Information Technology Department" type="button">Information Technology</button>
-    <button class="dept-tab" data-dept="Maintenance Department" type="button">Maintenance</button>
-    <button class="dept-tab" data-dept="Administration &amp; Facilities Management Department" type="button">Admin &amp; Facilities</button>
-    <button class="dept-tab" data-dept="Corporate Communication Unit" type="button">Corporate Communication</button>
-    <button class="dept-tab" data-dept="Human Capital Department" type="button">Human Capital</button>
-  </div>
-</div>
-
-<!-- ── AFSMD SUB-TABS ── -->
-<div id="afsmdSubTabs" style="display:none;width:100%;max-width:960px;margin-bottom:0;">
-<br>
-  <!-- Card toggle bar -->
-  <div style="padding:0 0 8px;margin-bottom:0;">
-    <div style="display:flex;gap:10px;justify-content:center;">
-
-      <button type="button" id="subTabComplaint" onclick="switchAfsmdTab('complaint')"
-        style="display:inline-flex;align-items:center;gap:8px;
-               padding:10px 18px;border-radius:10px;border:1.5px solid #1a3a5c;
-               cursor:pointer;font-family:'DM Sans',sans-serif;
-               background:white;color:#1a3a5c;transition:all .2s;
-               box-shadow:0 2px 8px rgba(0,0,0,0.10);font-size:13px;font-weight:600;">
-        <div style="width:28px;height:28px;border-radius:7px;background:#e8eef7;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a3a5c" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-          </svg>
-        </div>
-        Submit Complaint
-      </button>
-
-      <button type="button" id="subTabRequisition" onclick="switchAfsmdTab('requisition')"
-        style="display:inline-flex;align-items:center;gap:8px;
-               padding:10px 18px;border-radius:10px;border:1.5px solid var(--g300);
-               cursor:pointer;font-family:'DM Sans',sans-serif;
-               background:white;color:var(--g700);transition:all .2s;
-               box-shadow:0 2px 8px rgba(0,0,0,0.06);font-size:13px;font-weight:600;">
-        <div style="width:28px;height:28px;border-radius:7px;background:#faeeda;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#854f0b" stroke-width="2">
-            <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
-            <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>
-            <line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
-          </svg>
-        </div>
-        Request Equipment
-      </button>
-
-    </div>
-  </div>
-</div>
-
-<div id="afsmdComplaintSection">
-<div class="dept-page-title"> <br>
-  <h2>Submit a Complaint</h2>
+  </a><br>
+  <h1>Submit a Complaint</h1>
   <p>Fill in the details below and the relevant department will attend to your request.</p>
 </div>
 
@@ -776,15 +585,21 @@ require 'layout.php';
         <label>Category <span class="req">*</span></label>
         <div class="category-two-step">
           <div class="cat-step-block">
-            <div class="cat-step-label">Department (from tab)</div>
+            <div class="cat-step-label">1. Department</div>
             <div class="select-wrap">
-              <select id="dept_group_select" disabled style="background:var(--g100);color:var(--g700);cursor:not-allowed;">
-                <option value="">— No department selected —</option>
+              <select id="dept_group_select">
+                <option value="">— Select Department —</option>
+                <?php foreach (array_keys($dbCategories) as $dname): ?>
+                <option value="<?php echo htmlspecialchars($dname); ?>"
+                  <?php echo ($prevDeptGroup === $dname) ? 'selected' : ''; ?>>
+                  <?php echo htmlspecialchars($dname); ?>
+                </option>
+                <?php endforeach; ?>
               </select>
             </div>
           </div>
-          <div class="cat-step-block subcategory-reveal active" id="subcategoryReveal">
-            <div class="cat-step-label">Sub-Category <span style="color:#E53935">*</span></div>
+          <div class="cat-step-block subcategory-reveal" id="subcategoryReveal">
+            <div class="cat-step-label">2. Sub-Category</div>
             <div class="select-wrap">
               <select id="subcategory_select" disabled>
                 <option value="">— Select Sub-Category —</option>
@@ -876,287 +691,6 @@ require 'layout.php';
   </div>
 </div>
 <?php endif; ?>
-</div><!-- /afsmdComplaintSection -->
-
-<!-- ── AFSMD REQUISITION SECTION (embedded, hidden by default) ── -->
-<div id="afsmdRequisitionSection" style="display:none; width:100%; max-width:960px;">
-
-  <div class="dept-page-title"><br>
-    <h2>Request Equipment</h2>
-    <p>Submit a request to Administration & Facilities Management for office equipment, furniture, or facility items.</p>
-  </div>
-
-  <!-- Steps for requisition -->
-  <div class="steps-row" id="req-steps-row">
-    <div class="step active" id="req-step1">
-      <div class="step-num" style="background:#854f0b;color:white;border-color:#854f0b;">1</div>
-      <div><div class="step-label" style="color:#854f0b;">Fill Details</div><div class="step-sub">What do you need?</div></div>
-    </div>
-    <div class="step" id="req-step2">
-      <div class="step-num">2</div>
-      <div><div class="step-label">Preview</div><div class="step-sub">Review before sending</div></div>
-    </div>
-    <div class="step" id="req-step3">
-      <div class="step-num">3</div>
-      <div><div class="step-label">Submitted</div><div class="step-sub">Reference generated</div></div>
-    </div>
-  </div>
-
-  <?php if ($isWorkingHours): ?>
-  <!-- ── REQ FORM ── -->
-  <form method="POST" action="new_complaint.php" id="reqForm" enctype="multipart/form-data" novalidate>
-    <input type="hidden" name="form_type" value="requisition"/>
-    <div class="form-card" style="box-shadow:0 4px 6px -1px rgba(0,0,0,.06),0 10px 40px -8px rgba(133,79,11,.10);">
-      <div class="form-card-header" style="background:linear-gradient(to right,#fffbf2,#ffffff);">
-        <div class="fch-icon" style="background:#faeeda;">
-          <svg viewBox="0 0 24 24" style="stroke:#854f0b">
-            <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
-            <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>
-            <line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
-          </svg>
-        </div>
-        <div class="fch-text"><h3>Equipment Request</h3><p>Your request will be sent to Administration & Facilities Management Department</p></div>
-      </div>
-
-      <div class="form-body">
-
-        <!-- Category -->
-        <div class="form-section-label">Equipment Category <span style="color:#E53935">*</span></div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;" id="reqCatPicker">
-          <?php
-          $equipCats = [
-            'Office Furniture'  => ['desc'=>'Chairs, desks, cabinets, shelving','icon'=>'<path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><line x1="8" y1="17" x2="8" y2="21"/><line x1="16" y1="17" x2="16" y2="21"/>'],
-            'Water Dispenser'   => ['desc'=>'Hot & cold dispensers, servicing','icon'=>'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>'],
-            'Signage'           => ['desc'=>'Room signs, notice boards, banners','icon'=>'<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>'],
-            'Vending Machine'   => ['desc'=>'Snack, beverage or combo machines','icon'=>'<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="5" y1="10" x2="19" y2="10"/><line x1="5" y1="14" x2="19" y2="14"/><circle cx="12" cy="17" r="1"/>'],
-            'Office Keys'       => ['desc'=>'Room keys, key duplicates, access cards','icon'=>'<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'],
-            'Office Equipment'  => ['desc'=>'Printers, projectors, whiteboards','icon'=>'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'],
-          ];
-          foreach ($equipCats as $catName => $catMeta):
-            $slug = 'req-' . strtolower(preg_replace('/[^a-z0-9]/i','-',$catName));
-          ?>
-          <div>
-            <input type="radio" name="req_category" id="<?php echo $slug; ?>" class="cat-option req-cat-option" value="<?php echo htmlspecialchars($catName); ?>">
-            <label class="cat-label" for="<?php echo $slug; ?>">
-              <div class="cat-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
-              <div class="cat-icon" style="background:#faeeda;"><svg viewBox="0 0 24 24" style="fill:none;stroke:#854f0b;stroke-width:1.8;width:19px;height:19px;"><?php echo $catMeta['icon']; ?></svg></div>
-              <div class="cat-name"><?php echo htmlspecialchars($catName); ?></div>
-              <div class="cat-desc"><?php echo htmlspecialchars($catMeta['desc']); ?></div>
-            </label>
-          </div>
-          <?php endforeach; ?>
-        </div>
-
-        <!-- Item Details -->
-        <div class="form-section-label">Item Details</div>
-        <div class="field">
-          <label for="req_item_name">Item Description <span class="req">*</span></label>
-          <input type="text" id="req_item_name" name="req_item_name" maxlength="200"
-                 placeholder="e.g. Ergonomic office chair, model Flexispot EC1"/>
-          <div class="field-footer"><span class="char-counter" id="reqItemCounter">0 / 200</span></div>
-        </div>
-
-        <div class="field-grid">
-          <div class="field">
-            <label for="req_quantity">Quantity <span class="req">*</span></label>
-            <div class="qty-wrap" style="display:flex;">
-              <button type="button" onclick="reqQtyChange(-1)"
-                style="width:42px;height:46px;border:1.5px solid var(--g300);background:var(--g100);
-                       color:var(--g700);font-size:20px;border-radius:10px 0 0 10px;border-right:none;
-                       cursor:pointer;display:flex;align-items:center;justify-content:center;">−</button>
-              <input type="number" id="req_quantity" name="req_quantity" min="1" max="999" value="1"
-                     style="border-radius:0;text-align:center;border-left:none;border-right:none;font-weight:600;
-                            width:100%;padding:12px 16px;border:1.5px solid var(--g300);font-family:'DM Sans',sans-serif;
-                            font-size:14px;color:var(--g900);background:white;outline:none;-moz-appearance:textfield;"/>
-              <button type="button" onclick="reqQtyChange(1)"
-                style="width:42px;height:46px;border:1.5px solid var(--g300);background:var(--g100);
-                       color:var(--g700);font-size:20px;border-radius:0 10px 10px 0;border-left:none;
-                       cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>
-            </div>
-          </div>
-          <div class="field">
-            <label>Urgency Level <span class="req">*</span></label>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;">
-              <?php foreach(['normal'=>'Normal','urgent'=>'Urgent','critical'=>'Critical'] as $v=>$l): ?>
-              <input type="radio" name="req_urgency" id="req-urg-<?php echo $v; ?>" class="urg-option" value="<?php echo $v; ?>" <?php echo $v==='normal'?'checked':''; ?>>
-              <label class="urg-label" for="req-urg-<?php echo $v; ?>"><span class="urg-dot"></span><?php echo $l; ?></label>
-              <?php endforeach; ?>
-            </div>
-          </div>
-        </div>
-
-        <!-- Your Info -->
-        <div class="form-section-label">Your Information</div>
-        <div class="field-grid">
-          <div class="field">
-            <label for="req_my_department">Your Department / Faculty <span class="req">*</span></label>
-            <div class="select-wrap">
-              <select id="req_my_department" name="req_my_department">
-                <option value="" disabled selected>— Select Department / Faculty —</option>
-                <?php foreach ($myDepartments as $d): ?>
-                <option value="<?php echo htmlspecialchars($d); ?>"><?php echo htmlspecialchars($d); ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-          </div>
-          <div class="field">
-            <label for="req_phone">Contact Number <span class="req">*</span></label>
-            <div class="phone-wrap">
-              <span class="phone-prefix">+60</span>
-              <input type="tel" id="req_phone" name="req_phone" placeholder="11-12345678" maxlength="12" autocomplete="off"/>
-            </div>
-            <div class="phone-hint" id="reqPhoneHint">Enter 9–10 digits (e.g. 11-12345678)</div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="req_location">Delivery / Installation Location <span class="req">*</span></label>
-          <input type="text" id="req_location" name="req_location" maxlength="200"
-                 placeholder="e.g. Block A, Room 203, Level 2"/>
-        </div>
-
-        <!-- Justification -->
-        <div class="form-section-label">Justification</div>
-        <div class="field">
-          <label for="req_reason">Reason / Justification <span class="req">*</span></label>
-          <textarea id="req_reason" name="req_reason" maxlength="1500"
-                    placeholder="Please explain why this equipment is needed..."></textarea>
-          <div class="field-footer"><span class="char-counter" id="reqReasonCounter">0 / 1500</span></div>
-        </div>
-
-        <!-- Attachment -->
-        <div class="field">
-          <label>Supporting Document <span class="opt">Optional</span></label>
-          <div class="file-drop" id="reqFileDrop"
-               style="border-color:var(--g300);"
-               ondragenter="this.classList.add('dragover')"
-               ondragleave="this.classList.remove('dragover')"
-               ondragover="event.preventDefault();this.classList.add('dragover')"
-               ondrop="reqHandleDrop(event)">
-            <input type="file" name="req_attachment" id="req_attachment"
-                   accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.txt"
-                   onchange="reqHandleFile(this)"/>
-            <div class="file-icon"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
-            <div class="file-drop-title">Drop a file here, or <strong style="color:#854f0b;">browse</strong></div>
-            <div class="file-drop-sub">JPG, PNG, PDF, DOC, DOCX, TXT — max 5 MB</div>
-          </div>
-          <div class="file-selected" id="reqFileSelected"
-               style="display:none;align-items:center;gap:10px;padding:10px 14px;
-                      background:#faeeda;border:1px solid rgba(133,79,11,.2);border-radius:8px;
-                      margin-top:10px;font-size:13px;color:#854f0b;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#854f0b" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
-            <span id="reqFileName">—</span>
-            <button type="button" onclick="reqRemoveFile()"
-                    style="margin-left:auto;cursor:pointer;color:var(--g500);background:none;border:none;font-size:18px;">×</button>
-          </div>
-        </div>
-      </div><!-- /form-body -->
-
-      <div class="form-actions" style="background:var(--off);">
-        <button type="button" class="btn-cancel" onclick="switchAfsmdTab('complaint')">Cancel</button>
-        <button type="button" onclick="showReqPreview()"
-                style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;padding:12px 32px;
-                       border-radius:10px;background:#854f0b;color:white;border:none;cursor:pointer;
-                       display:flex;align-items:center;gap:9px;box-shadow:0 4px 14px rgba(133,79,11,.28);
-                       transition:all .2s;">
-          Preview & Review
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-    </div>
-  </form>
-
-  <!-- REQ PREVIEW PANEL -->
-  <div id="reqPreviewPanel" style="display:none;width:100%;">
-    <div class="preview-card" style="box-shadow:0 4px 6px -1px rgba(0,0,0,.06),0 10px 40px -8px rgba(133,79,11,.10);">
-      <div class="preview-card-header" style="background:linear-gradient(to right,#fffbf2,#ffffff);">
-        <div class="pch-icon"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
-        <div class="pch-text"><h3>Review Your Request</h3><p>Please check all details carefully before submitting</p></div>
-      </div>
-      <div class="preview-body">
-        <div class="preview-section">
-          <div class="preview-section-title">Equipment</div>
-          <div class="preview-grid">
-            <div class="preview-field"><div class="preview-label">Category</div><div class="preview-value" id="rpv-category">—</div></div>
-            <div class="preview-field"><div class="preview-label">Urgency</div><div class="preview-value" id="rpv-urgency">—</div></div>
-            <div class="preview-field full"><div class="preview-label">Item Description</div><div class="preview-value" id="rpv-item">—</div></div>
-            <div class="preview-field"><div class="preview-label">Quantity</div><div class="preview-value" id="rpv-quantity">—</div></div>
-            <div class="preview-field"><div class="preview-label">Location</div><div class="preview-value" id="rpv-location">—</div></div>
-          </div>
-        </div>
-        <div class="preview-section">
-          <div class="preview-section-title">Your Information</div>
-          <div class="preview-grid">
-            <div class="preview-field"><div class="preview-label">Department / Faculty</div><div class="preview-value" id="rpv-dept">—</div></div>
-            <div class="preview-field"><div class="preview-label">Contact Number</div><div class="preview-value" id="rpv-phone">—</div></div>
-          </div>
-        </div>
-        <div class="preview-section">
-          <div class="preview-section-title">Justification</div>
-          <div class="preview-grid">
-            <div class="preview-field full"><div class="preview-label">Reason</div><div class="preview-value" style="white-space:pre-wrap;min-height:72px;" id="rpv-reason">—</div></div>
-            <div class="preview-field"><div class="preview-label">Attachment</div><div class="preview-value" id="rpv-attachment"><span style="color:#bbb;font-style:italic">No attachment</span></div></div>
-          </div>
-        </div>
-        <div class="preview-notice">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Once submitted, this request will be forwarded to Administration & Facilities Management Department.
-        </div>
-      </div>
-      <div class="preview-actions" style="background:var(--off);">
-        <button type="button" class="btn-back" onclick="backToReqForm()">
-          <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>Back to Edit
-        </button>
-        <button type="button" id="reqConfirmBtn" onclick="submitReqForm()"
-                style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;padding:12px 32px;
-                       border-radius:10px;background:#2e7d32;color:white;border:none;cursor:pointer;
-                       display:flex;align-items:center;gap:9px;box-shadow:0 4px 14px rgba(46,125,50,.25);
-                       transition:all .2s;">
-          Confirm & Submit
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <?php else: ?>
-  <!-- Outside hours locked state -->
-  <div style="position:relative;width:100%;">
-    <div style="position:absolute;inset:0;z-index:20;background:rgba(255,255,255,.85);backdrop-filter:blur(3px);
-                border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;
-                text-align:center;padding:40px 32px;">
-      <div class="flo-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-      <div class="flo-title">Submissions Closed</div>
-      <div class="flo-body">Equipment requests are only available Monday–Friday, 8:00 AM – 5:00 PM MYT.</div>
-      <div class="flo-hours"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Next available: <?php echo $slaDisplay; ?></div>
-    </div>
-    <div class="form-card" aria-hidden="true" style="pointer-events:none;opacity:0.4;min-height:300px;"></div>
-  </div>
-  <?php endif; ?>
-
-</div><!-- /afsmdRequisitionSection -->
-
-<!-- ── REQUISITION SUCCESS OVERLAY ── -->
-<div class="success-overlay <?php echo $reqSuccess ? 'show' : ''; ?>" id="reqSuccessOverlay">
-  <div class="success-card">
-    <div class="success-icon-wrap" style="background:linear-gradient(135deg,#854f0b,#D4A017);box-shadow:0 8px 24px rgba(133,79,11,.3);">
-      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-    </div>
-    <h2>Request Submitted!</h2>
-    <p>Your equipment request has been forwarded to Administration & Facilities Management Department.</p>
-    <div style="background:#faeeda;border:1px solid rgba(133,79,11,.2);border-radius:10px;padding:14px 20px;margin-bottom:20px;">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#854f0b;font-weight:600;margin-bottom:4px;">Reference Number</div>
-      <div style="font-family:monospace;font-size:18px;font-weight:700;color:var(--g900);"><?php echo htmlspecialchars($reqRefNumber); ?></div>
-    </div>
-    <div class="success-actions">
-      <a href="new_complaint.php" class="btn-ghost">Submit Another</a>
-      <a href="homepage.php" style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:10px 20px;border-radius:8px;background:#854f0b;color:white;border:none;cursor:pointer;text-decoration:none;">← Back to Dashboard</a>
-    </div>
-  </div>
-</div>
 
 <div class="success-overlay <?php echo $success ? 'show' : ''; ?>" id="successOverlay">
   <div class="success-card">
@@ -1184,39 +718,9 @@ require 'layout.php';
 <script>
 // Only run interactive JS if working hours are active
 <?php if ($isWorkingHours): ?>
-    // ── AFSMD SUB-TAB SWITCHER ────────────────────────────────────
-function switchAfsmdTab(tab) {
-  const complaint    = document.getElementById('afsmdComplaintSection');
-  const requisition  = document.getElementById('afsmdRequisitionSection');
-  const btnComplaint = document.getElementById('subTabComplaint');
-  const btnReq       = document.getElementById('subTabRequisition');
-
-  if (tab === 'complaint') {
-    complaint.style.display   = '';
-    requisition.style.display = 'none';
-    btnComplaint.style.background   = 'white';
-    btnComplaint.style.borderColor  = '#1a3a5c';
-    btnComplaint.style.color        = '#1a3a5c';
-    btnComplaint.style.boxShadow    = '0 2px 8px rgba(0,0,0,0.10)';
-    btnReq.style.background   = 'white';
-    btnReq.style.borderColor  = 'var(--g300)';
-    btnReq.style.color        = 'var(--g500)';
-    btnReq.style.boxShadow    = 'none';
-  } else {
-    complaint.style.display   = 'none';
-    requisition.style.display = '';
-    btnReq.style.background   = 'white';
-    btnReq.style.borderColor  = '#854f0b';
-    btnReq.style.color        = '#854f0b';
-    btnReq.style.boxShadow    = '0 2px 8px rgba(133,79,11,0.15)';
-    btnComplaint.style.background   = 'white';
-    btnComplaint.style.borderColor  = 'var(--g300)';
-    btnComplaint.style.color        = 'var(--g500)';
-    btnComplaint.style.boxShadow    = 'none';
-  }
-}
 const allCategories  = <?php echo json_encode($dbCategories, JSON_UNESCAPED_UNICODE); ?>;
 const deptLabels     = <?php echo json_encode($deptLabelsMap, JSON_UNESCAPED_UNICODE); ?>;
+const prevDeptGroup  = <?php echo json_encode($prevDeptGroup); ?>;
 const prevCategoryId = <?php echo (int)$prevCategoryId; ?>;
 
 const progressFill = document.getElementById('progressFill');
@@ -1226,239 +730,42 @@ const subcatSel    = document.getElementById('subcategory_select');
 const subcatReveal = document.getElementById('subcategoryReveal');
 let selectedHandler = '';
 
-// ── TAB BAR LOGIC ──────────────────────────────────────────────
-function activateTab(tabEl) {
-  document.querySelectorAll('.dept-tab').forEach(t => t.classList.remove('active'));
-  tabEl.classList.add('active');
-  const titleEl = document.getElementById('deptTabbarTitle');
-  if (titleEl) titleEl.textContent = tabEl.dataset.dept;
-  loadDeptCategories(tabEl.dataset.dept);
+function updateSelectColour(sel){ /* no-op: removed grey placeholder */ }
+document.querySelectorAll('select').forEach(sel=>{updateSelectColour(sel);sel.addEventListener('change',()=>updateSelectColour(sel));});
 
-  // Show/hide the AFSMD sub-tabs
-  const subTabs = document.getElementById('afsmdSubTabs');
-  if (tabEl.dataset.dept === 'Administration & Facilities Management Department') {
-    subTabs.style.display = '';
-  } else {
-    subTabs.style.display = 'none';
-    switchAfsmdTab('complaint');
-  }
-}
-
-// ── REQUISITION FORM JS ───────────────────────────────────────
-function reqQtyChange(delta) {
-  const el = document.getElementById('req_quantity');
-  const v  = (parseInt(el.value) || 1) + delta;
-  if (v >= 1 && v <= 999) el.value = v;
-}
-
-function reqHandleFile(input) {
-  if (input.files.length > 0) {
-    document.getElementById('reqFileName').textContent = input.files[0].name;
-    document.getElementById('reqFileSelected').style.display = 'flex';
-  }
-}
-function reqRemoveFile() {
-  document.getElementById('req_attachment').value = '';
-  document.getElementById('reqFileSelected').style.display = 'none';
-}
-function reqHandleDrop(ev) {
-  ev.preventDefault();
-  document.getElementById('reqFileDrop').classList.remove('dragover');
-  const f = ev.dataTransfer.files[0];
-  if (f) {
-    const dt = new DataTransfer(); dt.items.add(f);
-    const inp = document.getElementById('req_attachment');
-    inp.files = dt.files;
-    reqHandleFile(inp);
-  }
-}
-
-// Phone formatting for requisition
-(function initReqPhone() {
-  const inp  = document.getElementById('req_phone');
-  const hint = document.getElementById('reqPhoneHint');
-  if (!inp) return;
-  inp.addEventListener('input', function() {
-    const d = this.value.replace(/\D/g,'');
-    this.value = d.length <= 2 ? d : d.slice(0,2) + '-' + d.slice(2,11);
-    const len = d.length;
-    inp.classList.remove('input-error','input-ok');
-    hint.classList.remove('hint-error','hint-ok');
-    if (!len) { hint.textContent = 'Enter 9–10 digits (e.g. 11-12345678)'; }
-    else if (len < 9) { inp.classList.add('input-error'); hint.classList.add('hint-error'); hint.textContent = 'Too short — minimum 9 digits.'; }
-    else if (len > 10) { inp.classList.add('input-error'); hint.classList.add('hint-error'); hint.textContent = 'Too long — maximum 10 digits.'; }
-    else { inp.classList.add('input-ok'); hint.classList.add('hint-ok'); hint.textContent = '✓ Looks good!'; }
-  });
-  inp.addEventListener('keydown', function(e) {
-    const ok = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End'];
-    if (ok.includes(e.key)) return;
-    if (!/^\d$/.test(e.key)) e.preventDefault();
-  });
-})();
-
-// Character counters
-document.getElementById('req_item_name')?.addEventListener('input', function() {
-  const el = document.getElementById('reqItemCounter');
-  el.textContent = this.value.length + ' / 200';
-});
-document.getElementById('req_reason')?.addEventListener('input', function() {
-  const el = document.getElementById('reqReasonCounter');
-  el.textContent = this.value.length + ' / 1500';
-});
-
-function showReqPreview() {
-  const category = document.querySelector('input[name="req_category"]:checked')?.value || '';
-  const item     = document.getElementById('req_item_name').value.trim();
-  const qty      = parseInt(document.getElementById('req_quantity').value) || 0;
-  const dept     = document.getElementById('req_my_department').value;
-  const phone    = document.getElementById('req_phone').value.trim();
-  const location = document.getElementById('req_location').value.trim();
-  const reason   = document.getElementById('req_reason').value.trim();
-  const urgency  = document.querySelector('input[name="req_urgency"]:checked')?.value || '';
-
-  // Clear old errors
-  document.querySelectorAll('#afsmdRequisitionSection .input-error').forEach(el => el.classList.remove('input-error'));
-  document.querySelectorAll('#afsmdRequisitionSection .inline-err').forEach(el => el.remove());
-
-  let firstErr = null;
-  function markReqErr(id, msg) {
-    const el = document.getElementById(id); if (!el) return;
-    el.classList.add('input-error');
-    const w = el.closest('.field'); if (!w) return;
-    let h = w.querySelector('.inline-err');
-    if (!h) { h = document.createElement('div'); h.className = 'inline-err phone-hint hint-error'; w.appendChild(h); }
-    h.textContent = msg;
-    firstErr = firstErr || el;
-  }
-
-  if (!category) { alert('Please select an equipment category.'); document.getElementById('reqCatPicker').scrollIntoView({behavior:'smooth',block:'center'}); return; }
-  if (!item)     markReqErr('req_item_name','Please describe the item.');
-  if (!qty)      markReqErr('req_quantity','Quantity must be at least 1.');
-  if (!dept)     markReqErr('req_my_department','Please select your department.');
-  const pd = phone.replace(/\D/g,'');
-  if (!phone || pd.length < 9 || pd.length > 10) markReqErr('req_phone', !phone ? 'Phone is required.' : 'Phone must be 9–10 digits.');
-  if (!location) markReqErr('req_location','Please specify the delivery location.');
-  if (!reason)   markReqErr('req_reason','Please provide a justification.');
-
-  if (firstErr) { firstErr.scrollIntoView({behavior:'smooth',block:'center'}); firstErr.focus(); return; }
-
-  // Populate preview
-  const urgLabels  = {normal:'Normal',urgent:'Urgent',critical:'Critical'};
-  const urgClasses = {normal:'urg-normal',urgent:'urg-urgent',critical:'urg-critical'};
-  document.getElementById('rpv-category').innerHTML = `<span class="preview-badge" style="background:#faeeda;color:#854f0b;border-color:rgba(133,79,11,.2)">${esc(category)}</span>`;
-  document.getElementById('rpv-urgency').innerHTML  = `<span class="preview-urg-badge ${urgClasses[urgency]||''}">${esc(urgLabels[urgency]||urgency)}</span>`;
-  document.getElementById('rpv-item').textContent     = item;
-  document.getElementById('rpv-quantity').textContent = qty + (qty===1?' unit':' units');
-  document.getElementById('rpv-location').textContent = location;
-  document.getElementById('rpv-dept').textContent     = dept;
-  document.getElementById('rpv-phone').textContent    = '+60 ' + phone;
-  document.getElementById('rpv-reason').textContent   = reason;
-
-  const attEl = document.getElementById('rpv-attachment');
-  const fileInp = document.getElementById('req_attachment');
-  const fileSel = document.getElementById('reqFileSelected');
-  attEl.innerHTML = (fileInp.files.length > 0 && fileSel.style.display !== 'none')
-    ? `<span style="color:#854f0b;font-weight:500">${esc(document.getElementById('reqFileName').textContent)}</span>`
-    : '<span style="color:#bbb;font-style:italic">No attachment</span>';
-
-  document.getElementById('reqForm').style.display = 'none';
-  document.getElementById('reqPreviewPanel').style.display = '';
-
-  // Update steps
-  document.getElementById('req-step1').classList.remove('active'); document.getElementById('req-step1').classList.add('done');
-  document.getElementById('req-step1').querySelector('.step-num').style.cssText = 'background:#4CAF50;color:white;border-color:#4CAF50;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
-  document.getElementById('req-step2').classList.add('active');
-  document.getElementById('req-step2').querySelector('.step-num').style.cssText = 'background:#854f0b;color:white;border-color:#854f0b;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-
-function backToReqForm() {
-  document.getElementById('reqForm').style.display = '';
-  document.getElementById('reqPreviewPanel').style.display = 'none';
-  document.getElementById('req-step1').classList.add('active'); document.getElementById('req-step1').classList.remove('done');
-  document.getElementById('req-step1').querySelector('.step-num').style.cssText = 'background:#854f0b;color:white;border-color:#854f0b;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
-  document.getElementById('req-step2').classList.remove('active');
-  document.getElementById('req-step2').querySelector('.step-num').style.cssText = '';
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-
-function submitReqForm() {
-  const btn = document.getElementById('reqConfirmBtn');
-  btn.disabled = true;
-  btn.innerHTML = 'Submitting… <svg viewBox="0 0 24 24" width="16" height="16" style="animation:spin 0.8s linear infinite;fill:none;stroke:white;stroke-width:2"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>';
-  document.getElementById('req-step2').classList.remove('active'); document.getElementById('req-step2').classList.add('done');
-  document.getElementById('req-step3').classList.add('active');
-  document.getElementById('req-step3').querySelector('.step-num').style.cssText = 'background:#854f0b;color:white;border-color:#854f0b;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
-  document.getElementById('reqForm').submit();
-}
-
-function loadDeptCategories(deptName) {
-  deptGroupSel.innerHTML = '';
-  const opt = document.createElement('option');
-  opt.value = deptName;
-  opt.textContent = deptName;
-  deptGroupSel.appendChild(opt);
-  deptGroupSel.value = deptName;
-
-  hiddenCatId.value = '';
-  selectedHandler = '';
+deptGroupSel.addEventListener('change',function(){
+  const chosen=this.value;
+  subcatSel.innerHTML='<option value="">— Select Sub-Category —</option>';
+  hiddenCatId.value='';selectedHandler='';
   document.getElementById('deptHint').classList.remove('show');
-  subcatSel.innerHTML = '<option value="">— Select Sub-Category —</option>';
-
-  if (!deptName || !allCategories[deptName]) {
-    subcatSel.disabled = true;
-    updateProgress();
-    return;
-  }
-  allCategories[deptName].forEach(cat => {
-    const o = document.createElement('option');
-    o.value = cat.id;
-    const si = cat.name.indexOf(' / ');
-    o.textContent = si !== -1 ? cat.name.substring(si + 3) : cat.name;
-    subcatSel.appendChild(o);
+  if(!chosen||!allCategories[chosen]){subcatSel.disabled=true;subcatReveal.classList.remove('active');updateProgress();return;}
+  allCategories[chosen].forEach(cat=>{
+    const opt=document.createElement('option');
+    opt.value=cat.id;
+    const si=cat.name.indexOf(' / ');
+    opt.textContent=si!==-1?cat.name.substring(si+3):cat.name;
+    subcatSel.appendChild(opt);
   });
-  subcatSel.disabled = false;
-  subcatReveal.classList.add('active');
-  updateProgress();
-}
-
-document.querySelectorAll('.dept-tab').forEach(tab => {
-  tab.addEventListener('click', function() {
-    subcatSel.value = '';
-    hiddenCatId.value = '';
-    selectedHandler = '';
-    document.getElementById('deptHint').classList.remove('show');
-    activateTab(this);
-  });
+  subcatSel.disabled=false;subcatReveal.classList.add('active');subcatSel.focus();updateSelectColour(subcatSel);updateProgress();
 });
 
-(function initTabs() {
-  const firstTab = document.querySelector('.dept-tab.active');
-  if (firstTab) {
-    const titleEl = document.getElementById('deptTabbarTitle');
-    if (titleEl) titleEl.textContent = firstTab.dataset.dept;
-    loadDeptCategories(firstTab.dataset.dept);
-    // Show AFSMD sub-tabs if that dept is active on load
-    const subTabs = document.getElementById('afsmdSubTabs');
-    if (firstTab.dataset.dept === 'Administration & Facilities Management Department') {
-      subTabs.style.display = '';
-    }
-  }
-})();
-
-subcatSel.addEventListener('change', function() {
-  const id = parseInt(this.value);
-  hiddenCatId.value = id || '';
-  if (id && deptLabels[id]) {
-    selectedHandler = deptLabels[id];
-    document.getElementById('deptHintText').textContent = 'Will be handled by: ' + deptLabels[id];
+subcatSel.addEventListener('change',function(){
+  const id=parseInt(this.value);
+  hiddenCatId.value=id||'';
+  if(id&&deptLabels[id]){
+    selectedHandler=deptLabels[id];
+    document.getElementById('deptHintText').textContent='Will be handled by: '+deptLabels[id];
     document.getElementById('deptHint').classList.add('show');
-  } else {
-    selectedHandler = '';
-    document.getElementById('deptHint').classList.remove('show');
-  }
+  }else{selectedHandler='';document.getElementById('deptHint').classList.remove('show');}
   updateProgress();
 });
+
+(function restore(){
+  if(!prevDeptGroup)return;
+  deptGroupSel.value=prevDeptGroup;
+  deptGroupSel.dispatchEvent(new Event('change'));
+  if(prevCategoryId)setTimeout(()=>{subcatSel.value=prevCategoryId;subcatSel.dispatchEvent(new Event('change'));},0);
+})();
 
 function updateProgress(){
   const f=[document.getElementById('title').value.trim(),hiddenCatId.value,document.getElementById('description').value.trim(),document.getElementById('phone').value.trim(),document.getElementById('my_department').value];
@@ -1551,6 +858,7 @@ function showPreview(){
   const phone   = document.getElementById('phone').value.trim();
   const dept    = document.getElementById('my_department').value;
   const title   = document.getElementById('title').value.trim();
+  const deptGrp = document.getElementById('dept_group_select').value;
   const catId   = hiddenCatId.value;
   const desc    = document.getElementById('description').value.trim();
 
@@ -1577,8 +885,11 @@ function showPreview(){
     firstError = firstError || document.getElementById('title');
   }
 
-  // 4. Sub-category only (dept is set by tab)
-  if(!catId){
+  // 4. Category — must pick department group first, then sub-category
+  if(!deptGrp){
+    markSelectError('dept_group_select', 'Please select a department for the category.');
+    firstError = firstError || document.getElementById('dept_group_select');
+  } else if(!catId){
     markSelectError('subcategory_select', 'Please select a sub-category.');
     firstError = firstError || document.getElementById('subcategory_select');
   }
@@ -1707,7 +1018,12 @@ document.getElementById('my_department').addEventListener('change', function(){
   const hint = this.closest('.field')?.querySelector('.inline-err');
   if(hint) hint.remove();
 });
-
+document.getElementById('dept_group_select').addEventListener('change', function(){
+  this.style.borderColor = '';
+  this.style.boxShadow   = '';
+  const hint = this.closest('.cat-step-block')?.querySelector('.inline-err');
+  if(hint) hint.remove();
+}, true);
 document.getElementById('subcategory_select').addEventListener('change', function(){
   this.style.borderColor = '';
   this.style.boxShadow   = '';
