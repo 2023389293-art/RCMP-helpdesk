@@ -461,6 +461,12 @@ if (!function_exists('pgstr')) {
       .pg-controls     { width: 100%; justify-content: flex-end; }
       .pagination-bottom { gap: 4px; }
     }
+    .card.no-pad {
+  overflow-x: auto !important;
+}
+.data-table {
+  min-width: 750px;
+}
   </style>
 </head>
 <body>
@@ -601,7 +607,7 @@ if (!function_exists('pgstr')) {
           </td>
 
           <!-- Assigned To -->
-          <td class="td-assigned">
+          <td class="td-assigned" style="max-width:130px;">
             <?php if (!empty($t['assigned_staff_name'])): ?>
               <div class="assigned-cell">
                 <div class="staff-avatar-sm"><?= staffInitials($t['assigned_staff_name']) ?></div>
@@ -615,7 +621,7 @@ if (!function_exists('pgstr')) {
           </td>
 
           <!-- View Button -->
-          <td>
+          <td style="white-space:nowrap; width:80px;">
             <a href="ticket_detail.php?id=<?= urlencode($t['ticket_id']) ?>" class="btn-view">
               <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               View
