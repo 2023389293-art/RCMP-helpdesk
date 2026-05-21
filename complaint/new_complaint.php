@@ -1438,11 +1438,22 @@ document.querySelectorAll('.dept-tab').forEach(tab => {
     const titleEl = document.getElementById('deptTabbarTitle');
     if (titleEl) titleEl.textContent = firstTab.dataset.dept;
     loadDeptCategories(firstTab.dataset.dept);
-    // Show AFSMD sub-tabs if that dept is active on load
     const subTabs = document.getElementById('afsmdSubTabs');
     if (firstTab.dataset.dept === 'Administration & Facilities Management Department') {
       subTabs.style.display = '';
     }
+  }
+
+  // ── Auto-open requisition tab if ?tab=requisition is in URL ──
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('tab') === 'requisition') {
+    // Click the AFSMD dept tab first
+    const afsmdTab = document.querySelector('.dept-tab[data-dept="Administration & Facilities Management Department"]');
+    if (afsmdTab) {
+      afsmdTab.click();
+    }
+    // Then switch to requisition sub-tab
+    switchAfsmdTab('requisition');
   }
 })();
 

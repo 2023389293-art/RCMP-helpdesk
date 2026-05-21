@@ -427,7 +427,7 @@ require 'layout.php';
     </div>
   </a>
 
-  <a href="#" class="qa-card qa-request-equipment">
+  <a href="new_complaint.php?tab=requisition" class="qa-card qa-request-equipment">
     <div class="qa-icon">
       <svg viewBox="0 0 24 24">
         <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
