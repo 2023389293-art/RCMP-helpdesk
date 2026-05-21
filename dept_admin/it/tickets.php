@@ -2,6 +2,15 @@
 // dept_admin/it/tickets.php (reference only)
 require '_layout.php';
 
+if (!function_exists('staffInitials')) {
+    function staffInitials(string $name): string {
+        $parts = explode(' ', trim($name));
+        $ini   = strtoupper(substr($parts[0], 0, 1));
+        if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
+        return $ini;
+    }
+}
+
 $status   = $_GET['status']   ?? '';
 $priority = $_GET['priority'] ?? '';
 $category = $_GET['category'] ?? '';
@@ -743,17 +752,6 @@ if (!function_exists('pgstr')) {
 </div>
 
 <?php include '_foot_scripts.php'; ?>
-
-<?php
-if (!function_exists('staffInitials')) {
-    function staffInitials(string $name): string {
-        $parts = explode(' ', trim($name));
-        $ini   = strtoupper(substr($parts[0], 0, 1));
-        if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
-        return $ini;
-    }
-}
-?>
 
 <script>
 /* ── PER-PAGE CHANGE — reload with page reset ── */
