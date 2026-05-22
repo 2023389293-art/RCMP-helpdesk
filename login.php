@@ -4,6 +4,22 @@ session_start();
 require 'db_connect.php';
 
 $error = '';
+$deptParam = $_GET['dept'] ?? $_POST['dept_param'] ?? '';
+$allowedDepts = ['it','hc','af','cc','maint'];
+if (!in_array($deptParam, $allowedDepts)) $deptParam = '';
+
+// Map dept param to new_complaint.php tab/query
+function buildRedirectUrl(string $dept): string {
+    $map = [
+        'it'    => 'complaint/new_complaint.php?dept_tab=Information+Technology+Department',
+        'hc'    => 'complaint/new_complaint.php?dept_tab=Human+Capital+Department',
+        'af'    => 'complaint/new_complaint.php?dept_tab=Administration+%26+Facilities+Management+Department',
+        'cc'    => 'complaint/new_complaint.php?dept_tab=Corporate+Communication+Unit',
+        'maint' => 'complaint/new_complaint.php?dept_tab=Maintenance+Department',
+    ];
+    return $map[$dept] ?? 'complaint/homepage.php';
+}
+$redirectUrl = buildRedirectUrl($deptParam);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = trim($_POST['email'] ?? '');
@@ -33,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_dept']  = null;
                 unset($_SESSION['staff_id']);
                 unset($_SESSION['fb_popup_shown']);
-                header('Location: complaint/homepage.php');
+                header('Location: ' . $redirectUrl);
                 exit;
             } else {
                 $error = 'Invalid email or password.';
@@ -67,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $_SESSION['user_dept'] = $deptId;
 
-                header('Location: complaint/homepage.php');
+                header('Location: ' . $redirectUrl);
                 exit;
             } else {
                 $error = 'Invalid email or password.';
@@ -93,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_dept']  = null;
                 unset($_SESSION['staff_id']);
                 unset($_SESSION['fb_popup_shown']);
-                header('Location: complaint/homepage.php');
+                header('Location: ' . $redirectUrl);
                 exit;
             }
 
@@ -125,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $_SESSION['user_dept'] = $deptId;
 
-                header('Location: complaint/homepage.php');
+                header('Location: ' . $redirectUrl);
                 exit;
             } else {
                 $error = 'Invalid email or password.';
@@ -147,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['user_dept']  = null;
         unset($_SESSION['staff_id']);
         unset($_SESSION['fb_popup_shown']);
-        header('Location: complaint/homepage.php');
+        header('Location: ' . $redirectUrl);
         exit;
     } else {
         $error = 'Invalid email or password.';
@@ -436,7 +452,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <?php endif; ?>
 
-    <form method="POST" action="login.php" id="loginForm">
+    <form method="POST" action="login.php?dept=<?php echo htmlspecialchars($deptParam); ?>" id="loginForm">
+      <input type="hidden" name="dept_param" value="<?php echo htmlspecialchars($deptParam); ?>"/>
 
       <div class="field">
         <label for="email">Email Address</label>

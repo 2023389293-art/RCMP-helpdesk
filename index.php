@@ -537,10 +537,11 @@ nav { padding: 0 14px; height: 60px; }
 
         <!-- Departments panel (right side) — animated cards -->
         <div class="fade-up d2" style="padding-top: 60px;">
+          <p style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;">Select a Department to Submit a Ticket</p>
           <div class="dept-grid">
 
             <!-- IT -->
-            <div class="dept-card it">
+            <a href="login.php?dept=it" class="dept-card it" style="text-decoration:none;cursor:pointer;">
               <div class="dept-icon">
                 <svg class="ico-it" viewBox="0 0 24 24" fill="none" stroke="#2B4F7E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <rect class="frame" x="2" y="3" width="20" height="14" rx="2" fill="rgba(43,79,126,0.05)"/>
@@ -555,10 +556,10 @@ nav { padding: 0 14px; height: 60px; }
                 <div class="dept-name">Information Technology</div>
                 <div class="dept-tag">IT Support &amp; Systems</div>
               </div>
-            </div>
+            </a>
 
             <!-- HC -->
-            <div class="dept-card hc">
+            <a href="login.php?dept=hc" class="dept-card hc" style="text-decoration:none;cursor:pointer;">
               <div class="dept-icon">
                 <svg class="ico-hc" viewBox="0 0 24 24" fill="none" stroke="#1B6E49" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <circle class="head" cx="12" cy="8" r="3.5"/>
@@ -571,10 +572,10 @@ nav { padding: 0 14px; height: 60px; }
                 <div class="dept-name">Human Capital</div>
                 <div class="dept-tag">HR &amp; Personnel</div>
               </div>
-            </div>
+            </a>
 
             <!-- AF -->
-            <div class="dept-card af">
+            <a href="login.php?dept=af" class="dept-card af" style="text-decoration:none;cursor:pointer;">
               <div class="dept-icon">
                 <svg class="ico-af" viewBox="0 0 24 24" fill="none" stroke="#B8860B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path class="walls" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="rgba(184,134,11,0.06)"/>
@@ -587,10 +588,10 @@ nav { padding: 0 14px; height: 60px; }
                 <div class="dept-name">Administration &amp; Facilities</div>
                 <div class="dept-tag">Admin &amp; Infrastructure</div>
               </div>
-            </div>
+            </a>
 
             <!-- CC -->
-            <div class="dept-card cc">
+            <a href="login.php?dept=cc" class="dept-card cc" style="text-decoration:none;cursor:pointer;">
               <div class="dept-icon">
                 <svg class="ico-cc" viewBox="0 0 24 24" fill="none" stroke="#502C78" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path class="bubble" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" fill="rgba(80,44,120,0.06)"/>
@@ -603,10 +604,10 @@ nav { padding: 0 14px; height: 60px; }
                 <div class="dept-name">Corporate Communication</div>
                 <div class="dept-tag">Comms &amp; Media</div>
               </div>
-            </div>
+            </a>
 
             <!-- MAINT — wide -->
-            <div class="dept-card maint wide">
+            <a href="login.php?dept=maint" class="dept-card maint wide" style="text-decoration:none;cursor:pointer;">
               <div class="dept-icon">
                 <svg class="ico-maint" viewBox="0 0 24 24" fill="none" stroke="#AF3723" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <g class="gear-group">
@@ -629,7 +630,7 @@ nav { padding: 0 14px; height: 60px; }
                 <div class="dept-name">Maintenance</div>
                 <div class="dept-tag">Building &amp; Equipment Maintenance</div>
               </div>
-            </div>
+            </a>
 
           </div>
         </div>

@@ -287,24 +287,6 @@ $activeNav    = 'new_complaint';
 ob_start();
 ?>
 <style>
-   /* ── DEPARTMENT TAB BAR ─────────────────────────────────────── */
-.dept-tabbar{width:100%;max-width:960px;background:#1a3a5c;border-radius:14px;overflow:hidden;margin-bottom:16px;box-shadow:0 6px 24px rgba(26,58,92,0.18);}
-.dept-tabbar-header{padding:18px 28px 0;text-align:center;}
-.dept-tabbar-title{font-family:'DM Serif Display',serif;font-size:20px;color:#fff;font-weight:400;letter-spacing:0.01em;transition:opacity 0.2s;}
-.dept-tabs{display:flex;overflow-x:auto;scrollbar-width:none;margin-top:12px;border-top:1px solid rgba(255,255,255,0.12);}
-.dept-tabs::-webkit-scrollbar{display:none;}
-.dept-tab{flex:1;min-width:0;padding:14px 10px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.5);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 0.2s,border-color 0.2s,background 0.2s;border:none;background:none;text-align:center;}
-.dept-tab:hover{color:rgba(255,255,255,0.85);background:rgba(255,255,255,0.06);}
-.dept-tab.active{color:#fff;border-bottom:3px solid #fff;background:rgba(255,255,255,0.10);}
-.dept-form-header{display:none;}
-.dept-page-title{width:100%;max-width:960px;margin-bottom:20px;padding-top:4px;}
-.dept-page-title h2{font-family:'DM Serif Display',serif;font-size:22px;color:var(--g900);margin:0 0 4px 0;font-weight:400;}
-.dept-page-title p{font-size:13px;color:var(--g500);margin:0;font-weight:300;}
-@media(max-width:768px){
-  .dept-tab{font-size:10px;padding:12px 8px;}
-  .dept-tabbar{max-width:100%;}
-  .dept-page-title{max-width:100%;}
-}
   /* ── EXISTING STYLES (unchanged) ─────────────────────────── */
   .form-progress-bar{position:fixed;top:0;left:var(--sidebar-w);right:0;height:3px;background:var(--g100);z-index:500;}
   .form-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),#4A90D9);border-radius:0 2px 2px 0;transition:width 0.4s cubic-bezier(0.4,0,0.2,1);}
@@ -322,13 +304,13 @@ ob_start();
   .steps-row{display:flex;align-items:stretch;width:100%;max-width:960px;margin-bottom:28px;background:white;border:1px solid var(--g300);border-radius:14px;overflow:hidden;}
   .step{flex:1;display:flex;align-items:center;gap:12px;padding:18px 24px;position:relative;transition:background 0.25s;}
   .step:not(:last-child)::after{content:'';position:absolute;right:0;top:50%;transform:translateY(-50%);width:1px;height:40%;background:var(--g300);}
-  .step.active{background:var(--blue-light);}
+  .step.active{background:color-mix(in srgb, var(--active-tab-color, var(--blue)) 10%, white);}
   .step.done{background:#f0f8eb;}
   .step-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;background:var(--g100);color:var(--g500);border:1.5px solid var(--g300);transition:all 0.25s;}
-  .step.active .step-num{background:var(--blue);color:white;border-color:var(--blue);}
+  .step.active .step-num{background:var(--active-tab-color, var(--blue));color:white;border-color:var(--active-tab-color, var(--blue));}
   .step.done .step-num{background:#4CAF50;color:white;border-color:#4CAF50;}
   .step-label{font-size:13px;font-weight:500;color:var(--g500);}
-  .step.active .step-label{color:var(--blue);}
+  .step.active .step-label{color:var(--active-tab-color, var(--blue));}
   .step.done .step-label{color:#3B6D11;}
   .step-sub{font-size:11px;color:var(--g500);margin-top:1px;}
   .wh-banner{display:flex;align-items:flex-start;gap:14px;width:100%;max-width:960px;padding:16px 20px;border-radius:12px;margin-bottom:20px;font-size:13px;line-height:1.6;animation:fadeSlideIn 0.35s ease;}
@@ -355,8 +337,9 @@ ob_start();
   .alert svg{width:18px;height:18px;flex-shrink:0;margin-top:1px;}
   .alert-error{background:#FDECEA;color:#B71C1C;border:1px solid rgba(183,28,28,0.15);}
   .alert-error svg{fill:none;stroke:#B71C1C;stroke-width:2;}
-  #complaintForm{width:100%;max-width:960px;}
-  .form-card{background:white;border-radius:20px;border:1px solid var(--g300);overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.06),0 10px 40px -8px rgba(0,59,142,0.10);}
+  #complaintForm{width:100%;max-width:960px;background:transparent;padding:0;box-sizing:border-box;}
+  .complaint-section-wrapper{width:100%;max-width:960px;border:2px solid #e2e8f0;border-radius:20px;padding:24px 24px 24px 24px;box-sizing:border-box;background:white;transition:border-color 0.3s ease;}
+.form-card{background:white;border-radius:18px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:none;}
   .form-card-header{padding:26px 32px 22px;border-bottom:1px solid var(--g100);display:flex;align-items:center;gap:14px;background:linear-gradient(to right,#f7f9ff,#ffffff);}
   .fch-icon{width:44px;height:44px;border-radius:12px;background:var(--blue-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .fch-icon svg{width:22px;height:22px;fill:none;stroke:var(--blue);stroke-width:1.8;}
@@ -422,7 +405,6 @@ ob_start();
   .btn-submit svg{width:16px;height:16px;fill:none;stroke:white;stroke-width:2;}
 
   /* ── OUTSIDE HOURS: locked form overlay ──────────────────── */
-  .form-locked-wrap{position:relative;width:100%;max-width:820px;}
   .form-locked-overlay{
     position:absolute;inset:0;z-index:20;
     background:rgba(255,255,255,0.82);
@@ -447,7 +429,7 @@ ob_start();
   .btn-submit-locked{font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;padding:12px 32px;border-radius:10px;background:#bdbdbd;color:white;border:none;cursor:not-allowed;display:flex;align-items:center;gap:9px;letter-spacing:0.01em;}
   .btn-submit-locked svg{width:16px;height:16px;fill:none;stroke:white;stroke-width:2;}
 
-  #previewPanel{display:none;width:100%;max-width:820px;}
+  #previewPanel{display:none;width:100%;max-width:960px;}
   #previewPanel.show{display:block;}
   .preview-card{background:white;border-radius:20px;border:1px solid var(--g300);overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.06),0 10px 40px -8px rgba(0,59,142,0.10);}
   .preview-card-header{padding:26px 32px 22px;border-bottom:1px solid var(--g100);display:flex;align-items:center;gap:14px;background:linear-gradient(to right,#f7fff7,#ffffff);}
@@ -532,14 +514,82 @@ ob_start();
 .urg-option[value="critical"]+.urg-label .urg-dot{background:#EF4444;}
 .cat-option{display:none;}
 .cat-label{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:16px;border-radius:14px;border:1.5px solid var(--g300);background:white;cursor:pointer;transition:all .2s;position:relative;}
-.cat-label:hover{border-color:#D4A017;box-shadow:0 4px 16px rgba(212,160,23,.12);}
-.cat-option:checked+.cat-label{border-color:#854f0b;background:#faeeda;box-shadow:0 4px 20px rgba(133,79,11,.15);}
+.cat-label:hover{border-color:#0D9488;box-shadow:0 4px 16px rgba(13,148,136,.12);}
+.cat-option:checked+.cat-label{border-color:#0D9488;background:#f0fdfa;box-shadow:0 4px 20px rgba(13,148,136,.15);}
 .cat-option:checked+.cat-label .cat-check{opacity:1;}
 .cat-icon{width:40px;height:40px;border-radius:10px;background:#f4f6fb;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .cat-name{font-size:13px;font-weight:600;color:var(--g900);line-height:1.2;}
 .cat-desc{font-size:11px;color:var(--g500);line-height:1.4;margin-top:2px;}
-.cat-check{position:absolute;top:10px;right:10px;width:18px;height:18px;border-radius:50%;background:#854f0b;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;}
+.cat-check{position:absolute;top:10px;right:10px;width:18px;height:18px;border-radius:50%;background:#0D9488;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;}
 .cat-check svg{width:10px;height:10px;fill:none;stroke:white;stroke-width:3;}
+
+/* ── DEPARTMENT TAB BAR ─────────────────────────────────────── */
+.dept-tabbar{width:100%;max-width:960px;margin-bottom:16px;}
+.dept-tabbar-header{display:none;}
+.dept-tabbar-title{display:none;}
+.dept-tabs{display:flex;overflow-x:auto;scrollbar-width:none;padding:4px 0;gap:8px;}
+.dept-tabs::-webkit-scrollbar{display:none;}
+.dept-tab{flex:1;min-width:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:12px 8px 12px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--g500);cursor:pointer;border-radius:12px;border:1.5px solid var(--g200);background:white;text-align:center;line-height:1.3;transition:all 0.2s;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+.dept-tab:hover{color:#1a3a5c;border-color:var(--g200);background:#f8f9fb;box-shadow:none;border:2.5px solid var(--g200);}
+.dept-tab.active{color:#1a3a5c;border-color:var(--g200);background:#eef2f9;box-shadow:none;border:2.5px solid var(--g200);}
+.dept-tab-icon{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:transparent;transition:background 0.2s;}
+.dept-tab:hover .dept-tab-icon{background:transparent;}
+.dept-tab.active .dept-tab-icon{background:transparent;}
+
+/* ── Per-department hover & active colors ── */
+/* Information Technology — blue */
+.dept-tab:nth-child(1):hover,
+.dept-tab:nth-child(1).active{border:2.5px solid #2563EB !important;color:#1e40af;background:#f0f5ff;}
+.dept-tab:nth-child(1):hover .dept-tab-icon,
+.dept-tab:nth-child(1).active .dept-tab-icon{background:transparent;}
+.dept-tab:nth-child(1):hover svg,
+.dept-tab:nth-child(1).active svg{stroke:#2563EB;}
+
+/* Maintenance — green */
+.dept-tab:nth-child(2):hover,
+.dept-tab:nth-child(2).active{border:2.5px solid #16A34A !important;color:#15803d;background:#f0fdf4;}
+.dept-tab:nth-child(2):hover .dept-tab-icon,
+.dept-tab:nth-child(2).active .dept-tab-icon{background:transparent;}
+.dept-tab:nth-child(2):hover svg,
+.dept-tab:nth-child(2).active svg{stroke:#16A34A;}
+
+/* Admin & Facilities — orange */
+.dept-tab:nth-child(3):hover,
+.dept-tab:nth-child(3).active{border:2.5px solid #EA580C !important;color:#c2410c;background:#fff7ed;}
+.dept-tab:nth-child(3):hover .dept-tab-icon,
+.dept-tab:nth-child(3).active .dept-tab-icon{background:transparent;}
+.dept-tab:nth-child(3):hover svg,
+.dept-tab:nth-child(3).active svg{stroke:#EA580C;}
+
+/* Corporate Communication — purple */
+.dept-tab:nth-child(4):hover,
+.dept-tab:nth-child(4).active{border:2.5px solid #7C3AED !important;color:#6d28d9;background:#faf5ff;}
+.dept-tab:nth-child(4):hover .dept-tab-icon,
+.dept-tab:nth-child(4).active .dept-tab-icon{background:transparent;}
+.dept-tab:nth-child(4):hover svg,
+.dept-tab:nth-child(4).active svg{stroke:#7C3AED;}
+
+/* Human Capital — rose/pink */
+.dept-tab:nth-child(5):hover,
+.dept-tab:nth-child(5).active{border:2.5px solid #E11D48 !important;color:#be123c;background:#fff1f2;}
+.dept-tab:nth-child(5):hover .dept-tab-icon,
+.dept-tab:nth-child(5).active .dept-tab-icon{background:transparent;}
+.dept-tab:nth-child(5):hover svg,
+.dept-tab:nth-child(5).active svg{stroke:#E11D48;}
+.dept-tab-label{max-width:120px;word-break:break-word;}
+.dept-form-header{display:none;}
+.dept-page-title{width:100%;max-width:960px;margin-bottom:20px;padding-top:4px;}
+.dept-page-title h2{font-family:'DM Serif Display',serif;font-size:22px;color:var(--g900);margin:0 0 4px 0;font-weight:400;}
+.dept-page-title p{font-size:13px;color:var(--g500);margin:0;font-weight:300;}
+@media(max-width:768px){
+  .dept-tabs{gap:6px;padding:4px 0;}
+  .dept-tab{min-width:72px;font-size:9px;padding:10px 6px 10px;}
+  .dept-tab-icon{width:36px;height:36px;}
+  .dept-tab-icon svg{width:18px;height:18px;}
+  .dept-tabbar{max-width:100%;}
+  .dept-page-title{max-width:100%;}
+}
+
 </style>
 <?php
 $extraHead = ob_get_clean();
@@ -566,50 +616,93 @@ require 'layout.php';
     <div class="dept-tabbar-title" id="deptTabbarTitle">Choose Department</div>
   </div>
   <div class="dept-tabs" id="deptTabs">
-    <button class="dept-tab active" data-dept="Information Technology Department" type="button">Information Technology</button>
-    <button class="dept-tab" data-dept="Maintenance Department" type="button">Maintenance</button>
-    <button class="dept-tab" data-dept="Administration &amp; Facilities Management Department" type="button">Admin &amp; Facilities</button>
-    <button class="dept-tab" data-dept="Corporate Communication Unit" type="button">Corporate Communication</button>
-    <button class="dept-tab" data-dept="Human Capital Department" type="button">Human Capital</button>
+
+    <button class="dept-tab active" data-dept="Information Technology Department" type="button">
+      <span class="dept-tab-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </span>
+      <span class="dept-tab-label">Information Technology</span>
+    </button>
+
+    <button class="dept-tab" data-dept="Maintenance Department" type="button">
+      <span class="dept-tab-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+        </svg>
+      </span>
+      <span class="dept-tab-label">Maintenance</span>
+    </button>
+
+    <button class="dept-tab" data-dept="Administration &amp; Facilities Management Department" type="button">
+      <span class="dept-tab-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </span>
+      <span class="dept-tab-label">Admin &amp; Facilities</span>
+    </button>
+
+    <button class="dept-tab" data-dept="Corporate Communication Unit" type="button">
+      <span class="dept-tab-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </span>
+      <span class="dept-tab-label">Corporate Communication</span>
+    </button>
+
+    <button class="dept-tab" data-dept="Human Capital Department" type="button">
+      <span class="dept-tab-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </span>
+      <span class="dept-tab-label">Human Capital</span>
+    </button>
+
   </div>
 </div>
 
 <!-- ── AFSMD SUB-TABS ── -->
-<div id="afsmdSubTabs" style="display:none;width:100%;max-width:960px;margin-bottom:0;">
-<br>
-  <!-- Card toggle bar -->
-  <div style="padding:0 0 8px;margin-bottom:0;">
-    <div style="display:flex;gap:10px;justify-content:center;">
+<div id="afsmdSubTabs" style="display:none;width:100%;max-width:960px;margin-bottom:16px;margin-top:12px;">
+  <div style="display:flex;justify-content:center;">
+    <div style="display:inline-flex;background:#f1f5f9;border-radius:14px;padding:4px;gap:2px;border:2px solid #cbd5e1;">
 
       <button type="button" id="subTabComplaint" onclick="switchAfsmdTab('complaint')"
-        style="display:inline-flex;align-items:center;gap:8px;
-               padding:10px 18px;border-radius:10px;border:1.5px solid #1a3a5c;
+        style="display:inline-flex;align-items:center;gap:7px;
+               padding:8px 18px;border-radius:10px;border:none;
                cursor:pointer;font-family:'DM Sans',sans-serif;
-               background:white;color:#1a3a5c;transition:all .2s;
-               box-shadow:0 2px 8px rgba(0,0,0,0.10);font-size:13px;font-weight:600;">
-        <div style="width:28px;height:28px;border-radius:7px;background:#e8eef7;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a3a5c" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-          </svg>
-        </div>
+               background:white;color:#1a3a5c;
+               box-shadow:0 1px 4px rgba(0,0,0,0.10);font-size:13px;font-weight:600;
+               transition:all .2s;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
         Submit Complaint
       </button>
 
       <button type="button" id="subTabRequisition" onclick="switchAfsmdTab('requisition')"
-        style="display:inline-flex;align-items:center;gap:8px;
-               padding:10px 18px;border-radius:10px;border:1.5px solid var(--g300);
+        style="display:inline-flex;align-items:center;gap:7px;
+               padding:8px 18px;border-radius:10px;border:none;
                cursor:pointer;font-family:'DM Sans',sans-serif;
-               background:white;color:var(--g700);transition:all .2s;
-               box-shadow:0 2px 8px rgba(0,0,0,0.06);font-size:13px;font-weight:600;">
-        <div style="width:28px;height:28px;border-radius:7px;background:#faeeda;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#854f0b" stroke-width="2">
-            <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
-            <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>
-            <line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
-          </svg>
-        </div>
+               background:transparent;color:#64748b;
+               box-shadow:none;font-size:13px;font-weight:600;
+               transition:all .2s;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+          <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>
+          <line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
+        </svg>
         Request Equipment
       </button>
 
@@ -618,6 +711,7 @@ require 'layout.php';
 </div>
 
 <div id="afsmdComplaintSection">
+<div class="complaint-section-wrapper" id="complaintSectionWrapper">
 <div class="dept-page-title"> <br>
   <h2>Submit a Complaint</h2>
   <p>Fill in the details below and the relevant department will attend to your request.</p>
@@ -876,10 +970,12 @@ require 'layout.php';
   </div>
 </div>
 <?php endif; ?>
+</div><!-- /complaint-section-wrapper -->
 </div><!-- /afsmdComplaintSection -->
 
 <!-- ── AFSMD REQUISITION SECTION (embedded, hidden by default) ── -->
 <div id="afsmdRequisitionSection" style="display:none; width:100%; max-width:960px;">
+<div class="complaint-section-wrapper" id="requisitionSectionWrapper" style="border-color:#0D9488;">
 
   <div class="dept-page-title"><br>
     <h2>Request Equipment</h2>
@@ -889,8 +985,8 @@ require 'layout.php';
   <!-- Steps for requisition -->
   <div class="steps-row" id="req-steps-row">
     <div class="step active" id="req-step1">
-      <div class="step-num" style="background:#854f0b;color:white;border-color:#854f0b;">1</div>
-      <div><div class="step-label" style="color:#854f0b;">Fill Details</div><div class="step-sub">What do you need?</div></div>
+      <div class="step-num" style="background:#0D9488;color:white;border-color:#0D9488;">1</div>
+      <div><div class="step-label" style="color:#0D9488;">Fill Details</div><div class="step-sub">What do you need?</div></div>
     </div>
     <div class="step" id="req-step2">
       <div class="step-num">2</div>
@@ -906,10 +1002,10 @@ require 'layout.php';
   <!-- ── REQ FORM ── -->
   <form method="POST" action="new_complaint.php" id="reqForm" enctype="multipart/form-data" novalidate>
     <input type="hidden" name="form_type" value="requisition"/>
-    <div class="form-card" style="box-shadow:0 4px 6px -1px rgba(0,0,0,.06),0 10px 40px -8px rgba(133,79,11,.10);">
-      <div class="form-card-header" style="background:linear-gradient(to right,#fffbf2,#ffffff);">
-        <div class="fch-icon" style="background:#faeeda;">
-          <svg viewBox="0 0 24 24" style="stroke:#854f0b">
+    <div class="form-card" style="box-shadow:0 4px 6px -1px rgba(0,0,0,.06),0 10px 40px -8px rgba(13,148,136,.10);">
+      <div class="form-card-header" style="background:linear-gradient(to right,#f0fdfa,#ffffff);">
+        <div class="fch-icon" style="background:#ccfbf1;">
+          <svg viewBox="0 0 24 24" style="stroke:#0D9488">
             <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
             <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>
             <line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
@@ -938,8 +1034,8 @@ require 'layout.php';
           <div>
             <input type="radio" name="req_category" id="<?php echo $slug; ?>" class="cat-option req-cat-option" value="<?php echo htmlspecialchars($catName); ?>">
             <label class="cat-label" for="<?php echo $slug; ?>">
-              <div class="cat-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
-              <div class="cat-icon" style="background:#faeeda;"><svg viewBox="0 0 24 24" style="fill:none;stroke:#854f0b;stroke-width:1.8;width:19px;height:19px;"><?php echo $catMeta['icon']; ?></svg></div>
+              <div class="cat-check" style="background:#0D9488;"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="cat-icon" style="background:#ccfbf1;"><svg viewBox="0 0 24 24" style="fill:none;stroke:#0D9488;stroke-width:1.8;width:19px;height:19px;"><?php echo $catMeta['icon']; ?></svg></div>
               <div class="cat-name"><?php echo htmlspecialchars($catName); ?></div>
               <div class="cat-desc"><?php echo htmlspecialchars($catMeta['desc']); ?></div>
             </label>
@@ -1037,14 +1133,14 @@ require 'layout.php';
                    accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.txt"
                    onchange="reqHandleFile(this)"/>
             <div class="file-icon"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
-            <div class="file-drop-title">Drop a file here, or <strong style="color:#854f0b;">browse</strong></div>
+            <div class="file-drop-title">Drop a file here, or <strong style="color:#0D9488;">browse</strong></div>
             <div class="file-drop-sub">JPG, PNG, PDF, DOC, DOCX, TXT — max 5 MB</div>
           </div>
           <div class="file-selected" id="reqFileSelected"
                style="display:none;align-items:center;gap:10px;padding:10px 14px;
-                      background:#faeeda;border:1px solid rgba(133,79,11,.2);border-radius:8px;
-                      margin-top:10px;font-size:13px;color:#854f0b;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#854f0b" stroke-width="2">
+                      background:#f0fdfa;border:1px solid rgba(13,148,136,.2);border-radius:8px;
+                      margin-top:10px;font-size:13px;color:#0D9488;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
             </svg>
@@ -1059,8 +1155,8 @@ require 'layout.php';
         <button type="button" class="btn-cancel" onclick="switchAfsmdTab('complaint')">Cancel</button>
         <button type="button" onclick="showReqPreview()"
                 style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;padding:12px 32px;
-                       border-radius:10px;background:#854f0b;color:white;border:none;cursor:pointer;
-                       display:flex;align-items:center;gap:9px;box-shadow:0 4px 14px rgba(133,79,11,.28);
+                       border-radius:10px;background:#0D9488;color:white;border:none;cursor:pointer;
+                       display:flex;align-items:center;gap:9px;box-shadow:0 4px 14px rgba(13,148,136,.28);
                        transition:all .2s;">
           Preview & Review
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
@@ -1071,8 +1167,8 @@ require 'layout.php';
 
   <!-- REQ PREVIEW PANEL -->
   <div id="reqPreviewPanel" style="display:none;width:100%;">
-    <div class="preview-card" style="box-shadow:0 4px 6px -1px rgba(0,0,0,.06),0 10px 40px -8px rgba(133,79,11,.10);">
-      <div class="preview-card-header" style="background:linear-gradient(to right,#fffbf2,#ffffff);">
+    <div class="preview-card" style="box-shadow:0 4px 6px -1px rgba(0,0,0,.06),0 10px 40px -8px rgba(13,148,136,.10);">
+      <div class="preview-card-header" style="background:linear-gradient(to right,#f0fdfa,#ffffff);">
         <div class="pch-icon"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
         <div class="pch-text"><h3>Review Your Request</h3><p>Please check all details carefully before submitting</p></div>
       </div>
@@ -1137,23 +1233,24 @@ require 'layout.php';
   </div>
   <?php endif; ?>
 
+</div><!-- /requisitionSectionWrapper -->
 </div><!-- /afsmdRequisitionSection -->
 
 <!-- ── REQUISITION SUCCESS OVERLAY ── -->
 <div class="success-overlay <?php echo $reqSuccess ? 'show' : ''; ?>" id="reqSuccessOverlay">
   <div class="success-card">
-    <div class="success-icon-wrap" style="background:linear-gradient(135deg,#854f0b,#D4A017);box-shadow:0 8px 24px rgba(133,79,11,.3);">
+    <div class="success-icon-wrap" style="background:linear-gradient(135deg,#0D9488,#2DD4BF);box-shadow:0 8px 24px rgba(13,148,136,.3);">
       <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
     </div>
     <h2>Request Submitted!</h2>
     <p>Your equipment request has been forwarded to Administration & Facilities Management Department.</p>
-    <div style="background:#faeeda;border:1px solid rgba(133,79,11,.2);border-radius:10px;padding:14px 20px;margin-bottom:20px;">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#854f0b;font-weight:600;margin-bottom:4px;">Reference Number</div>
+    <div style="background:#f0fdfa;border:1px solid rgba(13,148,136,.2);border-radius:10px;padding:14px 20px;margin-bottom:20px;">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#0D9488;font-weight:600;margin-bottom:4px;">Reference Number</div>
       <div style="font-family:monospace;font-size:18px;font-weight:700;color:var(--g900);"><?php echo htmlspecialchars($reqRefNumber); ?></div>
     </div>
     <div class="success-actions">
       <a href="new_complaint.php" class="btn-ghost">Submit Another</a>
-      <a href="homepage.php" style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:10px 20px;border-radius:8px;background:#854f0b;color:white;border:none;cursor:pointer;text-decoration:none;">← Back to Dashboard</a>
+      <a href="homepage.php" style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:10px 20px;border-radius:8px;background:#0D9488;color:white;border:none;cursor:pointer;text-decoration:none;">← Back to Dashboard</a>
     </div>
   </div>
 </div>
@@ -1194,25 +1291,25 @@ function switchAfsmdTab(tab) {
   if (tab === 'complaint') {
     complaint.style.display   = '';
     requisition.style.display = 'none';
-    btnComplaint.style.background   = 'white';
-    btnComplaint.style.borderColor  = '#1a3a5c';
-    btnComplaint.style.color        = '#1a3a5c';
-    btnComplaint.style.boxShadow    = '0 2px 8px rgba(0,0,0,0.10)';
-    btnReq.style.background   = 'white';
-    btnReq.style.borderColor  = 'var(--g300)';
-    btnReq.style.color        = 'var(--g500)';
-    btnReq.style.boxShadow    = 'none';
+    // Active pill style
+    btnComplaint.style.background  = 'white';
+    btnComplaint.style.color       = '#1a3a5c';
+    btnComplaint.style.boxShadow   = '0 1px 4px rgba(0,0,0,0.10)';
+    // Inactive pill style
+    btnReq.style.background  = 'transparent';
+    btnReq.style.color       = '#64748b';
+    btnReq.style.boxShadow   = 'none';
   } else {
     complaint.style.display   = 'none';
     requisition.style.display = '';
-    btnReq.style.background   = 'white';
-    btnReq.style.borderColor  = '#854f0b';
-    btnReq.style.color        = '#854f0b';
-    btnReq.style.boxShadow    = '0 2px 8px rgba(133,79,11,0.15)';
-    btnComplaint.style.background   = 'white';
-    btnComplaint.style.borderColor  = 'var(--g300)';
-    btnComplaint.style.color        = 'var(--g500)';
-    btnComplaint.style.boxShadow    = 'none';
+    // Active pill style
+    btnReq.style.background  = 'white';
+    btnReq.style.color       = '#0D9488';
+    btnReq.style.boxShadow   = '0 1px 4px rgba(13,148,136,0.15)';
+    // Inactive pill style
+    btnComplaint.style.background  = 'transparent';
+    btnComplaint.style.color       = '#64748b';
+    btnComplaint.style.boxShadow   = 'none';
   }
 }
 const allCategories  = <?php echo json_encode($dbCategories, JSON_UNESCAPED_UNICODE); ?>;
@@ -1227,12 +1324,59 @@ const subcatReveal = document.getElementById('subcategoryReveal');
 let selectedHandler = '';
 
 // ── TAB BAR LOGIC ──────────────────────────────────────────────
+const deptBorderColors = {
+  'Information Technology Department':                   '#2563EB',
+  'Maintenance Department':                              '#16A34A',
+  'Administration & Facilities Management Department':   '#EA580C',
+  'Corporate Communication Unit':                        '#7C3AED',
+  'Human Capital Department':                            '#E11D48',
+};
+
+function applyDeptBorderColor(deptName) {
+  const color = deptBorderColors[deptName] || '#b6c6e0';
+
+  // Wrapper border (the outer card — keep this)
+  const wrapper = document.getElementById('complaintSectionWrapper');
+  if (wrapper) wrapper.style.borderColor = color;
+
+  // Step 1 circle color
+  const step1Num = document.querySelector('#step1 .step-num');
+  if (step1Num && document.getElementById('step1').classList.contains('active')) {
+    step1Num.style.background   = color;
+    step1Num.style.borderColor  = color;
+    step1Num.style.color        = 'white';
+  }
+
+  // Step 1 label color
+  const step1Label = document.querySelector('#step1 .step-label');
+  if (step1Label) step1Label.style.color = color;
+
+  // Step highlight background
+  const step1El = document.getElementById('step1');
+  if (step1El) {
+    // Use a very light tint of the color for the active step background
+    step1El.style.background = color + '18'; // 18 = ~10% opacity hex
+  }
+
+  // Form card header icon background tint
+  document.querySelectorAll('.fch-icon').forEach(icon => {
+    icon.style.background = color + '18';
+  });
+  document.querySelectorAll('.fch-icon svg').forEach(svg => {
+    svg.style.stroke = color;
+  });
+
+  // Store as CSS variable for use elsewhere
+  document.documentElement.style.setProperty('--active-tab-color', color);
+}
+
 function activateTab(tabEl) {
   document.querySelectorAll('.dept-tab').forEach(t => t.classList.remove('active'));
   tabEl.classList.add('active');
   const titleEl = document.getElementById('deptTabbarTitle');
   if (titleEl) titleEl.textContent = tabEl.dataset.dept;
   loadDeptCategories(tabEl.dataset.dept);
+  applyDeptBorderColor(tabEl.dataset.dept);
 
   // Show/hide the AFSMD sub-tabs
   const subTabs = document.getElementById('afsmdSubTabs');
@@ -1345,7 +1489,7 @@ function showReqPreview() {
   // Populate preview
   const urgLabels  = {normal:'Normal',urgent:'Urgent',critical:'Critical'};
   const urgClasses = {normal:'urg-normal',urgent:'urg-urgent',critical:'urg-critical'};
-  document.getElementById('rpv-category').innerHTML = `<span class="preview-badge" style="background:#faeeda;color:#854f0b;border-color:rgba(133,79,11,.2)">${esc(category)}</span>`;
+  document.getElementById('rpv-category').innerHTML = `<span class="preview-badge" style="background:#f0fdfa;color:#0D9488;border-color:rgba(13,148,136,.2)">${esc(category)}</span>`;
   document.getElementById('rpv-urgency').innerHTML  = `<span class="preview-urg-badge ${urgClasses[urgency]||''}">${esc(urgLabels[urgency]||urgency)}</span>`;
   document.getElementById('rpv-item').textContent     = item;
   document.getElementById('rpv-quantity').textContent = qty + (qty===1?' unit':' units');
@@ -1358,7 +1502,7 @@ function showReqPreview() {
   const fileInp = document.getElementById('req_attachment');
   const fileSel = document.getElementById('reqFileSelected');
   attEl.innerHTML = (fileInp.files.length > 0 && fileSel.style.display !== 'none')
-    ? `<span style="color:#854f0b;font-weight:500">${esc(document.getElementById('reqFileName').textContent)}</span>`
+    ? `<span style="color:#0D9488;font-weight:500">${esc(document.getElementById('reqFileName').textContent)}</span>`
     : '<span style="color:#bbb;font-style:italic">No attachment</span>';
 
   document.getElementById('reqForm').style.display = 'none';
@@ -1368,7 +1512,7 @@ function showReqPreview() {
   document.getElementById('req-step1').classList.remove('active'); document.getElementById('req-step1').classList.add('done');
   document.getElementById('req-step1').querySelector('.step-num').style.cssText = 'background:#4CAF50;color:white;border-color:#4CAF50;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
   document.getElementById('req-step2').classList.add('active');
-  document.getElementById('req-step2').querySelector('.step-num').style.cssText = 'background:#854f0b;color:white;border-color:#854f0b;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
+  document.getElementById('req-step2').querySelector('.step-num').style.cssText = 'background:#0D9488;color:white;border-color:#0D9488;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -1376,7 +1520,7 @@ function backToReqForm() {
   document.getElementById('reqForm').style.display = '';
   document.getElementById('reqPreviewPanel').style.display = 'none';
   document.getElementById('req-step1').classList.add('active'); document.getElementById('req-step1').classList.remove('done');
-  document.getElementById('req-step1').querySelector('.step-num').style.cssText = 'background:#854f0b;color:white;border-color:#854f0b;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
+  document.getElementById('req-step1').querySelector('.step-num').style.cssText = 'background:#4CAF50;color:white;border-color:#4CAF50;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
   document.getElementById('req-step2').classList.remove('active');
   document.getElementById('req-step2').querySelector('.step-num').style.cssText = '';
   window.scrollTo({top:0,behavior:'smooth'});
@@ -1388,7 +1532,7 @@ function submitReqForm() {
   btn.innerHTML = 'Submitting… <svg viewBox="0 0 24 24" width="16" height="16" style="animation:spin 0.8s linear infinite;fill:none;stroke:white;stroke-width:2"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>';
   document.getElementById('req-step2').classList.remove('active'); document.getElementById('req-step2').classList.add('done');
   document.getElementById('req-step3').classList.add('active');
-  document.getElementById('req-step3').querySelector('.step-num').style.cssText = 'background:#854f0b;color:white;border-color:#854f0b;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
+  document.getElementById('req-step3').querySelector('.step-num').style.cssText = 'background:#0D9488;color:white;border-color:#0D9488;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;';
   document.getElementById('reqForm').submit();
 }
 
@@ -1438,21 +1582,27 @@ document.querySelectorAll('.dept-tab').forEach(tab => {
     const titleEl = document.getElementById('deptTabbarTitle');
     if (titleEl) titleEl.textContent = firstTab.dataset.dept;
     loadDeptCategories(firstTab.dataset.dept);
+    applyDeptBorderColor(firstTab.dataset.dept);
     const subTabs = document.getElementById('afsmdSubTabs');
     if (firstTab.dataset.dept === 'Administration & Facilities Management Department') {
       subTabs.style.display = '';
     }
   }
 
-  // ── Auto-open requisition tab if ?tab=requisition is in URL ──
+  // ── Auto-open tab from ?dept_tab= or ?tab=requisition ──
   const urlParams = new URLSearchParams(window.location.search);
+  const deptTabParam = urlParams.get('dept_tab');
+  if (deptTabParam) {
+    const targetTab = document.querySelector(`.dept-tab[data-dept="${deptTabParam}"]`);
+    if (targetTab) {
+      targetTab.click();
+    }
+  }
   if (urlParams.get('tab') === 'requisition') {
-    // Click the AFSMD dept tab first
     const afsmdTab = document.querySelector('.dept-tab[data-dept="Administration & Facilities Management Department"]');
     if (afsmdTab) {
       afsmdTab.click();
     }
-    // Then switch to requisition sub-tab
     switchAfsmdTab('requisition');
   }
 })();
