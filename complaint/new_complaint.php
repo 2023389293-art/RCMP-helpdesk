@@ -140,10 +140,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_type']) && $_POS
             $uploadDir = '../uploads/requisitions/';
             if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
             $ext     = strtolower(pathinfo($_FILES['req_attachment']['name'], PATHINFO_EXTENSION));
-            $allowed = ['jpg','jpeg','png','gif','pdf','doc','docx','txt'];
-            if (!in_array($ext, $allowed)) {
-                $error = 'Invalid file type.';
-            } elseif ($_FILES['req_attachment']['size'] > 5 * 1024 * 1024) {
+$allowed = ['jpg','jpeg','png','heic','heif','webp','pdf','doc','docx','txt'];
+if (!in_array($ext, $allowed)) {
+    $error = 'Invalid file type.';
+} elseif ($_FILES['req_attachment']['size'] > 5 * 1024 * 1024) {
                 $error = 'File too large. Max 5 MB.';
             } else {
                 $filename       = $refNumber . '_' . time() . '.' . $ext;
@@ -186,27 +186,27 @@ $reqSuccess   = $reqSuccess   ?? false;
 $reqRefNumber = $reqRefNumber ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isWorkingHours && !isset($_POST['form_type'])) {
-    $title         = trim($_POST['title']         ?? '');
-    $category_id   = (int)($_POST['category_id'] ?? 0);
-    $description   = trim($_POST['description']  ?? '');
-    $phone         = trim($_POST['phone']         ?? '');
-    $my_department = trim($_POST['my_department'] ?? '');
+$category_id   = (int)($_POST['category_id'] ?? 0);
+$description   = trim($_POST['description']  ?? '');
+$phone         = trim($_POST['phone']         ?? '');
+$my_department = trim($_POST['my_department'] ?? '');
 
-    if (empty($title) || empty($description) || $category_id === 0 || empty($phone) || empty($my_department)) {
-        $error = 'Please fill in all required fields.';
+if (empty($description) || $category_id === 0 || empty($phone) || empty($my_department)) {
+    $error = 'Please fill in all required fields.';
     } else {
-        $stmtCat = $conn->prepare("SELECT dept_id FROM categories WHERE category_id = ? LIMIT 1");
-        $stmtCat->bind_param("i", $category_id);
-        $stmtCat->execute();
-        $catRow = $stmtCat->get_result()->fetch_assoc();
-        $stmtCat->close();
+        $stmtCat = $conn->prepare("SELECT dept_id, category_name FROM categories WHERE category_id = ? LIMIT 1");
+$stmtCat->bind_param("i", $category_id);
+$stmtCat->execute();
+$catRow = $stmtCat->get_result()->fetch_assoc();
+$stmtCat->close();
 
-        if (!$catRow) {
-            $error = 'Invalid category selected.';
-        } else {
-            $dept_id = (int)$catRow['dept_id'];
+if (!$catRow) {
+    $error = 'Invalid category selected.';
+} else {
+    $dept_id = (int)$catRow['dept_id'];
+    $title   = $catRow['category_name'] ?? 'Complaint #' . $category_id;
 
-            // Generate ticket ID
+// Generate ticket ID
             $dateStr = date('dmY');
             $dayRes  = $conn->query("SELECT MAX(CAST(SUBSTRING_INDEX(ticket_id, '-', -1) AS UNSIGNED)) AS last_seq FROM complaints WHERE DATE(created_at) = CURDATE()");
             $dayRow  = $dayRes->fetch_assoc();
@@ -219,8 +219,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isWorkingHours && !isset($_POST['f
                 $uploadDir = '../uploads/complaints/';
                 if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
                 $ext     = strtolower(pathinfo($_FILES['attachment']['name'], PATHINFO_EXTENSION));
-                $allowed = ['jpg','jpeg','png','gif','pdf','doc','docx','txt'];
-                $maxSize = 5 * 1024 * 1024;
+                $allowed = ['jpg','jpeg','png','heic','heif','webp','pdf','doc','docx','txt'];
+$maxSize = 5 * 1024 * 1024;
                 if (!in_array($ext, $allowed)) {
                     $error = 'Invalid file type.';
                 } elseif ($_FILES['attachment']['size'] > $maxSize) {
@@ -768,9 +768,19 @@ require 'layout.php';
 <?php endif; ?>
 
 <?php if (!$isWorkingHours): ?>
-<!-- ── OUTSIDE HOURS: wrapped form with locked overlay ── -->
-<div class="form-locked-wrap" id="complaintForm">
-  <div class="form-locked-overlay">
+<!-- ── OUTSIDE HOURS: clean locked state, no scrollable form ── -->
+<div id="complaintForm" style="width:100%;max-width:960px;">
+  <div style="
+    background:white;
+    border-radius:20px;
+    border:1px solid #ffe082;
+    padding:48px 32px;
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+  ">
     <div class="flo-icon">
       <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     </div>
@@ -787,37 +797,10 @@ require 'layout.php';
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Next available: <?php echo $slaDisplay; ?>
     </div>
-  </div>
-
-  <!-- Blurred/disabled form (visual only, no interaction) -->
-  <div class="form-card" aria-hidden="true" tabindex="-1">
-    <div class="form-card-header">
-      <div class="fch-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
-      <div class="fch-text"><h3>Complaint Details</h3><p>Your complaint will be routed to the correct department automatically</p></div>
-    </div>
-    <div class="form-body">
-      <div class="form-section-label">Your Information</div>
-      <div class="field-grid">
-        <div class="field">
-          <label>Phone Number <span class="req">*</span></label>
-          <div class="phone-wrap"><span class="phone-prefix">+60</span><input type="tel" disabled placeholder="11-1234 5678"/></div>
-        </div>
-        <div class="field">
-          <label>My Department / Faculty <span class="req">*</span></label>
-          <div class="select-wrap"><select disabled><option>— Select Department / Faculty —</option></select></div>
-        </div>
-      </div>
-      <div class="form-section-label">Complaint Details</div>
-      <div class="field"><label>Complaint Title <span class="req">*</span></label><input type="text" disabled placeholder="e.g. Air conditioning not working in Block A"/></div>
-      <div class="field"><label>Description <span class="req">*</span></label><textarea disabled placeholder="Please describe your issue in detail..."></textarea></div>
-    </div>
-    <div class="form-actions">
-      <a href="homepage.php" class="btn-cancel">Cancel</a>
-      <button type="button" class="btn-submit-locked" disabled>
-        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Submissions Closed
-      </button>
-    </div>
+    <a href="homepage.php" class="tp-back-btn" style="margin-top:8px;">
+      <svg viewBox="0 0 24 24"><polyline points="15,18 9,12 15,6"/></svg>
+      Back to Dashboard
+    </a>
   </div>
 </div>
 
@@ -831,6 +814,51 @@ require 'layout.php';
       <div class="fch-text"><h3>Complaint Details</h3><p>Your complaint will be routed to the correct department automatically</p></div>
     </div>
     <div class="form-body">
+      <div class="form-section-label">Complaint Details</div>
+      
+
+      <div class="field">
+        <label>Category <span class="req">*</span></label>
+        <div class="category-two-step" style="grid-template-columns:1fr;">
+  <div class="cat-step-block subcategory-reveal active" id="subcategoryReveal">
+    <div class="select-wrap">
+      <select id="subcategory_select" disabled>
+        <option value="">— Select Category —</option>
+      </select>
+    </div>
+  </div>
+  <div class="dept-hint" id="deptHint">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span id="deptHintText"></span>
+  </div>
+</div>
+      </div>
+
+      <div class="field">
+        <label for="description">Description <span class="req">*</span></label>
+        <textarea id="description" name="description"
+          placeholder="Please describe your issue in detail..." maxlength="2000" required><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
+        <div class="field-footer"><span class="char-counter" id="descCounter">0 / 2000</span></div>
+      </div>
+
+      <div class="field">
+        <label>Attachment <span class="opt">Optional</span></label>
+        <div class="file-drop" id="fileDrop">
+<input type="file" name="attachment" id="attachment" 
+  accept=".jpg,.jpeg,.png,.heic,.heif,.webp,.pdf,.doc,.docx,.txt"/>
+          <div class="file-icon"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
+          <div class="file-drop-title">Drop your file here, or <strong>browse</strong></div>
+          <div class="file-drop-sub">JPG, PNG, HEIC, WEBP, PDF, DOC, DOCX, TXT — max 5 MB</div>
+        </div>
+        <div class="file-selected" id="fileSelected">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span id="fileName">—</span>
+          <button type="button" class="file-remove" id="fileRemove">×</button>
+        </div>
+      </div>
+
+      <br>
+
       <div class="form-section-label">Your Information</div>
       <div class="field-grid">
         <div class="field">
@@ -855,63 +883,6 @@ require 'layout.php';
               <?php endforeach; ?>
             </select>
           </div>
-        </div>
-      </div>
-
-      <div class="form-section-label">Complaint Details</div>
-      <div class="field">
-        <label for="title">Complaint Title <span class="req">*</span></label>
-        <input type="text" id="title" name="title" placeholder="e.g. Air conditioning not working in Block A"
-          maxlength="150" value="<?php echo htmlspecialchars($_POST['title'] ?? ''); ?>" required/>
-        <div class="field-footer"><span class="char-counter" id="titleCounter">0 / 150</span></div>
-      </div>
-
-      <div class="field">
-        <label>Category <span class="req">*</span></label>
-        <div class="category-two-step">
-          <div class="cat-step-block">
-            <div class="cat-step-label">Department (from tab)</div>
-            <div class="select-wrap">
-              <select id="dept_group_select" disabled style="background:var(--g100);color:var(--g700);cursor:not-allowed;">
-                <option value="">— No department selected —</option>
-              </select>
-            </div>
-          </div>
-          <div class="cat-step-block subcategory-reveal active" id="subcategoryReveal">
-            <div class="cat-step-label">Sub-Category <span style="color:#E53935">*</span></div>
-            <div class="select-wrap">
-              <select id="subcategory_select" disabled>
-                <option value="">— Select Sub-Category —</option>
-              </select>
-            </div>
-          </div>
-          <div class="dept-hint" id="deptHint">
-            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            <span id="deptHintText"></span>
-          </div>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="description">Description <span class="req">*</span></label>
-        <textarea id="description" name="description"
-          placeholder="Please describe your issue in detail..." maxlength="2000" required><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
-        <div class="field-footer"><span class="char-counter" id="descCounter">0 / 2000</span></div>
-      </div>
-
-      <div class="field">
-        <label>Attachment <span class="opt">Optional</span></label>
-        <div class="file-drop" id="fileDrop">
-<input type="file" name="attachment" id="attachment" 
-  accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.txt"/>
-          <div class="file-icon"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
-          <div class="file-drop-title">Drop your file here, or <strong>browse</strong></div>
-          <div class="file-drop-sub">JPG, PNG, PDF, DOC, DOCX, TXT — max 5 MB</div>
-        </div>
-        <div class="file-selected" id="fileSelected">
-          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          <span id="fileName">—</span>
-          <button type="button" class="file-remove" id="fileRemove">×</button>
         </div>
       </div>
     </div>
@@ -942,7 +913,6 @@ require 'layout.php';
       <div class="preview-section">
         <div class="preview-section-title">Complaint Details</div>
         <div class="preview-grid">
-          <div class="preview-field full"><div class="preview-label">Title</div><div class="preview-value" id="pv-title">—</div></div>
           <div class="preview-field"><div class="preview-label">Category</div><div class="preview-value" id="pv-category">—</div></div>
           <div class="preview-field"><div class="preview-label">Will Be Handled By</div><div class="preview-value" id="pv-handler">—</div></div>
           <div class="preview-field full"><div class="preview-label">Description</div><div class="preview-value description-val" id="pv-description">—</div></div>
@@ -1129,12 +1099,12 @@ require 'layout.php';
                ondragleave="this.classList.remove('dragover')"
                ondragover="event.preventDefault();this.classList.add('dragover')"
                ondrop="reqHandleDrop(event)">
-            <input type="file" name="req_attachment" id="req_attachment"
-                   accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.txt"
+<input type="file" name="req_attachment" id="req_attachment"
+       accept=".jpg,.jpeg,.png,.heic,.heif,.webp,.pdf,.doc,.docx,.txt"
                    onchange="reqHandleFile(this)"/>
             <div class="file-icon"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
             <div class="file-drop-title">Drop a file here, or <strong style="color:#0D9488;">browse</strong></div>
-            <div class="file-drop-sub">JPG, PNG, PDF, DOC, DOCX, TXT — max 5 MB</div>
+            <div class="file-drop-sub">JPG, PNG, HEIC, WEBP, PDF, DOC, DOCX, TXT — max 5 MB</div>
           </div>
           <div class="file-selected" id="reqFileSelected"
                style="display:none;align-items:center;gap:10px;padding:10px 14px;
@@ -1318,7 +1288,6 @@ const prevCategoryId = <?php echo (int)$prevCategoryId; ?>;
 
 const progressFill = document.getElementById('progressFill');
 const hiddenCatId  = document.getElementById('category_id');
-const deptGroupSel = document.getElementById('dept_group_select');
 const subcatSel    = document.getElementById('subcategory_select');
 const subcatReveal = document.getElementById('subcategoryReveal');
 let selectedHandler = '';
@@ -1537,17 +1506,10 @@ function submitReqForm() {
 }
 
 function loadDeptCategories(deptName) {
-  deptGroupSel.innerHTML = '';
-  const opt = document.createElement('option');
-  opt.value = deptName;
-  opt.textContent = deptName;
-  deptGroupSel.appendChild(opt);
-  deptGroupSel.value = deptName;
-
   hiddenCatId.value = '';
   selectedHandler = '';
   document.getElementById('deptHint').classList.remove('show');
-  subcatSel.innerHTML = '<option value="">— Select Sub-Category —</option>';
+  subcatSel.innerHTML = '<option value="">— Select Category —</option>';
 
   if (!deptName || !allCategories[deptName]) {
     subcatSel.disabled = true;
@@ -1622,8 +1584,8 @@ subcatSel.addEventListener('change', function() {
 });
 
 function updateProgress(){
-  const f=[document.getElementById('title').value.trim(),hiddenCatId.value,document.getElementById('description').value.trim(),document.getElementById('phone').value.trim(),document.getElementById('my_department').value];
-  progressFill.style.width=Math.round((f.filter(Boolean).length/5)*100)+'%';
+  const f=[hiddenCatId.value,document.getElementById('description').value.trim(),document.getElementById('phone').value.trim(),document.getElementById('my_department').value];
+  progressFill.style.width=Math.round((f.filter(Boolean).length/4)*100)+'%';
 }
 function updateCounter(id,len,max){
   const el=document.getElementById(id);
@@ -1632,7 +1594,7 @@ function updateCounter(id,len,max){
   if(len>=max*0.9)el.classList.add('danger');
   else if(len>=max*0.75)el.classList.add('warn');
 }
-document.getElementById('title').addEventListener('input',function(){updateCounter('titleCounter',this.value.length,150);updateProgress();});
+
 document.getElementById('description').addEventListener('input',function(){updateCounter('descCounter',this.value.length,2000);updateProgress();});
 (function initPhone(){
   const phoneInput = document.getElementById('phone');
@@ -1709,11 +1671,10 @@ fileInput.addEventListener('change',function(){if(this.files.length>0){fileNameE
 fileDrop.addEventListener('drop',ev=>{const f=ev.dataTransfer.files[0];if(f){const dt=new DataTransfer();dt.items.add(f);fileInput.files=dt.files;fileNameEl.textContent=f.name;fileSel.style.display='flex';}});
 
 function showPreview(){
-  const phone   = document.getElementById('phone').value.trim();
-  const dept    = document.getElementById('my_department').value;
-  const title   = document.getElementById('title').value.trim();
-  const catId   = hiddenCatId.value;
-  const desc    = document.getElementById('description').value.trim();
+const phone   = document.getElementById('phone').value.trim();
+const dept    = document.getElementById('my_department').value;
+const catId   = hiddenCatId.value;
+const desc    = document.getElementById('description').value.trim();
 
   clearInlineErrors();
 
@@ -1732,19 +1693,13 @@ function showPreview(){
     firstError = firstError || document.getElementById('my_department');
   }
 
-  // 3. Complaint Title
-  if(!title){
-    markFieldError('title', 'Complaint title is required.');
-    firstError = firstError || document.getElementById('title');
-  }
-
-  // 4. Sub-category only (dept is set by tab)
+  // 3. Sub-category only (dept is set by tab)
   if(!catId){
     markSelectError('subcategory_select', 'Please select a sub-category.');
     firstError = firstError || document.getElementById('subcategory_select');
   }
 
-  // 5. Description
+  // 4. Description
   if(!desc){
     markFieldError('description', 'Description is required.');
     firstError = firstError || document.getElementById('description');
@@ -1758,10 +1713,9 @@ function showPreview(){
   }
 
   // All valid — build the preview
-  document.getElementById('pv-phone').textContent = '+60 ' + phone;
-  document.getElementById('pv-dept').textContent  = dept;
-  document.getElementById('pv-title').textContent = title;
-  document.getElementById('pv-description').textContent = desc;
+document.getElementById('pv-phone').textContent = '+60 ' + phone;
+document.getElementById('pv-dept').textContent  = dept;
+document.getElementById('pv-description').textContent = desc;
 
   const subcatText = subcatSel.options[subcatSel.selectedIndex]?.text || '—';
   document.getElementById('pv-category').innerHTML =
@@ -1823,10 +1777,8 @@ function markSelectError(fieldId, msg){
 
 function clearInlineErrors(){
   document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
-  ['dept_group_select','subcategory_select'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el){ el.style.borderColor = ''; el.style.boxShadow = ''; }
-  });
+  const subcatEl = document.getElementById('subcategory_select');
+  if(subcatEl){ subcatEl.style.borderColor = ''; subcatEl.style.boxShadow = ''; }
   document.querySelectorAll('.inline-err').forEach(el => el.remove());
 }
 
@@ -1851,17 +1803,13 @@ function showAlert(msg){
   d.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>d.remove(),4000);
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-(function init(){updateProgress();const t=document.getElementById('title'),de=document.getElementById('description');if(t.value)updateCounter('titleCounter',t.value.length,150);if(de.value)updateCounter('descCounter',de.value.length,2000);})();
+(function init(){updateProgress();const de=document.getElementById('description');if(de.value)updateCounter('descCounter',de.value.length,2000);})();
 
 // Clear inline errors when user corrects a field
-['title','description'].forEach(id => {
-  const el = document.getElementById(id);
-  if(!el) return;
-  el.addEventListener('input', function(){
-    this.classList.remove('input-error');
-    const hint = this.closest('.field')?.querySelector('.inline-err');
-    if(hint) hint.remove();
-  });
+document.getElementById('description').addEventListener('input', function(){
+  this.classList.remove('input-error');
+  const hint = this.closest('.field')?.querySelector('.inline-err');
+  if(hint) hint.remove();
 });
 document.getElementById('my_department').addEventListener('change', function(){
   this.classList.remove('input-error');

@@ -40,12 +40,7 @@ function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTy
     if (empty($extraTypes)) return;
     $types = $baseTypes . $extraTypes;
     $allParams = array_merge($baseRefs, $extraParams);
-    $bindArgs = [$types];
-    foreach ($allParams as &$val) {
-        $bindArgs[] = &$val;
-    }
-    unset($val);
-    call_user_func_array([$stmt, 'bind_param'], $bindArgs);
+    $stmt->bind_param($types, ...$allParams);
 }
 
 $stmt = $conn->prepare(
