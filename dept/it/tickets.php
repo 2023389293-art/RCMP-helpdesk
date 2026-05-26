@@ -166,21 +166,19 @@ function staffInitials(string $name): string {
   <title>All Tickets | UniKL Help Desk – IT</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
   <style>
-    /* ── Filter tabs ── */
-    .filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap;}
-   .filter-tab{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:14px 24px;border-radius:10px;font-size:12px;font-weight:700;text-decoration:none;border:1px solid var(--g200);color:var(--g500);background:white;transition:border-color .18s,color .18s,background .18s,box-shadow .18s;white-space:nowrap;text-transform:uppercase;letter-spacing:.07em;width:160px;text-align:center;}
-    .filter-tab svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;transition:stroke .18s;flex-shrink:0;}
-    .filter-tab:hover:not(.active){border-color:var(--g300);color:var(--g700);background:var(--g50,#f9fafb);box-shadow:0 2px 10px rgba(0,0,0,.07);border-width:1.8px;}
-    .filter-tab.active.tab-all{background:#EFF6FF;border-color:var(--accent);border-width:1.5px;color:var(--accent);font-weight:700;box-shadow:0 4px 16px rgba(26,86,219,.15);}
-.filter-tab.active.tab-open{background:#FFFBEB;border-color:#D97706;border-width:1.5px;color:#D97706;font-weight:700;box-shadow:0 4px 16px rgba(217,119,6,.13);}
-.filter-tab.active.tab-inprogress{background:#EFF6FF;border-color:#2563EB;border-width:1.5px;color:#2563EB;font-weight:700;box-shadow:0 4px 16px rgba(37,99,235,.13);}
-.filter-tab.active.tab-closed{background:#ECFDF5;border-color:#059669;border-width:1.5px;color:#059669;font-weight:700;box-shadow:0 4px 16px rgba(5,150,105,.13);}
-    .ft-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 6px;border-radius:10px;font-size:11px;font-weight:800;background:var(--g100);color:var(--g500);}
-    .filter-tab.active .ft-count{background:rgba(255,255,255,.7);color:inherit;}
-    .filter-tab-label{display:flex;align-items:center;gap:6px;}
-    
-
-    
+/* ── Filter tabs ── */
+.filter-bar{display:flex;align-items:center;gap:6px;margin-bottom:20px;flex-wrap:wrap;}
+.filter-tab{display:inline-flex;align-items:center;gap:7px;padding:8px 18px;border-radius:9px;font-size:14px;font-weight:500;text-decoration:none;border:1.5px solid var(--g200);color:var(--g500);background:white;transition:border-color .15s,color .15s,background .15s,box-shadow .15s;white-space:nowrap;}
+.filter-tab:hover:not(.active){border-color:var(--g300);color:var(--g700);background:var(--g100);}
+.filter-tab.active.tab-all{background:var(--accent);border-color:var(--accent);color:white;font-weight:600;box-shadow:0 2px 10px rgba(26,86,219,.22);}
+.filter-tab.active.tab-open{background:#D97706;border-color:#D97706;color:white;font-weight:600;}
+.filter-tab.active.tab-inprogress{background:#2563EB;border-color:#2563EB;color:white;font-weight:600;}
+.filter-tab.active.tab-closed{background:#059669;border-color:#059669;color:white;font-weight:600;}
+.ft-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 5px;border-radius:9px;font-size:11px;font-weight:700;background:var(--g100);color:var(--g500);}
+.filter-tab.active .ft-count{background:rgba(255,255,255,.28);color:white;}
+.tab-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.tab-dot-open{background:#F59E0B;}.tab-dot-inprogress{background:#3B82F6;}.tab-dot-closed{background:#10B981;}
+.filter-tab.active .tab-dot{background:rgba(255,255,255,.75);}
 
     /* ── Toolbar ── */
     .toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
@@ -298,25 +296,13 @@ function staffInitials(string $name): string {
 <body>
 <?php require_once __DIR__ . '/_layout.php'; ?>
 
-    <!-- ── Filter tabs ── -->
-    <div class="filter-bar">
-      <a href="<?php echo ticketUrl(['status'=>'all','page'=>1]); ?>" class="filter-tab tab-all <?php echo $filterStatus==='all'?'active':''; ?>">
-        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-        <span class="filter-tab-label">All Tickets <span class="ft-count"><?php echo $openCount+$inProgressCount+$closedCount; ?></span></span>
-      </a>
-      <a href="<?php echo ticketUrl(['status'=>'open','page'=>1]); ?>" class="filter-tab tab-open <?php echo $filterStatus==='open'?'active':''; ?>">
-        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span class="filter-tab-label">Open <span class="ft-count"><?php echo $openCount; ?></span></span>
-      </a>
-      <a href="<?php echo ticketUrl(['status'=>'in_progress','page'=>1]); ?>" class="filter-tab tab-inprogress <?php echo $filterStatus==='in_progress'?'active':''; ?>">
-<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-        <span class="filter-tab-label">In Progress <span class="ft-count"><?php echo $inProgressCount; ?></span></span>
-      </a>
-      <a href="<?php echo ticketUrl(['status'=>'closed','page'=>1]); ?>" class="filter-tab tab-closed <?php echo $filterStatus==='closed'?'active':''; ?>">
-<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        <span class="filter-tab-label">Closed <span class="ft-count"><?php echo $closedCount; ?></span></span>
-      </a>
-    </div>
+<!-- ── Filter tabs ── -->
+<div class="filter-bar">
+  <a href="<?php echo ticketUrl(['status'=>'all','page'=>1]); ?>" class="filter-tab tab-all <?php echo $filterStatus==='all'?'active':''; ?>">All Tickets <span class="ft-count"><?php echo $openCount+$inProgressCount+$closedCount; ?></span></a>
+  <a href="<?php echo ticketUrl(['status'=>'open','page'=>1]); ?>" class="filter-tab tab-open <?php echo $filterStatus==='open'?'active':''; ?>"><span class="tab-dot tab-dot-open"></span>Open <span class="ft-count"><?php echo $openCount; ?></span></a>
+  <a href="<?php echo ticketUrl(['status'=>'in_progress','page'=>1]); ?>" class="filter-tab tab-inprogress <?php echo $filterStatus==='in_progress'?'active':''; ?>"><span class="tab-dot tab-dot-inprogress"></span>In Progress <span class="ft-count"><?php echo $inProgressCount; ?></span></a>
+  <a href="<?php echo ticketUrl(['status'=>'closed','page'=>1]); ?>" class="filter-tab tab-closed <?php echo $filterStatus==='closed'?'active':''; ?>"><span class="tab-dot tab-dot-closed"></span>Closed <span class="ft-count"><?php echo $closedCount; ?></span></a>
+</div>
 
     
 

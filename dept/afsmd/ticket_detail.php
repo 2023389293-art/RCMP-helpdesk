@@ -627,7 +627,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
     <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
   </div>
   <div class="ths-info">
-    <div class="ths-title"><?php echo htmlspecialchars($ticket['title']); ?></div>
+    <div class="ths-title"><?php echo htmlspecialchars(preg_replace('/^[A-Z]+\s*\/\s*/', '', $ticket['title'])); ?></div>
     <?php if (!empty($ticket['description'])): ?>
     <div class="ths-desc"><?php echo htmlspecialchars($ticket['description']); ?></div>
     <?php endif; ?>
@@ -763,14 +763,11 @@ $pageSubtitle = 'Administration & Facilities Management Department';
                 <div class="ti-submitter-lbl">Email</div>
                 <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['email']??'—'); ?></div>
               </div>
-              <div class="ti-submitter-cell">
-                <div class="ti-submitter-lbl">Phone</div>
-                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone']??'—'); ?></div>
-              </div>
               <div class="ti-submitter-cell" style="border-right:none">
-                <div class="ti-submitter-lbl">Type</div>
-                <div class="ti-submitter-val" style="text-transform:capitalize"><?php echo htmlspecialchars($ticket['submitter_type']??'—'); ?></div>
-              </div>
+  <div class="ti-submitter-lbl">Phone</div>
+  <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone']??'—'); ?></div>
+</div>
+              
             </div>
 
           </div>

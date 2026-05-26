@@ -355,8 +355,8 @@
 .stat-btn:disabled, .stat-btn.disabled {
   opacity: 0.35; cursor: not-allowed; pointer-events: none;
 }
-    .btn-update-save {
-       display: none;
+.btn-update-save {
+       display: block;
       width:100%; margin-top:14px; padding:11px;
       border-radius:8px; border:none;
       background: linear-gradient(135deg,#001f5c,#1A56DB);

@@ -40,7 +40,11 @@ function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTy
     if (empty($extraTypes)) return;
     $types = $baseTypes . $extraTypes;
     $allParams = array_merge($baseRefs, $extraParams);
-    $stmt->bind_param($types, ...$allParams);
+    $refs = [];
+    foreach ($allParams as $key => $val) {
+        $refs[$key] = &$allParams[$key];
+    }
+    $stmt->bind_param($types, ...$refs);
 }
 
 $stmt = $conn->prepare(
@@ -190,7 +194,7 @@ function staffInitials(string $name): string {
 .adv-filter-bar-body{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:16px 20px;}
 .adv-filter-group{display:flex;flex-direction:column;gap:5px;}
 .adv-filter-group label{font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;}
-.adv-filter-select,.adv-filter-input{padding:8px 12px;font-size:13px;border-radius:9px;border:1.5px solid var(--g200);background:#FAFAFA;color:var(--g700);font-family:'DM Sans',sans-serif;outline:none;min-width:155px;transition:border-color .15s,background .15s;}
+.adv-filter-select,.adv-filter-input{padding:8px 12px;font-size:13px;border-radius:9px;border:1.5px solid var(--g200);background:#FAFAFA;color:var(--g700);font-family:'DM Sans',sans-serif;outline:none;min-width:130px;transition:border-color .15s,background .15s;}
 .adv-filter-select:focus,.adv-filter-input:focus{border-color:var(--accent);background:white;box-shadow:0 0 0 3px rgba(26,86,219,.07);}
 .adv-filter-actions{display:flex;align-items:center;gap:8px;margin-left:auto;padding-bottom:1px;}
 .btn-apply-filter{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;border-radius:9px;border:none;background:var(--accent);color:white;cursor:pointer;box-shadow:0 2px 8px rgba(26,86,219,.18);transition:background .15s,box-shadow .15s;}
@@ -203,25 +207,26 @@ function staffInitials(string $name): string {
     .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:20px;font-size:12px;font-weight:600;color:var(--accent);}
     .chip-x{font-size:14px;font-weight:700;color:var(--accent);text-decoration:none;line-height:1;opacity:.6;}
 
-    /* ── Table card ── */
-    .tbl-card{background:white;border-radius:12px;border:1px solid var(--g200);overflow:hidden;width:100%;}
-    .tbl-wrap{width:100%;}
-    table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;}
+/* ── Table card ── */
+.tbl-card{background:white;border-radius:12px;border:1px solid var(--g200);overflow:hidden;width:100%;}
+.tbl-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+    table{width:100%;min-width:800px;border-collapse:collapse;font-size:14px;}
     thead th{background:var(--g100);padding:10px 12px;text-align:left;font-size:12px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--g200);white-space:nowrap;overflow:hidden;}
     tbody tr{border-bottom:1px solid var(--g200);transition:background .12s;}
     tbody tr:last-child{border-bottom:none;}
     tbody tr:hover{background:#F8FAFF;}
     tbody td{padding:11px 12px;color:var(--g700);vertical-align:middle;overflow:hidden;}
 
-    /* ── Column widths ── */
-    col.col-id       { width: 16%; }
-    col.col-title    { width: 13%; }
-    col.col-dept     { width: 16%; }
-    col.col-status   { width: 9%;  }
-    col.col-priority { width: 8%;  }
-    col.col-category { width: 14%; }
-    col.col-assigned { width: 16%; }
-    col.col-action   { width: 8%;  }
+/* ── Column widths ── */
+col.col-id       { width: 150px; }
+col.col-title    { width: 130px; }
+col.col-dept     { width: 150px; }
+col.col-status   { width: 100px; }
+col.col-priority { width: 90px;  }
+col.col-category { width: 130px; }
+col.col-assigned { width: 140px; }
+col.col-action   { width: 80px;  }
 
     /* ── Ticket ID ── */
     .tid-link{font-weight:600;color:var(--accent);font-size:13px;text-decoration:none;font-family:monospace;letter-spacing:.03em;background:#EFF6FF;padding:3px 8px;border-radius:5px;white-space:nowrap;display:inline-block;max-width:100%;overflow:visible;}
@@ -307,7 +312,7 @@ function staffInitials(string $name): string {
       <input type="hidden" name="per_page" value="<?php echo $perPage; ?>">
       <input type="hidden" name="page" value="1">
       <div class="adv-filter-group"><label>Priority</label>
-        <select name="priority" class="adv-filter-select">
+        <select name="priority" class="adv-filter-select" onchange="this.form.submit()">
           <option value="">All priorities</option>
           <option value="high" <?php echo $filterPriority==='high'?'selected':''; ?>>🔴 High</option>
           <option value="medium" <?php echo $filterPriority==='medium'?'selected':''; ?>>🟡 Medium</option>
@@ -315,23 +320,22 @@ function staffInitials(string $name): string {
         </select>
       </div>
       <div class="adv-filter-group"><label>From Department</label>
-        <select name="dept" class="adv-filter-select">
+        <select name="dept" class="adv-filter-select" onchange="this.form.submit()">
           <option value="">All departments</option>
           <?php foreach ($deptOptions as $d): ?><option value="<?php echo htmlspecialchars($d); ?>" <?php echo $filterDept===$d?'selected':''; ?>><?php echo htmlspecialchars($d); ?></option><?php endforeach; ?>
         </select>
       </div>
       <div class="adv-filter-group"><label>Category</label>
-        <select name="category" class="adv-filter-select">
+        <select name="category" class="adv-filter-select" onchange="this.form.submit()">
           <option value="">All categories</option>
           <?php foreach ($categoryOptions as $cat):
             $catShort = strpos($cat['category_name'],' / ') !== false ? trim(substr($cat['category_name'], strpos($cat['category_name'],' / ')+3)) : $cat['category_name'];
           ?><option value="<?php echo (int)$cat['category_id']; ?>" <?php echo $filterCategory==(string)$cat['category_id']?'selected':''; ?>><?php echo htmlspecialchars($catShort); ?></option><?php endforeach; ?>
         </select>
       </div>
-      <div class="adv-filter-group"><label>Date From</label><input type="date" name="date_from" class="adv-filter-input" value="<?php echo htmlspecialchars($filterDateFrom); ?>" max="<?php echo date('Y-m-d'); ?>"></div>
-      <div class="adv-filter-group"><label>Date To</label><input type="date" name="date_to" class="adv-filter-input" value="<?php echo htmlspecialchars($filterDateTo); ?>" max="<?php echo date('Y-m-d'); ?>"></div>
+<div class="adv-filter-group"><label>Date From</label><input type="date" name="date_from" class="adv-filter-input" value="<?php echo htmlspecialchars($filterDateFrom); ?>" max="<?php echo date('Y-m-d'); ?>" onchange="this.form.submit()"></div>
+<div class="adv-filter-group"><label>Date To</label><input type="date" name="date_to" class="adv-filter-input" value="<?php echo htmlspecialchars($filterDateTo); ?>" max="<?php echo date('Y-m-d'); ?>" onchange="this.form.submit()"></div>
       <div class="adv-filter-actions">
-        <button type="submit" class="btn-apply-filter">Apply Filters</button>
         <a href="tickets.php?status=<?php echo htmlspecialchars($filterStatus); ?>" class="btn-reset-filter">Reset</a>
       </div>
       </div><!-- /.adv-filter-bar-body -->
@@ -382,9 +386,8 @@ function staffInitials(string $name): string {
     <div class="tbl-card"><div class="tbl-wrap">
       <table id="ticket-table">
         <colgroup>
-          <col class="col-id">
-          <col class="col-title">
-          <col class="col-dept">
+<col class="col-id">
+<col class="col-dept">
           <col class="col-status">
           <col class="col-priority">
           <col class="col-category">
@@ -392,9 +395,8 @@ function staffInitials(string $name): string {
           <col class="col-action">
         </colgroup>
         <thead><tr>
-          <th>Ticket ID</th>
-          <th>Title</th>
-          <th>From Department</th>
+<th>Ticket ID</th>
+<th>From Department</th>
           <th>Status</th>
           <th>Priority</th>
           <th>Category</th>
@@ -403,7 +405,7 @@ function staffInitials(string $name): string {
         </tr></thead>
         <tbody id="ticket-tbody">
           <?php if (empty($tickets)): ?>
-          <tr><td colspan="8"><div class="empty">
+          <tr><td colspan="7"><div class="empty">
             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
             <h3>No tickets found</h3><p>No complaints match your current filter.</p>
           </div></td></tr>
@@ -429,14 +431,6 @@ function staffInitials(string $name): string {
               <a class="tid-link" href="ticket_detail.php?id=<?php echo urlencode($t['ticket_id']); ?>">
                 <?php echo htmlspecialchars($t['ticket_id']); ?>
               </a>
-            </td>
-
-            <!-- Title -->
-            <td>
-              <div class="title-cell">
-                <?php if ($isHighOpen): ?><span class="high-dot"></span><?php endif; ?>
-                <?php echo htmlspecialchars($t['title']); ?>
-              </div>
             </td>
 
             <!-- From Department + date/time stacked -->
@@ -503,7 +497,7 @@ function staffInitials(string $name): string {
 
           </tr>
           <?php endforeach; ?>
-          <tr id="no-search-row"><td colspan="8"><div class="empty">
+          <tr id="no-search-row"><td colspan="7"><div class="empty">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <h3>No results</h3><p>No tickets match your search.</p>
           </div></td></tr>

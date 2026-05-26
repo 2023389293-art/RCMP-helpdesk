@@ -5,7 +5,7 @@ $openCount   = $openCount   ?? 0;
 $closedCount = $closedCount ?? 0;
 $nav         = $activeNav   ?? 'dashboard';
 ?>
-<link rel="stylesheet" href="css/sidebarr_layout.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="css/sidebar_layoutt.css?v=<?php echo time(); ?>">
 
 <?php $ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress', 'tickets-closed']); ?>
 
@@ -129,15 +129,72 @@ $nav         = $activeNav   ?? 'dashboard';
 
     
 
-    <a href="#"
-       class="nav-item <?php echo $nav === 'requisitions' ? 'active' : ''; ?>"
+    <?php
+$reqPendingCount  = $reqPendingCount  ?? 0;
+$reqApprovedCount = $reqApprovedCount ?? 0;
+$reqRejectedCount = $reqRejectedCount ?? 0;
+$reqNavOpen = in_array($nav, ['requisitions','requisitions-pending','requisitions-approved','requisitions-rejected']);
+?>
+
+<div class="nav-group">
+  <div class="nav-group-header <?php echo $reqNavOpen ? 'has-active' : ''; ?>"
        data-tooltip="Requisitions">
-      <svg viewBox="0 0 24 24">
+    <a href="requisitions.php" class="nav-group-link">
+      <svg class="icon" viewBox="0 0 24 24">
         <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
         <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>
       </svg>
-      <span>Requisitions</span>
+      <span class="link-label">Requisitions</span>
+      <?php if ($reqPendingCount > 0): ?>
+        <span class="n-badge"><?php echo $reqPendingCount; ?></span>
+      <?php endif; ?>
     </a>
+    <button class="nav-group-chevron <?php echo $reqNavOpen ? 'open' : ''; ?>"
+            onclick="toggleReqNav(this)" type="button">
+      <svg viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+    </button>
+  </div>
+
+  <div class="nav-sub <?php echo $reqNavOpen ? 'open' : ''; ?>" id="req-sub">
+    <a href="requisitions.php?status=pending"
+       class="nav-sub-item <?php echo $nav === 'requisitions-pending' ? 'active' : ''; ?>">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      Pending
+      <?php if ($reqPendingCount > 0): ?>
+        <span class="sub-badge sub-badge-req-pending"><?php echo $reqPendingCount; ?></span>
+      <?php endif; ?>
+    </a>
+
+    <a href="requisitions.php?status=approved"
+       class="nav-sub-item <?php echo $nav === 'requisitions-approved' ? 'active' : ''; ?>">
+      <svg viewBox="0 0 24 24">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22,4 12,14.01 9,11.01"/>
+      </svg>
+      Approved
+      <?php if ($reqApprovedCount > 0): ?>
+        <span class="sub-badge sub-badge-req-approved"><?php echo $reqApprovedCount; ?></span>
+      <?php endif; ?>
+    </a>
+
+    <a href="requisitions.php?status=rejected"
+       class="nav-sub-item <?php echo $nav === 'requisitions-rejected' ? 'active' : ''; ?>">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="15" y1="9" x2="9" y2="15"/>
+        <line x1="9" y1="9" x2="15" y2="15"/>
+      </svg>
+      Rejected
+      <?php if ($reqRejectedCount > 0): ?>
+        <span class="sub-badge sub-badge-req-rejected"><?php echo $reqRejectedCount; ?></span>
+      <?php endif; ?>
+    </a>
+  </div>
+</div>
 
     <a href="categories.php"
        class="nav-item <?php echo $nav === 'categories' ? 'active' : ''; ?>"
@@ -321,11 +378,9 @@ $nav         = $activeNav   ?? 'dashboard';
     body.classList.toggle('sidebar-collapsed', isCollapsed);
     localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
     if (isCollapsed) {
-      var sub = document.getElementById('tickets-sub');
-      var chevron = sidebar.querySelector('.nav-group-chevron');
-      if (sub) sub.classList.remove('open');
-      if (chevron) chevron.classList.remove('open');
-    }
+  document.querySelectorAll('.nav-sub').forEach(function(s){ s.classList.remove('open'); });
+  document.querySelectorAll('.nav-group-chevron').forEach(function(c){ c.classList.remove('open'); });
+}
   };
 })();
 
@@ -336,12 +391,22 @@ function toggleTicketsNav(btn) {
   document.getElementById('tickets-sub').classList.toggle('open');
 }
 
+function toggleReqNav(btn) {
+  var sidebar = document.getElementById('mainSidebar');
+  if (sidebar.classList.contains('collapsed')) { toggleSidebar(); return; }
+  btn.classList.toggle('open');
+  document.getElementById('req-sub').classList.toggle('open');
+}
+
 /* ── Logout modal ── */
 function showLogoutModal(e) { e.preventDefault(); document.getElementById('logoutOverlay').classList.add('active'); }
 function closeLogoutModal() { document.getElementById('logoutOverlay').classList.remove('active'); }
 function confirmLogout()    { window.location.href = '../../staff_login.php?logout=1'; }
 document.getElementById('logoutOverlay').addEventListener('click', function(e){ if(e.target===this) closeLogoutModal(); });
 document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogoutModal(); });
+
+
+
 </script>
 
 <!-- ═══════════════════════════════════════════════════

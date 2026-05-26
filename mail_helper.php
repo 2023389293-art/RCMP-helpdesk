@@ -333,12 +333,8 @@ function sendRequisitionEmail($conn, string $refNumber, string $userName, string
               <td style="padding:11px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;font-weight:700;font-family:'Courier New',Courier,monospace;color:#111827;">{$escapedRefNumber}</td>
             </tr>
             <tr>
-              <td style="width:40%;padding:11px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Category</td>
+              <td style="width:40%;padding:11px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Equipment Category</td>
               <td style="padding:11px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedCategory}</td>
-            </tr>
-            <tr>
-              <td style="width:40%;padding:11px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Item Requested</td>
-              <td style="padding:11px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedItem}</td>
             </tr>
             <tr>
               <td style="width:40%;padding:11px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Quantity</td>
@@ -410,9 +406,8 @@ HTML;
             "Email            : {$submitterEmail}\n" .
             "Contact          : +60{$phone}\n" .
             "Department       : {$my_department}\n" .
-            "Category         : {$category}\n" .
-            "Item Requested   : {$item_name}\n" .
-            "Quantity         : {$quantity}\n" .
+            "Equipment Category : {$category}\n" .
+            "Quantity           : {$quantity}\n" .
             "Location         : {$location}\n" .
             "Urgency          : {$urgencyLabel}\n" .
             "Submitted On     : {$submittedOn} MYT\n\n" .
@@ -561,12 +556,8 @@ function sendRequisitionConfirmationEmail(string $toEmail, string $toName, strin
               <td style="padding:11px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;font-weight:700;font-family:'Courier New',Courier,monospace;color:#854f0b;">{$escapedRefNumber}</td>
             </tr>
             <tr>
-              <td style="width:40%;padding:11px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Category</td>
+              <td style="width:40%;padding:11px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Equipment Category</td>
               <td style="padding:11px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedCategory}</td>
-            </tr>
-            <tr>
-              <td style="width:40%;padding:11px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Item Requested</td>
-              <td style="padding:11px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedItem}</td>
             </tr>
             <tr>
               <td style="width:40%;padding:11px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Quantity</td>
@@ -633,9 +624,8 @@ HTML;
         "Dear {$toName},\n\n" .
         "Your equipment request has been successfully submitted.\n\n" .
         "Reference No.    : {$refNumber}\n" .
-        "Category         : {$category}\n" .
-        "Item Requested   : {$item_name}\n" .
-        "Quantity         : {$quantity}\n" .
+        "Equipment Category : {$category}\n" .
+        "Quantity           : {$quantity}\n" .
         "Your Department  : {$my_department}\n" .
         "Delivery Location: {$location}\n" .
         "Urgency          : {$urgencyLabel}\n" .

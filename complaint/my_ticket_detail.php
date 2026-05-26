@@ -61,6 +61,40 @@ if ($ticket) {
     $rq->close();
 }
 
+// Fetch status-change logs to show inline in messages
+$statusLogs = [];
+if ($ticket) {
+    $lq = $conn->prepare("
+        SELECT changed_by, new_status, changed_at
+        FROM ticket_logs
+        WHERE ticket_id = ? AND field_changed = 'status'
+        ORDER BY changed_at ASC
+    ");
+    $lq->bind_param("s", $ticketId);
+    $lq->execute();
+    $statusLogs = $lq->get_result()->fetch_all(MYSQLI_ASSOC);
+    $lq->close();
+}
+
+// Merge replies and status logs into a single sorted timeline
+$timeline = [];
+
+foreach ($replies as $r) {
+    $timeline[] = ['type' => 'reply', 'time' => $r['created_at'], 'data' => $r];
+}
+foreach ($statusLogs as $l) {
+    $timeline[] = ['type' => 'status_change', 'time' => $l['changed_at'], 'data' => $l];
+}
+
+usort($timeline, function($a, $b) {
+    $diff = strtotime($a['time']) - strtotime($b['time']);
+    if ($diff !== 0) return $diff;
+    // Same timestamp: status_change always comes before reply
+    if ($a['type'] === 'status_change' && $b['type'] === 'reply') return -1;
+    if ($a['type'] === 'reply' && $b['type'] === 'status_change') return 1;
+    return 0;
+});
+
 $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq = $conn->prepare("SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at FROM ticket_feedback tf WHERE tf.ticket_id = ? LIMIT 1");
@@ -412,6 +446,37 @@ ob_start();
 .tp-date-sep::before, .tp-date-sep::after { content: ''; flex: 1; height: 0.5px; background: var(--g200); }
 .tp-date-sep span { font-size: 11px; color: var(--g400); white-space: nowrap; }
 
+/* ── STATUS CHANGE NOTIFICATION ─────────────────────────── */
+.tp-status-event {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 2px 0;
+  padding-left: 39px; /* aligns with message bubbles (avatar width 30px + gap 9px) */
+}
+.tp-status-event-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 0.5px solid transparent;
+}
+.tp-status-event-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tp-status-event-time {
+  font-size: 11px;
+  color: var(--g400);
+  white-space: nowrap;
+}
+
 .tp-msg-row    { display: flex; gap: 9px; align-items: flex-end; }
 .tp-msg-row.tp-me { flex-direction: row-reverse; }
 .tp-avatar     { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
@@ -702,100 +767,125 @@ require 'layout.php';
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span>Messages</span>
       </div>
-      <?php if (count($replies) > 0): ?>
-      <div class="tp-msg-count-pill"><?php echo count($replies); ?></div>
+<?php $replyCount = count(array_filter($timeline, fn($i) => $i['type'] === 'reply')); ?>
+<?php if ($replyCount > 0): ?>
+<div class="tp-msg-count-pill"><?php echo $replyCount; ?></div>
       <?php endif; ?>
     </div>
 
     <div class="tp-messages" id="tpMessages">
-      <?php if (empty($replies)): ?>
-      <div class="tp-empty-msg">
-        <div class="tp-empty-icon">
-          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <div class="tp-empty-title">No messages yet</div>
-        <div class="tp-empty-sub">The department will reply here once they review your complaint.</div>
-      </div>
-      <?php else:
-    $prevDate = '';
-    foreach ($replies as $r):
-        $msgDate     = date('d M Y', strtotime($r['created_at']));
-        $isMe        = ($r['sender_role'] === $submitterType && (int)$r['sender_id'] === $userId);
-        $rowClass    = $isMe ? 'tp-me' : 'tp-dept';
-        $avClass     = $isMe ? 'av-me' : 'av-dept';
-        $initials    = getInitials($r['sender_name']);
-        $senderLabel = $isMe ? 'You' : $r['sender_name'];
-        $hasAttach   = !empty($r['attachment_path']);
-        $attachPath  = $hasAttach ? $r['attachment_path'] : '';
-        $isImg       = $hasAttach && isImageAttachment($attachPath);
-        $fileName    = $hasAttach ? basename($attachPath) : '';
-        $fileMeta    = ($hasAttach && !$isImg) ? fileCardMeta($attachPath) : [];
-        $extUpper    = $hasAttach ? strtoupper(pathinfo($attachPath, PATHINFO_EXTENSION)) : '';
-        $displayName = strlen($fileName) > 28 ? substr($fileName, 0, 25) . '…' : $fileName;
+      <?php if (empty($timeline)): ?>
+<div class="tp-empty-msg">
+  <div class="tp-empty-icon">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  </div>
+  <div class="tp-empty-title">No messages yet</div>
+  <div class="tp-empty-sub">The department will reply here once they review your complaint.</div>
+</div>
+
+<?php else:
+  $prevDate = '';
+  foreach ($timeline as $item):
+    $msgDate = date('d M Y', strtotime($item['time']));
 ?>
 
-    <?php if ($msgDate !== $prevDate): $prevDate = $msgDate; ?>
-    <div class="tp-date-sep">
-        <span><?php echo ($msgDate === date('d M Y')) ? 'Today' : $msgDate; ?></span>
+  <?php if ($msgDate !== $prevDate): $prevDate = $msgDate; ?>
+  <div class="tp-date-sep">
+    <span><?php echo ($msgDate === date('d M Y')) ? 'Today' : $msgDate; ?></span>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($item['type'] === 'status_change'):
+    $ns = $item['data']['new_status'];
+    $by = $item['data']['changed_by'];
+    $at = date('H:i', strtotime($item['time']));
+
+    // colours matching your $statusMap
+    $pillStyles = [
+      'in_progress' => ['label'=>'In Progress', 'bg'=>'#E6F1FB', 'color'=>'#0C447C', 'dot'=>'#378ADD', 'border'=>'#B5D4F4'],
+      'closed'      => ['label'=>'Closed',      'bg'=>'#EAF3DE', 'color'=>'#27500A', 'dot'=>'#1D9E75', 'border'=>'#B5D4B0'],
+      'open'        => ['label'=>'Open',         'bg'=>'#FAEEDA', 'color'=>'#854F0B', 'dot'=>'#EF9F27', 'border'=>'#F5D39A'],
+    ];
+    $ps = $pillStyles[$ns] ?? $pillStyles['open'];
+  ?>
+  <div class="tp-status-event">
+    <div class="tp-status-event-pill"
+         style="background:<?php echo $ps['bg']; ?>;
+                color:<?php echo $ps['color']; ?>;
+                border-color:<?php echo $ps['border']; ?>;">
+      <span class="tp-status-event-dot" style="background:<?php echo $ps['dot']; ?>;"></span>
+      Ticket marked as <strong><?php echo $ps['label']; ?></strong> by <?php echo htmlspecialchars($by); ?>
     </div>
-    <?php endif; ?>
+    <span class="tp-status-event-time"><?php echo $at; ?></span>
+  </div>
 
-    <div class="tp-msg-row <?php echo $rowClass; ?>">
-        <div class="tp-avatar <?php echo $avClass; ?>"><?php echo htmlspecialchars($initials); ?></div>
-        <div class="tp-msg-body">
-            <div class="tp-msg-name">
-                <?php echo htmlspecialchars($senderLabel); ?> · <?php echo date('H:i', strtotime($r['created_at'])); ?>
-            </div>
+  <?php else:
+    $r        = $item['data'];
+    $isMe     = ($r['sender_role'] === $submitterType && (int)$r['sender_id'] === $userId);
+    $rowClass = $isMe ? 'tp-me' : 'tp-dept';
+    $avClass  = $isMe ? 'av-me' : 'av-dept';
+    $initials    = getInitials($r['sender_name']);
+    $senderLabel = $isMe ? 'You' : $r['sender_name'];
+    $hasAttach   = !empty($r['attachment_path']);
+    $attachPath  = $hasAttach ? $r['attachment_path'] : '';
+    $isImg       = $hasAttach && isImageAttachment($attachPath);
+    $fileName    = $hasAttach ? basename($attachPath) : '';
+    $fileMeta    = ($hasAttach && !$isImg) ? fileCardMeta($attachPath) : [];
+    $extUpper    = $hasAttach ? strtoupper(pathinfo($attachPath, PATHINFO_EXTENSION)) : '';
+    $displayName = strlen($fileName) > 28 ? substr($fileName, 0, 25) . '…' : $fileName;
+  ?>
 
-            <?php if ($isImg): ?>
-                <a href="../<?php echo htmlspecialchars($attachPath); ?>"
-                   class="tp-img-bubble" title="View full image"
-                   onclick="tpOpenLightbox(this.href); return false;">
-                    <img src="../<?php echo htmlspecialchars($attachPath); ?>"
-                         alt="Image attachment" loading="lazy"
-                         onerror="this.closest('.tp-img-bubble').style.display='none'">
-                </a>
-                <?php if (!empty($r['message'])): ?>
-                    <div class="tp-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div>
-                <?php endif; ?>
+  <div class="tp-msg-row <?php echo $rowClass; ?>">
+    <div class="tp-avatar <?php echo $avClass; ?>"><?php echo htmlspecialchars($initials); ?></div>
+    <div class="tp-msg-body">
+      <div class="tp-msg-name">
+        <?php echo htmlspecialchars($senderLabel); ?> · <?php echo date('H:i', strtotime($r['created_at'])); ?>
+      </div>
 
-            <?php elseif ($hasAttach): ?>
-                <?php if (!empty($r['message'])): ?>
-                    <div class="tp-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div>
-                <?php endif; ?>
-                <a href="../<?php echo htmlspecialchars($attachPath); ?>"
-                   class="tp-file-card"
-                   target="_blank"
-                   rel="noopener"
-                   title="<?php echo htmlspecialchars($fileName); ?>">
-                    <div class="tp-file-card-icon"
-                         style="background:<?php echo $fileMeta['bg']; ?>;
-                                color:<?php echo $fileMeta['color']; ?>;">
-                        <?php echo htmlspecialchars($fileMeta['label']); ?>
-                    </div>
-                    <div class="tp-file-card-info">
-                        <span class="tp-file-card-name">
-                            <?php echo htmlspecialchars($displayName); ?>
-                        </span>
-                        <span class="tp-file-card-meta">
-                            <?php echo $extUpper; ?> file &nbsp;·&nbsp; tap to open
-                        </span>
-                    </div>
-                    <svg class="tp-file-card-dl" viewBox="0 0 24 24">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                </a>
+      <?php if ($isImg): ?>
+        <a href="../<?php echo htmlspecialchars($attachPath); ?>"
+           class="tp-img-bubble" title="View full image"
+           onclick="tpOpenLightbox(this.href); return false;">
+          <img src="../<?php echo htmlspecialchars($attachPath); ?>"
+               alt="Image attachment" loading="lazy"
+               onerror="this.closest('.tp-img-bubble').style.display='none'">
+        </a>
+        <?php if (!empty($r['message'])): ?>
+          <div class="tp-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div>
+        <?php endif; ?>
 
-            <?php else: ?>
-                <?php if (!empty($r['message'])): ?>
-                    <div class="tp-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div>
-                <?php endif; ?>
-            <?php endif; ?>
+      <?php elseif ($hasAttach): ?>
+        <?php if (!empty($r['message'])): ?>
+          <div class="tp-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div>
+        <?php endif; ?>
+        <a href="../<?php echo htmlspecialchars($attachPath); ?>"
+           class="tp-file-card" target="_blank" rel="noopener"
+           title="<?php echo htmlspecialchars($fileName); ?>">
+          <div class="tp-file-card-icon"
+               style="background:<?php echo $fileMeta['bg']; ?>;color:<?php echo $fileMeta['color']; ?>;">
+            <?php echo htmlspecialchars($fileMeta['label']); ?>
+          </div>
+          <div class="tp-file-card-info">
+            <span class="tp-file-card-name"><?php echo htmlspecialchars($displayName); ?></span>
+            <span class="tp-file-card-meta"><?php echo $extUpper; ?> file &nbsp;·&nbsp; tap to open</span>
+          </div>
+          <svg class="tp-file-card-dl" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </a>
 
-        </div>
+      <?php else: ?>
+        <?php if (!empty($r['message'])): ?>
+          <div class="tp-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div>
+        <?php endif; ?>
+      <?php endif; ?>
+
     </div>
+  </div>
+
+  <?php endif; ?>
 <?php endforeach; endif; ?>
     </div>
 

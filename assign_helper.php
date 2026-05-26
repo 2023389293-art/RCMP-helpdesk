@@ -1,15 +1,27 @@
 <?php
-// assign_helper.php    
+// assign_helper.php
 // Place in project ROOT (same folder as db_connect.php)
- 
+
 /**
  * Auto-assign a ticket to staff based on category match.
- * If no staff matches the category, falls back to round-robin.
- * Returns the staff_id assigned, or 0 if no active staff found.
+ *
+ * Routing priority:
+ *   1. If category name ends with "/ Others"  → assign to dept admin/hod (queue-aware)
+ *   2. Find staff whose staff_categories match the sub-category
+ *   3. If NO matching staff exist at all      → assign to dept admin/hod (queue-aware)
+ *   4. Among matched staff, pick the first one with ZERO open tickets
+ *   5. If all matched staff are busy          → add to ticket_queue (normal queue)
+ *
+ * "Assign to dept admin" means: find an active staff member with role = 'admin'
+ * or 'hod' in the same dept_id, pick the one with the fewest open tickets
+ * (round-robin fallback). If the admin is also busy, still assign to them —
+ * admins are never queued, they always get the ticket immediately.
+ *
+ * Returns the staff_id assigned, or 0 if assignment was impossible.
  */
 function autoAssignTicket(mysqli $conn, int $deptId, string $ticketId): int
 {
-    // 1. Get category info for this ticket
+    // ── 1. Get category info for this ticket ──────────────────────────────────
     $catStmt = $conn->prepare("
         SELECT c.category_id, c.category_name
         FROM complaints co
@@ -24,13 +36,21 @@ function autoAssignTicket(mysqli $conn, int $deptId, string $ticketId): int
     $categoryName = $catRow['category_name'] ?? '';
     $categoryId   = (int)($catRow['category_id'] ?? 0);
 
-    // 2. Extract sub-category
-    $subCategory = $categoryName;
-if (strpos($categoryName, ' / ') !== false) {
-    $subCategory = trim(explode(' / ', $categoryName, 2)[1]);
-}
+    // ── 2. Detect "Others" category ───────────────────────────────────────────
+    $isOthers = _isOthersCategory($categoryName);
 
-    // 3. Find matching staff list (by staff_categories junction table)
+    if ($isOthers) {
+        // Route directly to dept admin — skip the staff queue entirely
+        return _assignToAdmin($conn, $deptId, $ticketId, $categoryId);
+    }
+
+    // ── 3. Extract sub-category label ─────────────────────────────────────────
+    $subCategory = $categoryName;
+    if (strpos($categoryName, ' / ') !== false) {
+        $subCategory = trim(explode(' / ', $categoryName, 2)[1]);
+    }
+
+    // ── 4. Find staff whose staff_categories include this sub-category ────────
     $staffList = [];
     $staffStmt = $conn->prepare("
         SELECT s.staff_id
@@ -52,25 +72,12 @@ if (strpos($categoryName, ' / ') !== false) {
     }
     $staffStmt->close();
 
-    // 4. Fallback to all active staff if no category match
+    // ── 5. No staff configured for this category → route to admin ─────────────
     if (empty($staffList)) {
-        $fallbackStmt = $conn->prepare("
-            SELECT staff_id FROM staff
-            WHERE dept_id = ? AND status = 'active' AND role = 'staff'
-            ORDER BY staff_id ASC
-        ");
-        $fallbackStmt->bind_param("i", $deptId);
-        $fallbackStmt->execute();
-        $fallbackRes = $fallbackStmt->get_result();
-        while ($row = $fallbackRes->fetch_assoc()) {
-            $staffList[] = (int)$row['staff_id'];
-        }
-        $fallbackStmt->close();
+        return _assignToAdmin($conn, $deptId, $ticketId, $categoryId);
     }
 
-    if (empty($staffList)) return 0;
-
-    // 5. Find FREE staff — free means ZERO open tickets assigned to them
+    // ── 6. Find a free staff member (zero open tickets) ───────────────────────
     $freeStaffId = 0;
     foreach ($staffList as $sid) {
         $chk = $conn->prepare("
@@ -84,11 +91,11 @@ if (strpos($categoryName, ' / ') !== false) {
 
         if ((int)$chkRow['cnt'] === 0) {
             $freeStaffId = $sid;
-            break; // first free staff found
+            break;
         }
     }
 
-    // 6. Nobody is free — add to queue and return
+    // ── 7. All matched staff are busy → add to normal queue ───────────────────
     if ($freeStaffId === 0) {
         $qStmt = $conn->prepare("
             INSERT IGNORE INTO ticket_queue (ticket_id, dept_id, category_id, queued_at)
@@ -97,13 +104,76 @@ if (strpos($categoryName, ' / ') !== false) {
         $qStmt->bind_param("sii", $ticketId, $deptId, $categoryId);
         $qStmt->execute();
         $qStmt->close();
-        return 0; // ticket is queued, not assigned yet
+        return 0;
     }
 
-    // 7. Assign to the free staff
+    // ── 8. Assign to the free staff member ────────────────────────────────────
     return assignToStaff($conn, $ticketId, $freeStaffId);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// INTERNAL HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns true if the category name ends with "/ Others" (case-insensitive).
+ */
+function _isOthersCategory(string $categoryName): bool
+{
+    return (bool) preg_match('/\/\s*Others\s*$/i', $categoryName);
+}
+
+/**
+ * Assign a ticket directly to the department admin (role = 'admin' or 'hod').
+ *
+ * Picks the admin/hod with the fewest currently open tickets so the load is
+ * spread when there are multiple admins. Always assigns immediately — admins
+ * are never put into the ticket_queue.
+ *
+ * If no admin/hod exists for the department, falls back to the normal queue.
+ */
+function _assignToAdmin(mysqli $conn, int $deptId, string $ticketId, int $categoryId): int
+{
+    // Find all active admin / hod accounts for this dept
+    $adminStmt = $conn->prepare("
+        SELECT s.staff_id,
+               (SELECT COUNT(*) FROM complaints
+                WHERE assigned_to = s.staff_id AND status = 'open') AS open_count
+        FROM staff s
+        WHERE s.dept_id = ?
+          AND s.status  = 'active'
+          AND s.role    IN ('admin', 'hod')
+        ORDER BY open_count ASC, s.staff_id ASC
+        LIMIT 1
+    ");
+    $adminStmt->bind_param("i", $deptId);
+    $adminStmt->execute();
+    $adminRow = $adminStmt->get_result()->fetch_assoc();
+    $adminStmt->close();
+
+    if (!$adminRow) {
+        // No admin found — fall back to normal queue so ticket isn't lost
+        $qStmt = $conn->prepare("
+            INSERT IGNORE INTO ticket_queue (ticket_id, dept_id, category_id, queued_at)
+            VALUES (?, ?, ?, NOW())
+        ");
+        $qStmt->bind_param("sii", $ticketId, $deptId, $categoryId);
+        $qStmt->execute();
+        $qStmt->close();
+        return 0;
+    }
+
+    return assignToStaff($conn, $ticketId, (int)$adminRow['staff_id']);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUBLIC FUNCTIONS (unchanged signatures — existing callers are not broken)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Process the ticket queue for a newly freed staff member.
+ * Called after a ticket is closed/resolved so the next queued ticket is picked up.
+ */
 function processQueue(mysqli $conn, int $deptId, int $staffId): void
 {
     // Get ALL categories for this staff from junction table
@@ -135,44 +205,49 @@ function processQueue(mysqli $conn, int $deptId, int $staffId): void
     $chkRow = $chk->get_result()->fetch_assoc();
     $chk->close();
 
-    if ((int)$chkRow['cnt'] > 0) return; // staff still has open ticket, do nothing
+    if ((int)$chkRow['cnt'] > 0) return;
 
-    // Find oldest queued ticket matching staff's category
     $nextTicketId = null;
 
+    // Try to find a queued ticket matching this staff's categories
+    // Exclude "Others" tickets from the normal staff queue — those go to admin
     if (!empty($staffCategories)) {
-    $orClauses  = implode(' OR ', array_fill(0, count($staffCategories), 'cat.category_name LIKE ?'));
-    $likeParams = array_map(function($c) { return '%/ ' . $c; }, $staffCategories);
+        $orClauses  = implode(' OR ', array_fill(0, count($staffCategories), 'cat.category_name LIKE ?'));
+        $likeParams = array_map(function ($c) { return '%/ ' . $c; }, $staffCategories);
 
-    $qStmt = $conn->prepare("
-        SELECT tq.ticket_id FROM ticket_queue tq
-        JOIN categories cat ON cat.category_id = tq.category_id
-        WHERE tq.dept_id = ?
-          AND ({$orClauses})
-        ORDER BY tq.queued_at ASC
-        LIMIT 1
-    ");
+        $qStmt = $conn->prepare("
+            SELECT tq.ticket_id FROM ticket_queue tq
+            JOIN categories cat ON cat.category_id = tq.category_id
+            WHERE tq.dept_id = ?
+              AND ({$orClauses})
+              AND cat.category_name NOT REGEXP '/ Others[[:space:]]*$'
+            ORDER BY tq.queued_at ASC
+            LIMIT 1
+        ");
 
-    $types      = 'i' . str_repeat('s', count($likeParams));
-    $bindValues = array_merge([$deptId], $likeParams);
-    $bindArgs   = [$types];
-    foreach ($bindValues as &$val) {
-        $bindArgs[] = &$val;
+        $types      = 'i' . str_repeat('s', count($likeParams));
+        $bindValues = array_merge([$deptId], $likeParams);
+        $bindArgs   = [$types];
+        foreach ($bindValues as &$val) {
+            $bindArgs[] = &$val;
+        }
+        unset($val);
+        call_user_func_array([$qStmt, 'bind_param'], $bindArgs);
+
+        $qStmt->execute();
+        $qRow         = $qStmt->get_result()->fetch_assoc();
+        $qStmt->close();
+        $nextTicketId = $qRow['ticket_id'] ?? null;
     }
-    unset($val);
-    call_user_func_array([$qStmt, 'bind_param'], $bindArgs);
 
-    $qStmt->execute();
-    $qRow         = $qStmt->get_result()->fetch_assoc();
-    $qStmt->close();
-    $nextTicketId = $qRow['ticket_id'] ?? null;
-}
-    // Fallback: any queued ticket in this dept if no category match
+    // Fallback: any non-Others queued ticket in this dept
     if (!$nextTicketId) {
         $qStmt = $conn->prepare("
-            SELECT ticket_id FROM ticket_queue
-            WHERE dept_id = ?
-            ORDER BY queued_at ASC
+            SELECT tq.ticket_id FROM ticket_queue tq
+            JOIN categories cat ON cat.category_id = tq.category_id
+            WHERE tq.dept_id = ?
+              AND cat.category_name NOT REGEXP '/ Others[[:space:]]*$'
+            ORDER BY tq.queued_at ASC
             LIMIT 1
         ");
         $qStmt->bind_param("i", $deptId);
@@ -182,9 +257,8 @@ function processQueue(mysqli $conn, int $deptId, int $staffId): void
         $nextTicketId = $qRow['ticket_id'] ?? null;
     }
 
-    if (!$nextTicketId) return; // nothing in queue
+    if (!$nextTicketId) return;
 
-    // Remove from queue and assign
     $del = $conn->prepare("DELETE FROM ticket_queue WHERE ticket_id = ?");
     $del->bind_param("s", $nextTicketId);
     $del->execute();
@@ -193,6 +267,30 @@ function processQueue(mysqli $conn, int $deptId, int $staffId): void
     assignToStaff($conn, $nextTicketId, $staffId);
 }
 
+/**
+ * Manually reassign a ticket to a specific staff member.
+ */
+function manualAssignTicket(mysqli $conn, int $deptId, string $ticketId, int $staffId): bool
+{
+    $del = $conn->prepare("DELETE FROM ticket_queue WHERE ticket_id = ?");
+    $del->bind_param("s", $ticketId);
+    $del->execute();
+    $del->close();
+
+    $upd = $conn->prepare("
+        UPDATE complaints SET assigned_to = ?, updated_at = NOW()
+        WHERE ticket_id = ? AND dept_id = ?
+    ");
+    $upd->bind_param("isi", $staffId, $ticketId, $deptId);
+    $result = $upd->execute();
+    $upd->close();
+    return $result;
+}
+
+/**
+ * Core assignment: update the complaint row, write a ticket_log entry.
+ * Returns the staff_id that was assigned.
+ */
 function assignToStaff(mysqli $conn, string $ticketId, int $staffId): int
 {
     // Get old assignee name for log
@@ -221,7 +319,7 @@ function assignToStaff(mysqli $conn, string $ticketId, int $staffId): int
     $upd->execute();
     $upd->close();
 
-    // Log it
+    // Log the assignment
     $log = $conn->prepare("
         INSERT INTO ticket_logs
             (ticket_id, changed_by_id, changed_by, field_changed, old_priority, new_priority, changed_at)
@@ -235,37 +333,16 @@ function assignToStaff(mysqli $conn, string $ticketId, int $staffId): int
 }
 
 /**
- * Manually reassign a ticket to a specific staff member.
- * NOTE: Do NOT add ticket_logs here — manual assign already logs
- * elsewhere in your codebase (confirmed by logs 108-110 in your DB).
- * Adding it here would create duplicate log entries.
- */
-function manualAssignTicket(mysqli $conn, int $deptId, string $ticketId, int $staffId): bool
-{
-    // Remove from queue if waiting
-    $del = $conn->prepare("DELETE FROM ticket_queue WHERE ticket_id = ?");
-    $del->bind_param("s", $ticketId);
-    $del->execute();
-    $del->close();
-
-    $upd = $conn->prepare("UPDATE complaints SET assigned_to = ?, updated_at = NOW() WHERE ticket_id = ? AND dept_id = ?");
-    $upd->bind_param("isi", $staffId, $ticketId, $deptId);
-    $result = $upd->execute();
-    $upd->close();
-    return $result;
-}
-
-/**
  * Get the currently assigned staff for a ticket.
  */
 function getAssignedStaff(mysqli $conn, string $ticketId): ?array
 {
-    $stmt = $conn->prepare(
-        "SELECT s.staff_id, s.full_name, s.email, s.role
-         FROM complaints c
-         JOIN staff s ON s.staff_id = c.assigned_to
-         WHERE c.ticket_id = ? LIMIT 1"
-    );
+    $stmt = $conn->prepare("
+        SELECT s.staff_id, s.full_name, s.email, s.role
+        FROM complaints c
+        JOIN staff s ON s.staff_id = c.assigned_to
+        WHERE c.ticket_id = ? LIMIT 1
+    ");
     $stmt->bind_param("s", $ticketId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
@@ -274,12 +351,12 @@ function getAssignedStaff(mysqli $conn, string $ticketId): ?array
 }
 
 /**
- * Get staff initials from full name
+ * Get staff initials from full name.
  */
 function getInitialsFromName(string $name): string
 {
     $parts = explode(' ', trim($name));
-    $ini = strtoupper(substr($parts[0], 0, 1));
-    if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts)-1], 0, 1));
+    $ini   = strtoupper(substr($parts[0], 0, 1));
+    if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
     return $ini;
 }
