@@ -39,9 +39,13 @@ if ($filterCategory !== '') { $extraWhere .= " AND complaints.category_id = ?"; 
 function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTypes, array $extraParams): void {
     if (empty($extraTypes)) return;
     $types = $baseTypes . $extraTypes;
-    $refs  = $baseRefs;
-    foreach ($extraParams as &$v) $refs[] = &$v;
-    call_user_func_array([$stmt, 'bind_param'], array_merge([$types], $refs));
+    $allParams = array_merge($baseRefs, $extraParams);
+    $bindArgs = [$types];
+    foreach ($allParams as &$val) {
+        $bindArgs[] = &$val;
+    }
+    unset($val);
+    call_user_func_array([$stmt, 'bind_param'], $bindArgs);
 }
 
 $stmt = $conn->prepare(
@@ -53,7 +57,7 @@ $stmt = $conn->prepare(
      WHERE complaints.dept_id = ? $extraWhere"
 );
 if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
-else { bindAdvanced($stmt,"i",[&$deptId],$extraTypes,$extraParams); }
+else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
 $stmt->execute();
 $counts = $stmt->get_result()->fetch_assoc(); $stmt->close();
 $openCount       = (int)($counts['oc']  ?? 0);
@@ -63,11 +67,11 @@ $closedCount     = (int)($counts['cc']  ?? 0);
 if ($filterStatus === 'all') {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("i",$deptId); }
-    else { bindAdvanced($stmt,"i",[&$deptId],$extraTypes,$extraParams); }
+    else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
 } else {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("is",$deptId,$filterStatus); }
-    else { bindAdvanced($stmt,"is",[&$deptId,&$filterStatus],$extraTypes,$extraParams); }
+    else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes,$extraParams); }
 }
 $stmt->execute();
 $totalTickets = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0); $stmt->close();
@@ -92,7 +96,7 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("iii",$deptId,$perPage,$offset); }
-    else { bindAdvanced($stmt,"i",[&$deptId],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
+    else { bindAdvanced($stmt,"i",[$deptId],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
 } else {
     $stmt = $conn->prepare(
         "SELECT complaints.ticket_id, complaints.title, complaints.status,
@@ -108,20 +112,23 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("isii",$deptId,$filterStatus,$perPage,$offset); }
-    else { bindAdvanced($stmt,"is",[&$deptId,&$filterStatus],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
+    else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
 }
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) $tickets[] = $row;
 $stmt->close();
 
-$activeNav = match($filterStatus) { 'open'=>'tickets-open','in_progress'=>'tickets-inprogress','closed'=>'tickets-closed',default=>'tickets' };
+if ($filterStatus === 'open') { $activeNav = 'tickets-open'; }
+elseif ($filterStatus === 'in_progress') { $activeNav = 'tickets-inprogress'; }
+elseif ($filterStatus === 'closed') { $activeNav = 'tickets-closed'; }
+else { $activeNav = 'tickets'; }
 $pageTitle    = 'All Tickets';
 $pageSubtitle = 'Corporate Communication Unit';
 
 function ticketUrl(array $overrides = []): string {
     $params = array_merge(['status'=>$_GET['status']??'all','per_page'=>$_GET['per_page']??10,'page'=>$_GET['page']??1,'priority'=>$_GET['priority']??'','date_from'=>$_GET['date_from']??'','date_to'=>$_GET['date_to']??'','dept'=>$_GET['dept']??'','category'=>$_GET['category']??''], $overrides);
-    $params = array_filter($params, fn($v) => $v !== '');
+    $params = array_filter($params, function($v) { return $v !== ''; });
     return 'tickets.php?' . http_build_query($params);
 }
 
@@ -158,7 +165,7 @@ function staffInitials(string $name): string {
     .filter-bar{display:flex;align-items:center;gap:6px;margin-bottom:20px;flex-wrap:wrap;}
     .filter-tab{display:inline-flex;align-items:center;gap:7px;padding:8px 18px;border-radius:9px;font-size:14px;font-weight:500;text-decoration:none;border:1.5px solid var(--g200);color:var(--g500);background:white;transition:border-color .15s,color .15s,background .15s,box-shadow .15s;white-space:nowrap;}
     .filter-tab:hover:not(.active){border-color:var(--g300);color:var(--g700);background:var(--g100);}
-    .filter-tab.active.tab-all{background:var(--accent);border-color:var(--accent);color:white;font-weight:600;box-shadow:0 2px 10px rgba(124,58,237,.22);}
+    .filter-tab.active.tab-all{background:var(--accent);border-color:var(--accent);color:white;font-weight:600;box-shadow:0 2px 10px rgba(26,86,219,.22);}
     .filter-tab.active.tab-open{background:#D97706;border-color:#D97706;color:white;font-weight:600;}
     .filter-tab.active.tab-inprogress{background:#2563EB;border-color:#2563EB;color:white;font-weight:600;}
     .filter-tab.active.tab-closed{background:#059669;border-color:#059669;color:white;font-weight:600;}
@@ -193,13 +200,13 @@ function staffInitials(string $name): string {
 .adv-filter-select:focus,.adv-filter-input:focus{border-color:var(--accent);background:white;box-shadow:0 0 0 3px rgba(124,58,237,.07);}
 .adv-filter-actions{display:flex;align-items:center;gap:8px;margin-left:auto;padding-bottom:1px;}
 .btn-apply-filter{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;border-radius:9px;border:none;background:var(--accent);color:white;cursor:pointer;box-shadow:0 2px 8px rgba(124,58,237,.18);transition:background .15s,box-shadow .15s;}
-.btn-apply-filter:hover{background:#6d28d9;box-shadow:0 4px 14px rgba(124,58,237,.28);}
+.btn-apply-filter:hover{background:#1240b0;box-shadow:0 4px 14px rgba(124,58,237,.28);}
 .btn-reset-filter{display:inline-flex;align-items:center;gap:5px;padding:9px 14px;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;border-radius:9px;border:1.5px solid var(--g200);background:white;color:var(--g500);text-decoration:none;transition:border-color .15s,color .15s;}
 .btn-reset-filter:hover{border-color:var(--g300);color:var(--g700);}
 
     /* ── Active filter chips ── */
     .active-chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-    .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#F5F3FF;border:1.5px solid #DDD6FE;border-radius:20px;font-size:12px;font-weight:600;color:var(--accent);}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:20px;font-size:12px;font-weight:600;color:var(--accent);}
     .chip-x{font-size:14px;font-weight:700;color:var(--accent);text-decoration:none;line-height:1;opacity:.6;}
 
     /* ── Table card ── */
@@ -214,7 +221,6 @@ function staffInitials(string $name): string {
 
     /* ── Column widths ── */
     col.col-id       { width: 16%; }
-    col.col-title    { width: 13%; }
     col.col-dept     { width: 16%; }
     col.col-status   { width: 9%;  }
     col.col-priority { width: 8%;  }
@@ -224,15 +230,12 @@ function staffInitials(string $name): string {
 
     /* ── Ticket ID ── */
     .tid-link{font-weight:600;color:var(--accent);font-size:13px;text-decoration:none;font-family:monospace;letter-spacing:.03em;background:#EFF6FF;padding:3px 8px;border-radius:5px;white-space:nowrap;display:inline-block;max-width:100%;overflow:visible;}
-    .tid-link:hover{color:#6d28d9;background:#EDE9FE;}
+    .tid-link:hover{color:#1240b0;background:#DBEAFE;}
 
     /* ── From Department cell ── */
     .dept-cell{display:flex;flex-direction:column;gap:2px;}
     .dept-cell .dept-name{font-size:14px;color:var(--g700);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .dept-cell .dept-datetime{font-size:12px;color:var(--g400);white-space:nowrap;}
-
-    /* ── Title cell ── */
-    .title-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;}
 
     /* ── Status badges ── */
     .bdg{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:20px;text-transform:capitalize;white-space:nowrap;}
@@ -251,7 +254,7 @@ function staffInitials(string $name): string {
 
     /* ── Assigned To ── */
     .assigned-cell{display:flex;align-items:center;gap:7px;overflow:hidden;}
-.staff-avatar-sm{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3b0764,#7c3aed);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+.staff-avatar-sm{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#001f5c,#1a56db);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
     .assigned-name{font-size:13px;color:var(--g700);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .unassigned-tag{font-size:13px;color:#9CA3AF;font-style:italic;}
 
@@ -356,7 +359,12 @@ function staffInitials(string $name): string {
     <!-- ── Toolbar ── -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <span class="sec-title"><?php echo match($filterStatus){'open'=>'Open Tickets','in_progress'=>'In Progress Tickets','closed'=>'Closed Tickets',default=>'All Tickets'}; ?></span>
+        <span class="sec-title"><?php
+if ($filterStatus === 'open') { echo 'Open Tickets'; }
+elseif ($filterStatus === 'in_progress') { echo 'In Progress Tickets'; }
+elseif ($filterStatus === 'closed') { echo 'Closed Tickets'; }
+else { echo 'All Tickets'; }
+?></span>
         <span class="result-count" id="result-label">— <?php echo $totalTickets; ?> ticket<?php echo $totalTickets!==1?'s':''; ?></span>
       </div>
       <div class="toolbar-right">
@@ -379,7 +387,6 @@ function staffInitials(string $name): string {
       <table id="ticket-table">
         <colgroup>
           <col class="col-id">
-          <col class="col-title">
           <col class="col-dept">
           <col class="col-status">
           <col class="col-priority">
@@ -389,7 +396,6 @@ function staffInitials(string $name): string {
         </colgroup>
         <thead><tr>
           <th>Ticket ID</th>
-          <th>Title</th>
           <th>From Department</th>
           <th>Status</th>
           <th>Priority</th>
@@ -399,7 +405,7 @@ function staffInitials(string $name): string {
         </tr></thead>
         <tbody id="ticket-tbody">
           <?php if (empty($tickets)): ?>
-          <tr><td colspan="8"><div class="empty">
+          <tr><td colspan="7"><div class="empty">
             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
             <h3>No tickets found</h3><p>No complaints match your current filter.</p>
           </div></td></tr>
@@ -409,12 +415,10 @@ function staffInitials(string $name): string {
             $pri         = strtolower($t['priority'] ?? 'medium');
             $isHighOpen  = ($pri === 'high' && $s === 'open');
             $statusLabel = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
-            $flagFill    = match($pri) {
-              'high'   => '#DC2626',
-              'medium' => '#EAB308',
-              'low'    => '#3B82F6',
-              default  => '#64748b',
-            };
+            if ($pri === 'high') { $flagFill = '#DC2626'; }
+elseif ($pri === 'medium') { $flagFill = '#EAB308'; }
+elseif ($pri === 'low') { $flagFill = '#3B82F6'; }
+else { $flagFill = '#64748b'; }
           ?>
           <tr data-id="<?php echo strtolower(htmlspecialchars($t['ticket_id'])); ?>"
               data-title="<?php echo strtolower(htmlspecialchars($t['title'])); ?>"
@@ -429,13 +433,7 @@ function staffInitials(string $name): string {
               </a>
             </td>
 
-            <!-- Title -->
-            <td>
-              <div class="title-cell">
-                <?php if ($isHighOpen): ?><span class="high-dot"></span><?php endif; ?>
-                <?php echo htmlspecialchars($t['title']); ?>
-              </div>
-            </td>
+            
 
             <!-- From Department + date/time stacked -->
             <td>
@@ -501,7 +499,7 @@ function staffInitials(string $name): string {
 
           </tr>
           <?php endforeach; ?>
-          <tr id="no-search-row"><td colspan="8"><div class="empty">
+          <tr id="no-search-row"><td colspan="7"><div class="empty">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <h3>No results</h3><p>No tickets match your search.</p>
           </div></td></tr>

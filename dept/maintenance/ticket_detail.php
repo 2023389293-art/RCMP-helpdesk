@@ -1205,11 +1205,11 @@ $pageSubtitle = 'Maintenance Department';
 <div class="status-select-wrap">
   <select name="status" id="status" class="status-select-styled" onchange="handleStatusChange(this.value)">
     <?php if ($curStat === 'open'): ?>
-  <option value="open" selected>Open</option>
+  <option value="" disabled selected>— Select action —</option>
   <option value="in_progress">In Progress</option>
   <option value="closed">Closed</option>
 <?php elseif ($curStat === 'in_progress'): ?>
-  <option value="in_progress" selected>In Progress</option>
+  <option value="" disabled selected>— Select action —</option>
   <option value="closed">Closed</option>
 <?php else: ?>
   <option value="closed" selected>Closed</option>

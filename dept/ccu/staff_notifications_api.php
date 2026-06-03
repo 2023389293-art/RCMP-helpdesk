@@ -1,5 +1,5 @@
 <?php
-// dept/ccu/staff_notifications_api.php  
+// dept/ccu/staff_notifications_api.php   
 // Returns JSON: { notifications: [...] }
 //
 // Notification types:
