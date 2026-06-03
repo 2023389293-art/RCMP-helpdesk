@@ -1,33 +1,33 @@
 <?php
-// dept/afsmd/requisitions.php
+// dept/afsmd/requisitions.php (new)
 require_once __DIR__ . '/../auth_guard.php';
 if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+if (!isset($_SESSION)) session_start();
 
-$filterStatus  = $_GET['status'] ?? 'all';
-$allowedFilter = ['all','pending','approved','rejected','completed'];
+$filterStatus  = isset($_GET['status']) ? $_GET['status'] : 'all';
+$allowedFilter = array('all','pending','approved','rejected','completed');
 if (!in_array($filterStatus, $allowedFilter)) $filterStatus = 'all';
 
-$allowedPerPage = [10,25,50];
+$allowedPerPage = array(10,25,50);
 $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 10;
 if (!in_array($perPage, $allowedPerPage)) $perPage = 10;
 
-$page   = max(1, (int)($_GET['page'] ?? 1));
+$page   = max(1, (int)(isset($_GET['page']) ? $_GET['page'] : 1));
 $offset = ($page - 1) * $perPage;
 
-$filterUrgency  = $_GET['urgency']   ?? '';
-$filterDateFrom = $_GET['date_from'] ?? '';
-$filterDateTo   = $_GET['date_to']   ?? '';
-$filterDept     = $_GET['dept']      ?? '';
-$filterCategory = $_GET['category']  ?? '';
+$filterUrgency  = isset($_GET['urgency'])   ? $_GET['urgency']   : '';
+$filterDateFrom = isset($_GET['date_from']) ? $_GET['date_from'] : '';
+$filterDateTo   = isset($_GET['date_to'])   ? $_GET['date_to']   : '';
+$filterDept     = isset($_GET['dept'])      ? $_GET['dept']      : '';
+$filterCategory = isset($_GET['category'])  ? $_GET['category']  : '';
 
-$allowedUrgency = ['','normal','urgent'];
+$allowedUrgency = array('','normal','urgent');
 if (!in_array($filterUrgency, $allowedUrgency)) $filterUrgency = '';
 
 $extraWhere  = '';
-$extraParams = [];
+$extraParams = array();
 $extraTypes  = '';
 
 if ($filterUrgency !== '')  { $extraWhere .= " AND r.urgency = ?";                           $extraParams[] = $filterUrgency;       $extraTypes .= 's'; }
@@ -36,8 +36,8 @@ if ($filterDateTo   !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterDateTo)
 if ($filterDept !== '')     { $extraWhere .= " AND r.my_department = ?";                     $extraParams[] = $filterDept;          $extraTypes .= 's'; }
 if ($filterCategory !== '') { $extraWhere .= " AND r.category = ?";                          $extraParams[] = $filterCategory;      $extraTypes .= 's'; }
 
-function bindAll($stmt, string $types, array $params): void {
-    $refs = [];
+function bindAll($stmt, $types, $params) {
+    $refs = array();
     foreach ($params as $key => $val) {
         $refs[$key] = &$params[$key];
     }
@@ -61,29 +61,30 @@ if (!empty($extraParams)) {
 }
 $cStmt->execute();
 $counts = $cStmt->get_result()->fetch_assoc(); $cStmt->close();
-$reqPendingCount   = (int)($counts['pc'] ?? 0);
-$reqApprovedCount  = (int)($counts['ac'] ?? 0);
-$reqRejectedCount  = (int)($counts['rc'] ?? 0);
-$reqCompletedCount = (int)($counts['cc'] ?? 0);
+$reqPendingCount   = (int)(isset($counts['pc']) ? $counts['pc'] : 0);
+$reqApprovedCount  = (int)(isset($counts['ac']) ? $counts['ac'] : 0);
+$reqRejectedCount  = (int)(isset($counts['rc']) ? $counts['rc'] : 0);
+$reqCompletedCount = (int)(isset($counts['cc']) ? $counts['cc'] : 0);
 
 // Total for pagination
 $statusWhere = $filterStatus !== 'all' ? " AND r.status = ?" : '';
 $tStmt = $conn->prepare("SELECT COUNT(*) AS total FROM requisitions r LEFT JOIN staff s ON s.staff_id = r.assigned_to WHERE 1=1 $extraWhere $statusWhere");
 if ($filterStatus !== 'all') {
-    bindAll($tStmt, $extraTypes . 's', array_merge($extraParams, [$filterStatus]));
+    bindAll($tStmt, $extraTypes . 's', array_merge($extraParams, array($filterStatus)));
 } elseif (!empty($extraParams)) {
     bindAll($tStmt, $extraTypes, $extraParams);
 }
 $tStmt->execute();
-$totalReqs = (int)($tStmt->get_result()->fetch_assoc()['total'] ?? 0); $tStmt->close();
+$_trow = $tStmt->get_result()->fetch_assoc();
+$totalReqs = (int)(isset($_trow['total']) ? $_trow['total'] : 0); $tStmt->close();
 
 $totalPages = max(1, (int)ceil($totalReqs / $perPage));
 if ($page > $totalPages) $page = $totalPages;
 $offset = ($page - 1) * $perPage;
 
 // Fetch rows
-$rows = [];
-$dataParams = $filterStatus !== 'all' ? array_merge($extraParams, [$filterStatus, $perPage, $offset]) : array_merge($extraParams, [$perPage, $offset]);
+$rows = array();
+$dataParams = $filterStatus !== 'all' ? array_merge($extraParams, array($filterStatus, $perPage, $offset)) : array_merge($extraParams, array($perPage, $offset));
 $dataTypes  = $filterStatus !== 'all' ? $extraTypes . 'sii' : $extraTypes . 'ii';
 $dataStmt = $conn->prepare(
     "SELECT r.req_id, r.ref_number, r.submitter_id, r.submitter_type,
@@ -105,14 +106,14 @@ while ($row = $res->fetch_assoc()) $rows[] = $row;
 $dataStmt->close();
 
 // Dept options
-$deptOptions = [];
+$deptOptions = array();
 $dStmt = $conn->prepare("SELECT name FROM my_departments ORDER BY sort_order ASC");
 $dStmt->execute(); $dRes = $dStmt->get_result();
 while ($row = $dRes->fetch_assoc()) $deptOptions[] = $row['name'];
 $dStmt->close();
 
 // Category options (unique from requisitions table)
-$catOptions = [];
+$catOptions = array();
 $catStmt = $conn->query("SELECT DISTINCT category FROM requisitions ORDER BY category ASC");
 while ($row = $catStmt->fetch_assoc()) $catOptions[] = $row['category'];
 
@@ -131,27 +132,27 @@ $tcStmt = $conn->prepare("SELECT SUM(status='open') AS oc, SUM(status='in_progre
 $tcStmt->bind_param("i", $deptId);
 $tcStmt->execute();
 $tc = $tcStmt->get_result()->fetch_assoc(); $tcStmt->close();
-$openCount       = (int)($tc['oc']  ?? 0);
-$inProgressCount = (int)($tc['ipc'] ?? 0);
-$closedCount     = (int)($tc['cc']  ?? 0);
+$openCount       = (int)(isset($tc['oc']) ? $tc['oc'] : 0);
+$inProgressCount = (int)(isset($tc['ipc']) ? $tc['ipc'] : 0);
+$closedCount     = (int)(isset($tc['cc']) ? $tc['cc'] : 0);
 
-function reqUrl(array $overrides = []): string {
-    $params = array_merge([
-        'status'    => $_GET['status']    ?? 'all',
-        'per_page'  => $_GET['per_page']  ?? 10,
-        'page'      => $_GET['page']      ?? 1,
-        'urgency'   => $_GET['urgency']   ?? '',
-        'date_from' => $_GET['date_from'] ?? '',
-        'date_to'   => $_GET['date_to']   ?? '',
-        'dept'      => $_GET['dept']      ?? '',
-        'category'  => $_GET['category']  ?? '',
-    ], $overrides);
-    $params = array_filter($params, fn($v) => $v !== '');
+function reqUrl($overrides = array()) {
+    $params = array_merge(array(
+        'status'    => isset($_GET['status'])    ? $_GET['status']    : 'all',
+        'per_page'  => isset($_GET['per_page'])  ? $_GET['per_page']  : 10,
+        'page'      => isset($_GET['page'])      ? $_GET['page']      : 1,
+        'urgency'   => isset($_GET['urgency'])   ? $_GET['urgency']   : '',
+        'date_from' => isset($_GET['date_from']) ? $_GET['date_from'] : '',
+        'date_to'   => isset($_GET['date_to'])   ? $_GET['date_to']   : '',
+        'dept'      => isset($_GET['dept'])      ? $_GET['dept']      : '',
+        'category'  => isset($_GET['category'])  ? $_GET['category']  : '',
+    ), $overrides);
+    $params = array_filter($params, function($v) { return $v !== ''; });
     return 'requisitions.php?' . http_build_query($params);
 }
 
 if (!function_exists('staffInitials')) {
-function staffInitials(string $name): string {
+function staffInitials($name) {
     $parts = explode(' ', trim($name));
     $ini = strtoupper(substr($parts[0],0,1));
     if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts)-1],0,1));
@@ -313,19 +314,19 @@ col.col-action   { width: 9%;  }
 
 <!-- ── Filter tabs ── -->
 <div class="filter-bar">
-  <a href="<?php echo reqUrl(['status'=>'all','page'=>1]); ?>" class="filter-tab tab-all <?php echo $filterStatus==='all'?'active':''; ?>">
+  <a href="<?php echo reqUrl(array('status'=>'all','page'=>1)); ?>" class="filter-tab tab-all <?php echo $filterStatus==='all'?'active':''; ?>">
     All Requisitions <span class="ft-count"><?php echo $reqPendingCount+$reqApprovedCount+$reqRejectedCount+$reqCompletedCount; ?></span>
   </a>
-  <a href="<?php echo reqUrl(['status'=>'pending','page'=>1]); ?>" class="filter-tab tab-pending <?php echo $filterStatus==='pending'?'active':''; ?>">
+  <a href="<?php echo reqUrl(array('status'=>'pending','page'=>1)); ?>" class="filter-tab tab-pending <?php echo $filterStatus==='pending'?'active':''; ?>">
     <span class="tab-dot tab-dot-pending"></span>Pending <span class="ft-count"><?php echo $reqPendingCount; ?></span>
   </a>
-  <a href="<?php echo reqUrl(['status'=>'approved','page'=>1]); ?>" class="filter-tab tab-approved <?php echo $filterStatus==='approved'?'active':''; ?>">
+  <a href="<?php echo reqUrl(array('status'=>'approved','page'=>1)); ?>" class="filter-tab tab-approved <?php echo $filterStatus==='approved'?'active':''; ?>">
     <span class="tab-dot tab-dot-approved"></span>Approved <span class="ft-count"><?php echo $reqApprovedCount; ?></span>
   </a>
-  <a href="<?php echo reqUrl(['status'=>'rejected','page'=>1]); ?>" class="filter-tab tab-rejected <?php echo $filterStatus==='rejected'?'active':''; ?>">
+  <a href="<?php echo reqUrl(array('status'=>'rejected','page'=>1)); ?>" class="filter-tab tab-rejected <?php echo $filterStatus==='rejected'?'active':''; ?>">
     <span class="tab-dot tab-dot-rejected"></span>Rejected <span class="ft-count"><?php echo $reqRejectedCount; ?></span>
   </a>
-  <a href="<?php echo reqUrl(['status'=>'completed','page'=>1]); ?>" class="filter-tab tab-completed <?php echo $filterStatus==='completed'?'active':''; ?>">
+  <a href="<?php echo reqUrl(array('status'=>'completed','page'=>1)); ?>" class="filter-tab tab-completed <?php echo $filterStatus==='completed'?'active':''; ?>">
     <span class="tab-dot tab-dot-completed"></span>Completed <span class="ft-count"><?php echo $reqCompletedCount; ?></span>
   </a>
 </div>
@@ -386,11 +387,11 @@ col.col-action   { width: 9%;  }
 <?php if ($activeFilterCount > 0): ?>
 <div class="active-chips">
   <span style="font-size:12px;color:var(--g500);font-weight:500;">Active:</span>
-  <?php if ($filterUrgency):  ?><span class="chip">Urgency: <?php echo ucfirst($filterUrgency); ?><a class="chip-x" href="<?php echo reqUrl(['urgency'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
-  <?php if ($filterDept):     ?><span class="chip">Dept: <?php echo htmlspecialchars($filterDept); ?><a class="chip-x" href="<?php echo reqUrl(['dept'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
-  <?php if ($filterCategory): ?><span class="chip">Category: <?php echo htmlspecialchars($filterCategory); ?><a class="chip-x" href="<?php echo reqUrl(['category'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
-  <?php if ($filterDateFrom): ?><span class="chip">From: <?php echo date('d M Y',strtotime($filterDateFrom)); ?><a class="chip-x" href="<?php echo reqUrl(['date_from'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
-  <?php if ($filterDateTo):   ?><span class="chip">To: <?php echo date('d M Y',strtotime($filterDateTo)); ?><a class="chip-x" href="<?php echo reqUrl(['date_to'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
+  <?php if ($filterUrgency):  ?><span class="chip">Urgency: <?php echo ucfirst($filterUrgency); ?><a class="chip-x" href="<?php echo reqUrl(array('urgency'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
+  <?php if ($filterDept):     ?><span class="chip">Dept: <?php echo htmlspecialchars($filterDept); ?><a class="chip-x" href="<?php echo reqUrl(array('dept'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
+  <?php if ($filterCategory): ?><span class="chip">Category: <?php echo htmlspecialchars($filterCategory); ?><a class="chip-x" href="<?php echo reqUrl(array('category'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
+  <?php if ($filterDateFrom): ?><span class="chip">From: <?php echo date('d M Y',strtotime($filterDateFrom)); ?><a class="chip-x" href="<?php echo reqUrl(array('date_from'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
+  <?php if ($filterDateTo):   ?><span class="chip">To: <?php echo date('d M Y',strtotime($filterDateTo)); ?><a class="chip-x" href="<?php echo reqUrl(array('date_to'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
 </div>
 <?php endif; ?>
 
@@ -415,7 +416,7 @@ col.col-action   { width: 9%;  }
       <input type="hidden" name="status" value="<?php echo htmlspecialchars($filterStatus); ?>">
       <input type="hidden" name="page"   value="1">
       <select name="per_page" class="perpage-select" onchange="this.form.submit()">
-        <?php foreach([10,25,50] as $n): ?><option value="<?php echo $n; ?>" <?php echo $perPage===$n?'selected':''; ?>><?php echo $n; ?> per page</option><?php endforeach; ?>
+        <?php foreach(array(10,25,50) as $n): ?><option value="<?php echo $n; ?>" <?php echo $perPage===$n?'selected':''; ?>><?php echo $n; ?> per page</option><?php endforeach; ?>
       </select>
     </form>
   </div>
@@ -454,12 +455,12 @@ col.col-action   { width: 9%;  }
       <?php else: ?>
       <?php foreach ($rows as $r):
         $st  = strtolower($r['status']);
-        $urg = strtolower($r['urgency'] ?? 'normal');
+        $urg = strtolower(isset($r['urgency']) ? $r['urgency'] : 'normal');
       ?>
-      <tr data-ref="<?php echo strtolower(htmlspecialchars($r['ref_number'])); ?>"
+<tr data-ref="<?php echo strtolower(htmlspecialchars($r['ref_number'])); ?>"
           data-item="<?php echo strtolower(htmlspecialchars($r['item_name'])); ?>"
-          data-dept="<?php echo strtolower(htmlspecialchars($r['my_department']??'')); ?>"
-          data-cat="<?php echo strtolower(htmlspecialchars($r['category']??'')); ?>">
+          data-dept="<?php echo strtolower(htmlspecialchars(isset($r['my_department']) ? $r['my_department'] : '')); ?>"
+          data-cat="<?php echo strtolower(htmlspecialchars(isset($r['category']) ? $r['category'] : '')); ?>">
 
         <!-- Ref Number -->
         <td>
@@ -469,17 +470,17 @@ col.col-action   { width: 9%;  }
         <!-- From Department + date -->
         <td>
           <div class="dept-cell">
-            <span class="dept-name" title="<?php echo htmlspecialchars($r['my_department']??'—'); ?>"><?php echo htmlspecialchars($r['my_department']??'—'); ?></span>
+            <span class="dept-name" title="<?php echo htmlspecialchars(isset($r['my_department']) ? $r['my_department'] : '—'); ?>"><?php echo htmlspecialchars(isset($r['my_department']) ? $r['my_department'] : '—'); ?></span>
             <span class="dept-datetime"><?php echo date('d M Y, H:i', strtotime($r['created_at'])); ?></span>
           </div>
         </td>
 
         <!-- Category -->
-        <td><span class="cat-text" title="<?php echo htmlspecialchars($r['category']??''); ?>"><?php echo htmlspecialchars($r['category']??'—'); ?></span></td>
+        <td><span class="cat-text" title="<?php echo htmlspecialchars(isset($r['category']) ? $r['category'] : ''); ?>"><?php echo htmlspecialchars(isset($r['category']) ? $r['category'] : '—'); ?></span></td>
 
         <!-- Item -->
         <td>
-          <div class="item-main" title="<?php echo htmlspecialchars($r['item_name']??''); ?>"><?php echo htmlspecialchars($r['item_name']??'—'); ?></div>
+          <div class="item-main" title="<?php echo htmlspecialchars(isset($r['item_name']) ? $r['item_name'] : ''); ?>"><?php echo htmlspecialchars(isset($r['item_name']) ? $r['item_name'] : '—'); ?></div>
           <div class="item-meta">
             <span>Qty: <?php echo (int)$r['quantity']; ?></span>
             <?php if (!empty($r['location'])): ?><span><?php echo htmlspecialchars($r['location']); ?></span><?php endif; ?>
@@ -532,13 +533,13 @@ col.col-action   { width: 9%;  }
 <div class="pagination-bar">
   <span class="pg-info">Showing <?php echo $offset+1; ?>–<?php echo min($offset+$perPage,$totalReqs); ?> of <?php echo $totalReqs; ?> requisitions</span>
   <div class="pg-btns">
-    <?php if ($page<=1): ?><span class="pg-btn disabled">← Prev</span><?php else: ?><a class="pg-btn" href="<?php echo reqUrl(['page'=>$page-1]); ?>">← Prev</a><?php endif; ?>
+    <?php if ($page<=1): ?><span class="pg-btn disabled">← Prev</span><?php else: ?><a class="pg-btn" href="<?php echo reqUrl(array('page'=>$page-1)); ?>">← Prev</a><?php endif; ?>
     <?php $window=2;$start=max(1,$page-$window);$end=min($totalPages,$page+$window);
-      if($start>1){echo '<a class="pg-btn" href="'.reqUrl(['page'=>1]).'">1</a>';if($start>2)echo '<span class="pg-btn disabled" style="border:none">…</span>';}
-      for($p=$start;$p<=$end;$p++) echo '<a class="pg-btn'.($p===$page?' active':'').'" href="'.reqUrl(['page'=>$p]).'">'.$p.'</a>';
-      if($end<$totalPages){if($end<$totalPages-1)echo '<span class="pg-btn disabled" style="border:none">…</span>';echo '<a class="pg-btn" href="'.reqUrl(['page'=>$totalPages]).'">'.$totalPages.'</a>';}
+      if($start>1){echo '<a class="pg-btn" href="'.reqUrl(array('page'=>1)).'">1</a>';if($start>2)echo '<span class="pg-btn disabled" style="border:none">…</span>';}
+      for($p=$start;$p<=$end;$p++) echo '<a class="pg-btn'.($p===$page?' active':'').'" href="'.reqUrl(array('page'=>$p)).'">'.$p.'</a>';
+      if($end<$totalPages){if($end<$totalPages-1)echo '<span class="pg-btn disabled" style="border:none">…</span>';echo '<a class="pg-btn" href="'.reqUrl(array('page'=>$totalPages)).'">'.$totalPages.'</a>';}
     ?>
-    <?php if ($page>=$totalPages): ?><span class="pg-btn disabled">Next →</span><?php else: ?><a class="pg-btn" href="<?php echo reqUrl(['page'=>$page+1]); ?>">Next →</a><?php endif; ?>
+    <?php if ($page>=$totalPages): ?><span class="pg-btn disabled">Next →</span><?php else: ?><a class="pg-btn" href="<?php echo reqUrl(array('page'=>$page+1)); ?>">Next →</a><?php endif; ?>
   </div>
 </div>
 <?php endif; ?>

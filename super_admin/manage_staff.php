@@ -29,9 +29,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $deptId     = (int)($_POST['dept_id']    ?? 0);
         $categoryIds = array_map('intval', $_POST['category_ids'] ?? []);
 $categoryId  = !empty($categoryIds) ? $categoryIds[0] : 0;
+        $staffCode  = trim($_POST['staff_code'] ?? '');
         $password   = $_POST['password'] ?? '';
 
-if (!$fullName || !$email || !$deptId || !$password) {
+if (!$fullName || !$email || !$deptId || !$password || !$staffCode) {
     $errorMsg = 'Please fill in all required fields.';
 } elseif ($phone !== '' && (!ctype_digit($phone) || strlen($phone) < 10 || strlen($phone) > 11)) {
     $errorMsg = 'Phone number must contain only digits and be 10 to 11 numbers long.';
@@ -45,8 +46,14 @@ if (!$fullName || !$email || !$deptId || !$password) {
             if ($check->num_rows > 0) {
                 $errorMsg = 'An account with this email already exists.';
             } else {
-                $maxCode = $conn->query("SELECT MAX(CAST(staff_code AS UNSIGNED)) AS m FROM staff WHERE staff_code REGEXP '^[0-9]+$'")->fetch_assoc()['m'] ?? 0;
-                $staffCode = str_pad((int)$maxCode + 1, 6, '0', STR_PAD_LEFT);
+                // Check if staff code already taken
+                $codeCheck = $conn->prepare("SELECT staff_id FROM staff WHERE staff_code = ?");
+                $codeCheck->bind_param('s', $staffCode);
+                $codeCheck->execute();
+                $codeCheck->store_result();
+                if ($codeCheck->num_rows > 0) {
+                    $errorMsg = 'This Staff ID / Code is already in use.';
+                } else {
 
                 $deptName = '';
                 foreach ($departments as $d) {
@@ -83,6 +90,7 @@ if (!$fullName || !$email || !$deptId || !$password) {
                 } else {
                     $errorMsg = 'Database error: ' . htmlspecialchars($conn->error);
                 }
+                } // end staff_code duplicate check
             }
         }
     }
@@ -96,12 +104,23 @@ if (!$fullName || !$email || !$deptId || !$password) {
         $categoryIds = array_map('intval', $_POST['category_ids'] ?? []);
 $categoryId  = !empty($categoryIds) ? $categoryIds[0] : 0;
         $status     = in_array($_POST['status'] ?? '', ['active','inactive']) ? $_POST['status'] : 'active';
+        $editStaffCode = trim($_POST['staff_code'] ?? '');
 
-if (!$fullName || !$email || !$deptId) {
+if (!$fullName || !$email || !$deptId || !$editStaffCode) {
     $errorMsg = 'Please fill in all required fields.';
+} elseif (!ctype_digit($editStaffCode)) {
+    $errorMsg = 'Staff ID / Code must contain numbers only.';
 } elseif ($phone !== '' && (!ctype_digit($phone) || strlen($phone) < 10 || strlen($phone) > 11)) {
     $errorMsg = 'Phone number must contain only digits and be 10 to 11 numbers long.';
 } else {
+            // Check staff code not taken by another staff
+            $codeCheck = $conn->prepare("SELECT staff_id FROM staff WHERE staff_code = ? AND staff_id != ?");
+            $codeCheck->bind_param('si', $editStaffCode, $staffId);
+            $codeCheck->execute();
+            $codeCheck->store_result();
+            if ($codeCheck->num_rows > 0) {
+                $errorMsg = 'This Staff ID / Code is already in use by another account.';
+            } else {
             $check = $conn->prepare("SELECT staff_id FROM staff WHERE email = ? AND staff_id != ?");
             $check->bind_param('si', $email, $staffId);
             $check->execute();
@@ -125,8 +144,8 @@ if (!$fullName || !$email || !$deptId) {
                     }
                 }
 
-                $stmt = $conn->prepare("UPDATE staff SET full_name=?, email=?, department=?, dept_id=?, category=?, phone=?, status=? WHERE staff_id=?");
-                $stmt->bind_param('sssssssi', $fullName, $email, $deptName, $deptId, $categoryName, $phone, $status, $staffId);
+                $stmt = $conn->prepare("UPDATE staff SET staff_code=?, full_name=?, email=?, department=?, dept_id=?, category=?, phone=?, status=? WHERE staff_id=?");
+                $stmt->bind_param('ssssssssi', $editStaffCode, $fullName, $email, $deptName, $deptId, $categoryName, $phone, $status, $staffId);
                 if ($stmt->execute()) {
 
                     // Sync staff_categories — delete old then insert new
@@ -152,6 +171,7 @@ if (!$fullName || !$email || !$deptId) {
                     $errorMsg = 'Database error: ' . htmlspecialchars($conn->error);
                 }
             }
+            } // end staff_code duplicate check
         }
     }
 
@@ -690,6 +710,7 @@ include 'layout.php';
         <!-- Member: avatar + name + code -->
         <td>
           <div class="staff-name-cell">
+            <div class="staff-avatar" style="background:<?= $avatarBg ?>;"><?= $initials ?></div>
             <div>
               <div class="staff-fullname"><?= htmlspecialchars($s['full_name']) ?></div>
               <div class="staff-code-sub"><?= htmlspecialchars($s['staff_code']) ?></div>
@@ -813,6 +834,15 @@ include 'layout.php';
             <input type="text" name="full_name" class="form-control" placeholder="e.g. Ahmad Razif bin Hamid" required>
           </div>
           <div class="form-group">
+            <label>Staff ID / Code <span>*</span></label>
+            <input type="text" name="staff_code" id="addStaffCode" class="form-control"
+              placeholder="e.g. 620001" required maxlength="20"
+              inputmode="numeric"
+              oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,20)">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
             <label>Phone Number</label>
             <input type="text" name="phone" class="form-control" 
        placeholder="e.g. 0187001010"
@@ -885,9 +915,16 @@ include 'layout.php';
       <div class="modal-body">
         <div class="section-label">Personal Info</div>
         <div class="form-row">
-          <div class="form-group">
+          <div class="form-group" style="grid-column:1/-1;">
             <label>Full Name <span>*</span></label>
             <input type="text" name="full_name" id="editFullName" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Staff ID <span>*</span></label>
+            <input type="text" name="staff_code" id="editStaffCode" class="form-control"
+              placeholder="e.g. 620001" required maxlength="20"
+              inputmode="numeric"
+              oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,20)">
           </div>
           <div class="form-group">
             <label>Phone Number</label>
@@ -1121,6 +1158,7 @@ function openEditModal(s) {
   document.getElementById('editPhone').value    = (s.phone || '').replace(/[^0-9]/g, '').slice(0, 11);
   document.getElementById('editStatus').value   = s.status;
   document.getElementById('editDeptId').value   = s.dept_id || '';
+  document.getElementById('editStaffCode').value = s.staff_code || '';
 
   // Fetch current categories then build checkboxes
   fetch('get_staff_categories_sa.php?staff_id=' + s.staff_id)

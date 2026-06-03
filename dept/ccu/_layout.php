@@ -1,5 +1,5 @@
 <?php
-// dept/ccu/_layout.php
+// dept/ccu/_layout.php 
 $inProgressCount = $inProgressCount ?? 0;
 $openCount   = $openCount   ?? 0;
 $closedCount = $closedCount ?? 0;
@@ -49,7 +49,7 @@ $nav         = $activeNav   ?? 'dashboard';
 
   <span class="dept-badge"><?php echo htmlspecialchars($staffEmail); ?></span>
 
-  <nav class="sb-nav">
+<nav class="sb-nav">
     <div class="nav-lbl">Main</div>
 
     <a href="dashboard.php"
@@ -63,6 +63,8 @@ $nav         = $activeNav   ?? 'dashboard';
       </svg>
       <span>Dashboard</span>
     </a>
+
+    <div class="nav-lbl">Manage</div>
 
     <div class="nav-group">
       <div class="nav-group-header <?php echo $ticketsNavOpen ? 'has-active' : ''; ?>"
@@ -124,8 +126,6 @@ $nav         = $activeNav   ?? 'dashboard';
         </a>
       </div>
     </div>
-
-    <div class="nav-lbl">Manage</div>
 
     <a href="categories.php"
        class="nav-item <?php echo $nav === 'categories' ? 'active' : ''; ?>"
@@ -315,10 +315,10 @@ $nav         = $activeNav   ?? 'dashboard';
     body.classList.toggle('sidebar-collapsed', isCollapsed);
     localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
     if (isCollapsed) {
-      var sub = document.getElementById('tickets-sub');
-      var chevron = sidebar.querySelector('.nav-group-chevron');
-      if (sub) sub.classList.remove('open');
-      if (chevron) chevron.classList.remove('open');
+      var subs = sidebar.querySelectorAll('.nav-sub');
+      subs.forEach(function(sub) { sub.classList.remove('open'); });
+      var chevrons = sidebar.querySelectorAll('.nav-group-chevron');
+      chevrons.forEach(function(c) { c.classList.remove('open'); });
     }
   };
 })();
@@ -326,8 +326,9 @@ $nav         = $activeNav   ?? 'dashboard';
 function toggleTicketsNav(btn) {
   var sidebar = document.getElementById('mainSidebar');
   if (sidebar.classList.contains('collapsed')) { toggleSidebar(); return; }
+  var sub = btn.closest('.nav-group').querySelector('.nav-sub');
   btn.classList.toggle('open');
-  document.getElementById('tickets-sub').classList.toggle('open');
+  sub.classList.toggle('open');
 }
 
 /* ── Logout modal ── */
@@ -425,7 +426,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
 (function () {
   'use strict';
 
-  var POPUP_API  = window.location.origin + '/uniKL/complaint/new_ticket_popup_api.php';
+  var POPUP_API = '../../new_ticket_popup_api.php';
   var DETAIL_URL = 'ticket_detail.php';
   var DURATION   = 10000;
   var MAX_TOASTS = 5;

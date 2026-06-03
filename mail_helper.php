@@ -16,12 +16,13 @@ require __DIR__ . '/PHPMailer-master/src/SMTP.php';
  */
 function sendComplaintEmail($conn, int $dept_id, string $ticketId): bool
 {
-    $deptStmt = $conn->prepare("SELECT dept_name FROM departments WHERE dept_id = ? LIMIT 1");
-    $deptStmt->bind_param("i", $dept_id);
-    $deptStmt->execute();
-    $deptRow  = $deptStmt->get_result()->fetch_assoc();
-    $deptStmt->close();
-    $deptName = $deptRow['dept_name'] ?? 'Your Department';
+$deptStmt = $conn->prepare("SELECT dept_name, dept_email FROM departments WHERE dept_id = ? LIMIT 1");
+$deptStmt->bind_param("i", $dept_id);
+$deptStmt->execute();
+$deptRow        = $deptStmt->get_result()->fetch_assoc();
+$deptStmt->close();
+$deptName       = $deptRow['dept_name']  ?? 'Your Department';
+$deptGroupEmail = $deptRow['dept_email'] ?? 'rush.rcmp@unikl.edu.my';
 
     $staffStmt = $conn->prepare(
         "SELECT full_name, email FROM staff WHERE dept_id = ? AND status = 'active'"
@@ -181,7 +182,8 @@ HTML;
             $mail->SMTPDebug  = 0;
 
             $mail->setFrom('rush.rcmp@unikl.edu.my', 'UniKL RCMP Help Desk');
-            $mail->addAddress($staff['email'], $staff['full_name']);
+            $mail->addAddress($deptGroupEmail, $deptName);
+            $mail->addBCC($staff['email'], $staff['full_name']);
             $mail->isHTML(true);
             $mail->CharSet = 'UTF-8';
             $mail->Subject = "New Complaint — Ref: {$ticketId}";
@@ -226,6 +228,13 @@ function sendRequisitionEmail($conn, string $refNumber, string $userName, string
         'critical' => ['bg' => '#FDECEA', 'color' => '#B71C1C', 'border' => '#FCA5A5'],
     ];
     $uc = $urgColours[$urgency] ?? $urgColours['normal'];
+
+    // Fetch AFSMD group email ONCE before the loop
+    $afsmdEmailStmt  = $conn->prepare("SELECT dept_email FROM departments WHERE dept_id = 1 LIMIT 1");
+    $afsmdEmailStmt->execute();
+    $afsmdEmailRow   = $afsmdEmailStmt->get_result()->fetch_assoc();
+    $afsmdEmailStmt->close();
+    $afsmdGroupEmail = $afsmdEmailRow['dept_email'] ?? 'afsmd.rcmp@unikl.edu.my';
 
     $anySuccess = false;
 
@@ -429,8 +438,9 @@ HTML;
             $mail->Port       = 587;
             $mail->SMTPDebug  = 0;
 
-            $mail->setFrom('rush.rcmp@unikl.edu.my', 'UniKL RCMP Help Desk');
-            $mail->addAddress($staff['email'], $staff['full_name']);
+$mail->setFrom('rush.rcmp@unikl.edu.my', 'UniKL RCMP Help Desk');
+            $mail->addAddress($afsmdGroupEmail, 'Administration & Facilities Management Department');
+            $mail->addBCC($staff['email'], $staff['full_name']);
             $mail->isHTML(true);
             $mail->CharSet = 'UTF-8';
             $mail->Subject = "New Equipment Request — Ref: {$refNumber}";

@@ -64,6 +64,10 @@ $nav         = $activeNav   ?? 'dashboard';
       <span>Dashboard</span>
     </a>
 
+
+
+    <div class="nav-lbl">Manage</div>
+
     <div class="nav-group">
       <div class="nav-group-header <?php echo $ticketsNavOpen ? 'has-active' : ''; ?>"
            data-tooltip="All Tickets">
@@ -85,7 +89,7 @@ $nav         = $activeNav   ?? 'dashboard';
         </button>
       </div>
 
-      <div class="nav-sub <?php echo $ticketsNavOpen ? 'open' : ''; ?>" id="tickets-sub">
+      <div class="nav-sub <?php echo $ticketsNavOpen ? 'open' : ''; ?>" id="tickets-sub-manage">
         <a href="tickets.php?status=open"
            class="nav-sub-item <?php echo $nav === 'tickets-open' ? 'active' : ''; ?>">
           <svg viewBox="0 0 24 24">
@@ -124,8 +128,6 @@ $nav         = $activeNav   ?? 'dashboard';
         </a>
       </div>
     </div>
-
-    <div class="nav-lbl">Manage</div>
 
     <a href="categories.php"
        class="nav-item <?php echo $nav === 'categories' ? 'active' : ''; ?>"
@@ -315,10 +317,10 @@ $nav         = $activeNav   ?? 'dashboard';
     body.classList.toggle('sidebar-collapsed', isCollapsed);
     localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
     if (isCollapsed) {
-      var sub = document.getElementById('tickets-sub');
-      var chevron = sidebar.querySelector('.nav-group-chevron');
-      if (sub) sub.classList.remove('open');
-      if (chevron) chevron.classList.remove('open');
+      var subs = sidebar.querySelectorAll('.nav-sub');
+      subs.forEach(function(sub) { sub.classList.remove('open'); });
+      var chevrons = sidebar.querySelectorAll('.nav-group-chevron');
+      chevrons.forEach(function(c) { c.classList.remove('open'); });
     }
   };
 })();
@@ -326,8 +328,9 @@ $nav         = $activeNav   ?? 'dashboard';
 function toggleTicketsNav(btn) {
   var sidebar = document.getElementById('mainSidebar');
   if (sidebar.classList.contains('collapsed')) { toggleSidebar(); return; }
+  var sub = btn.closest('.nav-group').querySelector('.nav-sub');
   btn.classList.toggle('open');
-  document.getElementById('tickets-sub').classList.toggle('open');
+  sub.classList.toggle('open');
 }
 
 /* ── Logout modal ── */

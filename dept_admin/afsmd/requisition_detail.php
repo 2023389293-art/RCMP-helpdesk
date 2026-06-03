@@ -798,7 +798,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
           <div class="td-card-body">
             <?php $curStatus = strtolower($requisition['status'] ?? 'pending'); ?>
 
-            <?php if (false): // Admin always has permission ?>
+            <?php if (empty($requisition['assigned_to'])): ?>
 <div class="no-permission-box">
               <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               <div>

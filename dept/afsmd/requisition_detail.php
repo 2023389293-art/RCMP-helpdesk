@@ -54,6 +54,8 @@ if (!empty($_GET['from'])) {
 }
 $backUrlEncoded = urlencode($backUrl);
 
+$currentStaffId = (int)($_SESSION['staff_id'] ?? 0);
+
 if ($refNumber !== '') {
     $stmt = $conn->prepare("SELECT * FROM requisitions WHERE ref_number = ? LIMIT 1");
     $stmt->bind_param("s", $refNumber);
@@ -102,6 +104,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $requisition) {
 
     // ── ACTION: update status ─────────────────────────────────────────────────
     if ($action === 'update') {
+        // Block if not assigned or not the assigned staff
+        if (empty($requisition['assigned_to']) || (int)$requisition['assigned_to'] !== $currentStaffId) {
+            $_SESSION['flash_error'] = 'You are not authorised to update this requisition.';
+            header('Location: requisition_detail.php?id='.urlencode($refNumber).'&tab=detail&from='.$backUrlEncoded); exit;
+        }
         $newStatus  = trim($_POST['status']  ?? '');
         
         $allowedSta = ['pending','approved','rejected','completed'];
@@ -699,6 +706,14 @@ $pageSubtitle = 'Administration & Facilities Management Department';
               <div>
                 <div class="no-permission-title">No Staff Assigned</div>
                 <div class="no-permission-desc">Please assign a staff member before updating the requisition status.</div>
+              </div>
+            </div>
+            <?php elseif (!$isAssignedStaff): ?>
+            <div class="no-permission-box">
+              <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <div>
+                <div class="no-permission-title">Not Your Requisition</div>
+                <div class="no-permission-desc">Only the assigned staff member can update this requisition.</div>
               </div>
             </div>
             <?php elseif ($curStatus === 'rejected' || $curStatus === 'completed'): ?>
