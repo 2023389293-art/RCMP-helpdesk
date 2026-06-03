@@ -1,6 +1,8 @@
 <?php
 // dept_admin/afsmd/tickets.php 
-require '_layout.php';
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+require __DIR__ . '/_layout.php';
 
 if (!function_exists('staffInitials')) {
     function staffInitials(string $name): string {
@@ -95,7 +97,7 @@ if (!function_exists('pgstr')) {
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AFSMD Admin — All Tickets | UniKL Help Desk</title>
-  <?php include '_head_assets.php'; ?>
+  <?php include __DIR__ . '/_head_assets.php'; ?>
   <style>
     /* ── TABLE CELL FIXES ── */
     .data-table tbody td {
@@ -465,7 +467,7 @@ if (!function_exists('pgstr')) {
   </style>
 </head>
 <body>
-<?php include '_sidebar.php'; ?>
+<?php include __DIR__ . '/_sidebar.php'; ?>
 
 <main class="main-content">
   <div class="page-header">
@@ -733,7 +735,7 @@ if (!function_exists('pgstr')) {
   </div>
 </div>
 
-<?php include '_foot_scripts.php'; ?>
+<?php include __DIR__ . '/_foot_scripts.php'; ?>
 
 
 

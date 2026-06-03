@@ -23,12 +23,11 @@ $adminName   = $_SESSION['staff_name']  ?? 'Admin';
 $adminEmail  = $_SESSION['staff_email'] ?? '';
 $currentPage = basename($_SERVER['PHP_SELF'], '.php'); // dashboard | tickets | users | reports
 
+if (!function_exists('nav_item')) {
 function nav_item(string $href, string $icon, string $label, string $id, string $current): string {
     $active = ($id === $current);
     $cls    = $active ? 'nav-item active' : 'nav-item';
-    
-    // Calculate the "pip" HTML before putting it into the string
-    $pip = $active ? '<span class="nav-pip"></span>' : '';
+    $pip    = $active ? '<span class="nav-pip"></span>' : '';
 
     return <<<HTML
     <a href="{$href}" class="{$cls}">
@@ -38,4 +37,5 @@ function nav_item(string $href, string $icon, string $label, string $id, string 
     </a>
 HTML;
 }
+} // end if (!function_exists)
 ?>
