@@ -118,14 +118,19 @@ $stmtList = $conn->prepare("
     FROM complaints c
     JOIN categories  cat ON c.category_id = cat.category_id
     JOIN departments d   ON c.dept_id     = d.dept_id
-    LEFT JOIN ticket_feedback tf ON tf.ticket_id = c.ticket_id
+    LEFT JOIN ticket_feedback tf ON tf.ticket_id = c.ticket_id AND tf.submitter_id = c.submitter_id
     $where
     ORDER BY c.created_at DESC
 ");
-$stmtList->bind_param($types, ...$params);
-$stmtList->execute();
-$complaintRows = $stmtList->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmtList->close();
+if (!$stmtList) {
+    error_log('my_complaints stmtList prepare failed: ' . $conn->error);
+    $complaintRows = [];
+} else {
+    $stmtList->bind_param($types, ...$params);
+    $stmtList->execute();
+    $complaintRows = $stmtList->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmtList->close();
+}
 
 // ── Fetch requisition rows ────────────────────────────────────────────────────
 $reqFetchWhere  = $reqWhere;
@@ -165,10 +170,15 @@ $stmtReq = $conn->prepare("
     $reqFetchWhere
     ORDER BY r.created_at DESC
 ");
-$stmtReq->bind_param($reqFetchTypes, ...$reqFetchParams);
-$stmtReq->execute();
-$requisitionRows = $stmtReq->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmtReq->close();
+if (!$stmtReq) {
+    error_log('my_complaints stmtReq prepare failed: ' . $conn->error);
+    $requisitionRows = [];
+} else {
+    $stmtReq->bind_param($reqFetchTypes, ...$reqFetchParams);
+    $stmtReq->execute();
+    $requisitionRows = $stmtReq->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmtReq->close();
+}
 
 // ── Merge and sort all rows, then paginate ────────────────────────────────────
 $allRows = array_merge($complaintRows, $requisitionRows);
