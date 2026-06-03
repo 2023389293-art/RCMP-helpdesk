@@ -589,7 +589,8 @@ function sendRequisitionConfirmationEmail(string $toEmail, string $toName, strin
               <p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#92700a;">What Happens Next?</p>
               <p style="margin:0 0 6px;font-size:13px;color:#374151;line-height:1.7;">&#8226;&nbsp; AFSMD staff will review your request during working hours (Mon–Fri, 8:00 AM – 5:00 PM MYT).</p>
               <p style="margin:0 0 6px;font-size:13px;color:#374151;line-height:1.7;">&#8226;&nbsp; They may contact you for additional information if required.</p>
-              <p style="margin:0;font-size:13px;color:#374151;line-height:1.7;">&#8226;&nbsp; Please keep your reference number for future correspondence.</p>
+              <p style="margin:0 0 12px;font-size:13px;color:#374151;line-height:1.7;">&#8226;&nbsp; Please keep your reference number for future correspondence.</p>
+              <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
             </td></tr>
           </table>
 

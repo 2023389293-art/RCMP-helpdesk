@@ -453,11 +453,11 @@ include 'layout.php';
   .form-group label span { color: #DC2626; margin-left: 2px; }
   .form-control {
     width: 100%; padding: 9px 12px; border: 1px solid var(--gray-200); border-radius: 8px;
-    font-size: 13.5px; color: var(--gray-900); background: white; outline: none;
+    font-size: 13.5px; color: var(--gray-900); background: #F9FAFB; outline: none;
     transition: border-color .18s, box-shadow .18s; font-family: 'DM Sans', sans-serif;
   }
   .form-control:focus { border-color: var(--maroon); box-shadow: 0 0 0 3px rgba(125,17,40,.08); }
-  .form-control::placeholder { color: var(--gray-400); }
+  .form-control::placeholder { color: #C4C9D4; }
   select.form-control { cursor: pointer; }
 
   .btn-primary {
@@ -788,11 +788,11 @@ $initials = strtoupper(implode('', array_map(function($w){ return $w[0]; }, $wor
       <div class="modal-body">
         <div class="form-group">
           <label>Full Name <span>*</span></label>
-          <input type="text" name="full_name" class="form-control" placeholder="e.g. Ahmad Razif bin Hamid" required>
+          <input type="text" name="full_name" class="form-control" placeholder="e.g. Ahmad Razif bin Hamid" required autocomplete="off">
         </div>
         <div class="form-group">
           <label>Email Address <span>*</span></label>
-          <input type="email" name="email" class="form-control" placeholder="admin@unikl.edu.my" required>
+          <input type="email" name="email" class="form-control" placeholder="admin@unikl.edu.my" required autocomplete="off">
         </div>
         <div class="form-group">
           <label>Phone Number</label>
@@ -815,7 +815,7 @@ $initials = strtoupper(implode('', array_map(function($w){ return $w[0]; }, $wor
         <div class="form-group">
           <label>Password <span>*</span></label>
           <div class="pw-wrap">
-            <input type="password" name="password" id="addPw" class="form-control" placeholder="8–10 characters" required minlength="8" maxlength="10">
+            <input type="password" name="password" id="addPw" class="form-control" placeholder="8–10 characters" required minlength="8" maxlength="10" autocomplete="new-password">
             <button type="button" class="pw-toggle" onclick="togglePw('addPw', this)">
               <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>

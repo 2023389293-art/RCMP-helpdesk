@@ -508,11 +508,11 @@ include 'layout.php';
   .form-group label span { color: #DC2626; margin-left: 2px; }
   .form-control {
     width: 100%; padding: 9px 12px; border: 1px solid var(--gray-200); border-radius: 8px;
-    font-size: 13.5px; color: var(--gray-900); background: white; outline: none;
+    font-size: 13.5px; color: var(--gray-900); background: #F9FAFB; outline: none;
     transition: border-color .18s, box-shadow .18s; font-family: 'DM Sans', sans-serif;
   }
   .form-control:focus { border-color: var(--maroon); box-shadow: 0 0 0 3px rgba(125,17,40,.08); }
-  .form-control::placeholder { color: var(--gray-400); }
+  .form-control::placeholder { color: #C4C9D4; }
   select.form-control { cursor: pointer; }
 
   .category-section { display: none; }
@@ -796,8 +796,8 @@ include 'layout.php';
   <div class="modal modal-lg">
     <div class="modal-header">
       <div>
-        <div class="modal-title">Add New Tecnical</div>
-        <div class="modal-subtitle">Create a Tecnical account</div>
+<div class="modal-title" style="color: #6B7280;">Add New Technical Staff</div>
+<div class="modal-subtitle" style="color: #9CA3AF;">Create a staff account</div>
       </div>
       <button class="modal-close" onclick="closeModal('addModal')">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -824,7 +824,7 @@ include 'layout.php';
         </div>
         <div class="form-group">
           <label>Email Address <span>*</span></label>
-          <input type="email" name="email" class="form-control" placeholder="staff@unikl.edu.my" required>
+          <input type="email" name="email" class="form-control" placeholder="staff@unikl.edu.my" required autocomplete="off">
         </div>
         <div class="divider"></div>
         <div class="section-label">Assignment</div>
@@ -852,7 +852,7 @@ include 'layout.php';
         <div class="form-group">
           <label>Password <span>*</span></label>
           <div class="pw-wrap">
-            <input type="password" name="password" id="addPw" class="form-control" placeholder="8–10 characters" required minlength="8" maxlength="10">
+            <input type="password" name="password" id="addPw" class="form-control" placeholder="8–10 characters" required minlength="8" maxlength="10" autocomplete="new-password">
             <button type="button" class="pw-toggle" onclick="togglePw('addPw',this)" tabindex="-1">
               <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>

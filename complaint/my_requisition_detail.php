@@ -336,12 +336,13 @@ require 'layout.php';
 }
 
     // Step state helper
-    function stepState(int $num, int $cur, bool $rejected): string {
-        if ($rejected) return $num === 1 ? 'rejected' : 'inactive';
-        if ($num < $cur)  return 'done';
-        if ($num === $cur) return 'active';
-        return 'inactive';
-    }
+function stepState(int $num, int $cur, bool $rejected): string {
+    if ($rejected) return $num === 1 ? 'rejected' : 'inactive';
+    if ($cur === 3) return 'done';   // all steps get checkmark when completed
+    if ($num < $cur)  return 'done';
+    if ($num === $cur) return 'active';
+    return 'inactive';
+}
 
     $steps = [
         1 => ['label' => 'Pending',   'sub' => 'Request submitted'],
@@ -636,7 +637,22 @@ require 'layout.php';
                         <?php if ($handledBy): ?> · by <?php echo htmlspecialchars($handledBy['full_name']); ?><?php endif; ?>
                     </div>
                     <?php if (!empty($requisition['remarks']) && !$isRejected): ?>
-                    <div class="rq-tl-note"><?php echo nl2br(htmlspecialchars($requisition['remarks'])); ?></div>
+                    <div class="rq-tl-note">
+                        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;font-weight:600;">Messages:</span><br>
+                        <?php echo nl2br(htmlspecialchars($requisition['remarks'])); ?>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (!empty($replies)): ?>
+                    <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+                        <?php foreach ($replies as $r): ?>
+                        <div class="rq-tl-note" style="background:#f0f4ff;border-left:3px solid #378ADD;">
+                            <span style="font-size:11px;font-weight:600;color:#0C447C;">
+                                <?php echo htmlspecialchars($r['sender_name']); ?> · <?php echo date('d M Y, H:i', strtotime($r['created_at'])); ?>
+                            </span><br>
+                            <?php echo nl2br(htmlspecialchars($r['message'])); ?>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -667,99 +683,7 @@ require 'layout.php';
 
         </div><!-- /rq-timeline -->
 
-        <div class="rq-divider"></div>
-
-        <!-- Messages -->
-        <div class="rq-messages-header">
-            <div class="rq-section-header" style="margin-bottom:0">
-                <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                <span>Messages</span>
-            </div>
-            <?php if (count($replies) > 0): ?>
-            <div class="rq-msg-count-pill"><?php echo count($replies); ?></div>
-            <?php endif; ?>
-        </div>
-
-        <div class="rq-messages" id="rqMessages">
-            <?php if (empty($replies)): ?>
-            <div class="rq-empty-msg">
-                <div class="rq-empty-icon">
-                    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                </div>
-                <div class="rq-empty-title">No messages yet</div>
-                <div class="rq-empty-sub">AFSMD will reply here once they review your request.</div>
-            </div>
-            <?php else:
-                $prevDate = '';
-                foreach ($replies as $r):
-                    $msgDate    = date('d M Y', strtotime($r['created_at']));
-                    $isMe       = ((int)$r['sender_id'] === $userId && $r['sender_role'] === $submitterType);
-                    $rowClass   = $isMe ? 'rq-me' : 'rq-dept';
-                    $avClass    = $isMe ? 'av-me' : 'av-dept';
-                    $initials   = getInitials($r['sender_name']);
-                    $senderLbl  = $isMe ? 'You' : $r['sender_name'];
-                    $hasRAttach = !empty($r['attachment_path']);
-                    $rAttPath   = $hasRAttach ? $r['attachment_path'] : '';
-                    $rIsImg     = $hasRAttach && isImageAttachment($rAttPath);
-                    $rFileName  = $hasRAttach ? basename($rAttPath) : '';
-                    $rFileMeta  = ($hasRAttach && !$rIsImg) ? fileCardMeta($rAttPath) : [];
-                    $rExtUpper  = $hasRAttach ? strtoupper(pathinfo($rAttPath, PATHINFO_EXTENSION)) : '';
-                    $rDispName  = strlen($rFileName) > 28 ? substr($rFileName, 0, 25).'…' : $rFileName;
-            ?>
-                <?php if ($msgDate !== $prevDate): $prevDate = $msgDate; ?>
-                <div class="rq-date-sep">
-                    <span><?php echo ($msgDate === date('d M Y')) ? 'Today' : $msgDate; ?></span>
-                </div>
-                <?php endif; ?>
-
-                <div class="rq-msg-row <?php echo $rowClass; ?>">
-                    <div class="rq-avatar <?php echo $avClass; ?>"><?php echo htmlspecialchars($initials); ?></div>
-                    <div class="rq-msg-body">
-                        <div class="rq-msg-name">
-                            <?php echo htmlspecialchars($senderLbl); ?> · <?php echo date('H:i', strtotime($r['created_at'])); ?>
-                        </div>
-                        <?php if ($rIsImg): ?>
-                            <a href="../<?php echo htmlspecialchars($rAttPath); ?>"
-                               class="rq-img-bubble" title="View full image"
-                               onclick="rqOpenLightbox(this.href);return false;">
-                                <img src="../<?php echo htmlspecialchars($rAttPath); ?>" alt="Image" loading="lazy"
-                                     onerror="this.closest('.rq-img-bubble').style.display='none'">
-                            </a>
-                            <?php if (!empty($r['message'])): ?>
-                                <div class="rq-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div>
-                            <?php endif; ?>
-                        <?php elseif ($hasRAttach): ?>
-                            <?php if (!empty($r['message'])): ?>
-                                <div class="rq-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div>
-                            <?php endif; ?>
-                            <a href="../<?php echo htmlspecialchars($rAttPath); ?>" class="rq-file-card" target="_blank" rel="noopener">
-                                <div class="rq-file-card-icon" style="background:<?php echo $rFileMeta['bg']; ?>;color:<?php echo $rFileMeta['color']; ?>">
-                                    <?php echo htmlspecialchars($rFileMeta['label']); ?>
-                                </div>
-                                <div class="rq-file-card-info">
-                                    <span class="rq-file-card-name"><?php echo htmlspecialchars($rDispName); ?></span>
-                                    <span class="rq-file-card-meta"><?php echo $rExtUpper; ?> file · tap to open</span>
-                                </div>
-                                <svg class="rq-file-card-dl" viewBox="0 0 24 24">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                            </a>
-                        <?php else: ?>
-                            <?php if (!empty($r['message'])): ?>
-                                <div class="rq-bubble"><?php echo nl2br(htmlspecialchars($r['message'])); ?></div>
-                            <?php endif; ?>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            <?php endforeach; endif; ?>
-        </div>
-
-        <div class="rq-readonly-bar">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            This conversation is read-only. Contact AFSMD directly if you need to follow up.
-        </div>
+        
 
     </div><!-- /rq-card -->
     <br>
@@ -784,7 +708,7 @@ require 'layout.php';
 
 <?php ob_start(); ?>
 <script>
-(function(){ const b=document.getElementById('rqMessages'); if(b) b.scrollTop=b.scrollHeight; })();
+
 const _lb=document.getElementById('rqLightbox'),_li=document.getElementById('rqLightboxImg'),_ld=document.getElementById('rqLightboxDownload');
 function rqOpenLightbox(s){_li.src=s;_ld.href=s;_lb.classList.add('active');document.body.style.overflow='hidden';}
 function rqCloseLightbox(e){if(e&&e.currentTarget===_lb&&e.target!==_lb)return;_lb.classList.remove('active');document.body.style.overflow='';setTimeout(()=>{_li.src='';_ld.href='';},180);}

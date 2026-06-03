@@ -32,11 +32,19 @@ $where  = "WHERE c.submitter_id = ? AND c.submitter_type = ?";
 $params = [$userId, $submitterType];
 $types  = "is";
 
-$allowedStatuses = ['open', 'in_progress', 'closed', 'rejected'];
+$allowedStatuses = ['open', 'in_progress', 'closed', 'rejected', 'pending', 'approved', 'completed'];
+// Complaint table only has: open, in_progress, closed, rejected
+$complaintStatuses = ['open', 'in_progress', 'closed', 'rejected'];
 if ($filterStatus !== '' && in_array($filterStatus, $allowedStatuses)) {
-    $where   .= " AND c.status = ?";
-    $params[] = $filterStatus;
-    $types   .= "s";
+    if (in_array($filterStatus, $complaintStatuses)) {
+        $where   .= " AND c.status = ?";
+        $params[] = $filterStatus;
+        $types   .= "s";
+    } elseif ($typeParam === 'requisition') {
+        // Requisition-only status selected: exclude all complaints
+        $where .= " AND 1=0";
+    }
+    // else: pending/approved/completed selected but no type filter — skip complaints silently
 } elseif ($filterStatus !== '') {
     $filterStatus = '';
 }
@@ -74,10 +82,14 @@ $reqCountParams = $reqParams;
 $reqCountTypes  = $reqTypes;
 if ($filterStatus !== '') {
     $mappedReqStatus = '';
-    if ($filterStatus === 'open')        $mappedReqStatus = 'pending';
-    elseif ($filterStatus === 'closed')  $mappedReqStatus = 'approved';
-    elseif ($filterStatus === 'in_progress') $mappedReqStatus = 'in_progress';
-    elseif ($filterStatus === 'rejected') $mappedReqStatus = 'rejected';
+    // Direct requisition statuses (when user selected requisition type)
+    if (in_array($filterStatus, ['pending', 'approved', 'rejected', 'completed', 'in_progress'])) {
+        $mappedReqStatus = $filterStatus;
+    }
+    // Complaint-side statuses mapped to requisition (when showing all types)
+    elseif ($filterStatus === 'open')   $mappedReqStatus = 'pending';
+    elseif ($filterStatus === 'closed') $mappedReqStatus = 'approved';
+
     if ($mappedReqStatus !== '') {
         $reqCountWhere   .= " AND r.status = ?";
         $reqCountParams[] = $mappedReqStatus;
@@ -121,10 +133,14 @@ $reqFetchParams = $reqParams;
 $reqFetchTypes  = $reqTypes;
 if ($filterStatus !== '') {
     $mappedReqStatus = '';
-    if ($filterStatus === 'open')        $mappedReqStatus = 'pending';
-    elseif ($filterStatus === 'closed')  $mappedReqStatus = 'approved';
-    elseif ($filterStatus === 'in_progress') $mappedReqStatus = 'in_progress';
-    elseif ($filterStatus === 'rejected') $mappedReqStatus = 'rejected';
+    // Direct requisition statuses (when user selected requisition type)
+    if (in_array($filterStatus, ['pending', 'approved', 'rejected', 'completed', 'in_progress'])) {
+        $mappedReqStatus = $filterStatus;
+    }
+    // Complaint-side statuses mapped to requisition (when showing all types)
+    elseif ($filterStatus === 'open')   $mappedReqStatus = 'pending';
+    elseif ($filterStatus === 'closed') $mappedReqStatus = 'approved';
+
     if ($mappedReqStatus !== '') {
         $reqFetchWhere   .= " AND r.status = ?";
         $reqFetchParams[] = $mappedReqStatus;
@@ -135,13 +151,7 @@ $stmtReq = $conn->prepare("
     SELECT r.ref_number AS ref_id,
            CONCAT(r.category, ' × ', r.quantity) AS title,
            r.reason AS description,
-           CASE r.status
-               WHEN 'pending'     THEN 'open'
-               WHEN 'approved'    THEN 'closed'
-               WHEN 'completed'   THEN 'closed'
-               WHEN 'rejected'    THEN 'rejected'
-               ELSE r.status
-           END AS status,
+           r.status AS status,
            r.created_at,
            NULL AS assigned_to,
            r.category AS category_name,
@@ -218,9 +228,12 @@ $summary = [
 // ── Status meta ───────────────────────────────────────────────────────────────
 $statusMeta = [
     'open'        => ['label' => 'Open',        'color' => '#B45309', 'bg' => '#FFFBEB', 'dot' => '#F59E0B', 'border' => '#FDE68A'],
-    'in_progress' => ['label' => 'In Progress',  'color' => '#1D4ED8', 'bg' => '#EFF6FF', 'dot' => '#3B82F6', 'border' => '#BFDBFE'],
-    'closed'      => ['label' => 'Closed',       'color' => '#374151', 'bg' => '#F9FAFB', 'dot' => '#9CA3AF', 'border' => '#E5E7EB'],
-    'rejected'    => ['label' => 'Rejected',     'color' => '#991B1B', 'bg' => '#FEF2F2', 'dot' => '#DC2626', 'border' => '#FECACA'],
+    'in_progress' => ['label' => 'In Progress', 'color' => '#1D4ED8', 'bg' => '#EFF6FF', 'dot' => '#3B82F6', 'border' => '#BFDBFE'],
+    'closed'      => ['label' => 'Closed',      'color' => '#374151', 'bg' => '#F9FAFB', 'dot' => '#9CA3AF', 'border' => '#E5E7EB'],
+    'rejected'    => ['label' => 'Rejected',    'color' => '#991B1B', 'bg' => '#FEF2F2', 'dot' => '#DC2626', 'border' => '#FECACA'],
+    'pending'     => ['label' => 'Pending',     'color' => '#B45309', 'bg' => '#FFFBEB', 'dot' => '#F59E0B', 'border' => '#FDE68A'],
+    'approved'    => ['label' => 'Approved',    'color' => '#166534', 'bg' => '#F0FDF4', 'dot' => '#22C55E', 'border' => '#BBF7D0'],
+    'completed'   => ['label' => 'Completed',   'color' => '#374151', 'bg' => '#F9FAFB', 'dot' => '#9CA3AF', 'border' => '#E5E7EB'],
 ];
 
 // ── Rating meta ───────────────────────────────────────────────────────────────
@@ -948,18 +961,30 @@ require 'layout.php';
           <svg class="mc-select-caret" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
 
-        <!-- Status dropdown -->
-        <div class="mc-select-wrap">
-          <svg class="mc-select-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <select name="status" class="mc-select" onchange="this.form.submit()">
-            <option value=""            <?php echo $filterStatus === ''            ? 'selected' : ''; ?>>Any Status</option>
-            <option value="open"        <?php echo $filterStatus === 'open'        ? 'selected' : ''; ?>>Open</option>
-            <option value="in_progress" <?php echo $filterStatus === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
-            <option value="closed"      <?php echo $filterStatus === 'closed'      ? 'selected' : ''; ?>>Closed</option>
-            <option value="rejected"    <?php echo $filterStatus === 'rejected'    ? 'selected' : ''; ?>>Rejected</option>
-          </select>
-          <svg class="mc-select-caret" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
+       <!-- Status dropdown -->
+<div class="mc-select-wrap" id="statusSelectWrap">
+  <svg class="mc-select-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  <select name="status" id="statusSelect" class="mc-select" onchange="this.form.submit()">
+
+    <?php if ($typeParam === 'requisition'): ?>
+      <option value=""           <?php echo $filterStatus === ''           ? 'selected' : ''; ?>>Any Status</option>
+      <option value="pending"    <?php echo $filterStatus === 'pending'    ? 'selected' : ''; ?>>Pending</option>
+      <option value="approved"   <?php echo $filterStatus === 'approved'   ? 'selected' : ''; ?>>Approved</option>
+      <option value="rejected"   <?php echo $filterStatus === 'rejected'   ? 'selected' : ''; ?>>Rejected</option>
+      <option value="completed"  <?php echo $filterStatus === 'completed'  ? 'selected' : ''; ?>>Completed</option>
+    <?php elseif ($typeParam === 'complaint'): ?>
+      <option value=""            <?php echo $filterStatus === ''            ? 'selected' : ''; ?>>Any Status</option>
+      <option value="open"        <?php echo $filterStatus === 'open'        ? 'selected' : ''; ?>>Open</option>
+      <option value="in_progress" <?php echo $filterStatus === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
+      <option value="closed"      <?php echo $filterStatus === 'closed'      ? 'selected' : ''; ?>>Closed</option>
+      <option value="rejected"    <?php echo $filterStatus === 'rejected'    ? 'selected' : ''; ?>>Rejected</option>
+    <?php else: ?>
+      <option value="">Any Status</option>
+    <?php endif; ?>
+
+  </select>
+  <svg class="mc-select-caret" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+</div>
 
         <?php if ($filterSearch !== '' || $filterStatus !== '' || $typeParam !== ''): ?>
         <a href="my_complaints.php" class="mc-clear-btn">

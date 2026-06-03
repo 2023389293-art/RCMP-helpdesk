@@ -1,5 +1,5 @@
 <?php
-// ../dept/it/dashboard.php
+// ../dept/afsmd/dashboard.php
 require_once __DIR__ . '/../auth_guard.php';
 
 if (isset($_GET['logout'])) { staffLogout(); }
@@ -951,7 +951,6 @@ const cx=80, cy=80, r=68;
           <thead>
             <tr>
   <th>Ticket ID</th>
-  <th>Title</th>
   <th>From Department</th>
   <th>Status</th>
   <th>Priority</th>
@@ -989,8 +988,7 @@ const cx=80, cy=80, r=68;
                 </a>
               </td>
 
-              <!-- Title -->
-              <td><?php echo htmlspecialchars($t['title']); ?></td>
+              
 
               <!-- From Department + date/time stacked (Created column removed) -->
               <td>

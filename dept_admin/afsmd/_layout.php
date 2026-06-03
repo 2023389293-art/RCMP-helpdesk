@@ -1,5 +1,5 @@
 <?php
-// dept_admin/afsmd/_layout.php
+// dept_admin/afsmd/_layout.php 
 // Shared layout helpers for AFSMD Admin pages
 
 if (session_status() === PHP_SESSION_NONE) session_start();
@@ -11,7 +11,7 @@ if (empty($_SESSION['staff_id']) || $_SESSION['dept_folder'] !== 'afsmd' || !in_
 }
 
 // HOD can only access dashboard and reports
-$hodRestrictedPages = ['tickets', 'users', 'categories'];
+$hodRestrictedPages = ['tickets', 'users', 'categories', 'requisitions'];
 if ($_SESSION['staff_role'] === 'hod' && in_array(basename($_SERVER['PHP_SELF'], '.php'), $hodRestrictedPages)) {
     header("Location: dashboard.php");
     exit;

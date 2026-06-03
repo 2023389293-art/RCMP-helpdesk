@@ -1,6 +1,15 @@
 <?php
-// dept_admin/afsmd/tickets.php
+// dept_admin/afsmd/tickets.php 
 require '_layout.php';
+
+if (!function_exists('staffInitials')) {
+    function staffInitials(string $name): string {
+        $parts = explode(' ', trim($name));
+        $ini   = strtoupper(substr($parts[0], 0, 1));
+        if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
+        return $ini;
+    }
+}
 
 $status   = $_GET['status']   ?? '';
 $priority = $_GET['priority'] ?? '';
@@ -91,13 +100,6 @@ if (!function_exists('pgstr')) {
     /* ── TABLE CELL FIXES ── */
     .data-table tbody td {
       vertical-align: middle;
-    }
-    .td-title {
-      max-width: 200px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-weight: 500;
     }
     .td-cat {
       color: var(--gray-500);
@@ -443,13 +445,12 @@ if (!function_exists('pgstr')) {
       .filter-bar .btn-primary-sm,
       .filter-bar .btn-ghost-sm { width: 100%; }
 
-      .data-table thead th:nth-child(3),
-      .data-table thead th:nth-child(4),
-      .data-table thead th:nth-child(7),
-      .data-table tbody td:nth-child(3),
-      .data-table tbody td:nth-child(4),
-      .data-table tbody td:nth-child(7) { display: none; }
-
+.data-table thead th:nth-child(2),
+.data-table thead th:nth-child(3),
+.data-table thead th:nth-child(6),
+.data-table tbody td:nth-child(2),
+.data-table tbody td:nth-child(3),
+.data-table tbody td:nth-child(6) { display: none; }
       .card.no-pad {
   overflow-x: auto;
 }
@@ -541,7 +542,6 @@ if (!function_exists('pgstr')) {
       <thead>
         <tr>
           <th>Ticket ID</th>
-          <th>Title</th>
           <th>Submitted By</th>
           <th>Category</th>
           <th>Priority</th>
@@ -552,7 +552,7 @@ if (!function_exists('pgstr')) {
       </thead>
       <tbody>
         <?php if (empty($tickets)): ?>
-        <tr><td colspan="8" class="empty-row">No tickets match your filters.</td></tr>
+        <tr><td colspan="7" class="empty-row">No tickets match your filters.</td></tr>
         <?php else: foreach ($tickets as $t): ?>
         <tr class="ticket-row">
 
@@ -560,9 +560,6 @@ if (!function_exists('pgstr')) {
           <td>
             <span class="ticket-id"><?= htmlspecialchars($t['ticket_id']) ?></span>
           </td>
-
-          <!-- Title -->
-          <td class="td-title"><?= htmlspecialchars($t['title']) ?></td>
 
           <!-- Submitted By: department name + date/time below -->
           <td class="td-submitted-by">
@@ -738,16 +735,7 @@ if (!function_exists('pgstr')) {
 
 <?php include '_foot_scripts.php'; ?>
 
-<?php
-if (!function_exists('staffInitials')) {
-    function staffInitials(string $name): string {
-        $parts = explode(' ', trim($name));
-        $ini   = strtoupper(substr($parts[0], 0, 1));
-        if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
-        return $ini;
-    }
-}
-?>
+
 
 <script>
 /* ── PER-PAGE CHANGE — reload with page reset ── */

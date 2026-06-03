@@ -15,8 +15,8 @@ header('Content-Type: application/json');
 
 date_default_timezone_set('Asia/Kuala_Lumpur'); // ← ADD THIS LINE
 
-$deptId  = (int)($deptId  ?? 0);
-$staffId = (int)($staffId ?? 0);
+$deptId  = (int)($deptId  ?? $_SESSION['dept_id']  ?? 0);
+$staffId = (int)($staffId ?? $_SESSION['staff_id'] ?? 0);
 
 if (!$staffId || !$deptId) {
     http_response_code(401);
@@ -345,7 +345,8 @@ $sql = "
     WHERE c.dept_id     = ?
       AND c.assigned_to = ?
       AND c.status      IN ('open', 'in_progress')
-    ORDER BY c.created_at ASC
+  AND c.first_response_at IS NULL
+ORDER BY c.created_at ASC
 ";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $deptId, $staffId);
@@ -355,7 +356,7 @@ $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     // ✅ Use sla_start_at — it is reset when a ticket is reopened.
     // This matches the logic in ticket_detail.php and sla_helper.php.
-    $slaStartStr  = !empty($row['sla_start_at']) ? $row['sla_start_at'] : $row['created_at'];
+    $slaStartStr  = $row['created_at'];
     $slaStart     = new DateTime($slaStartStr);
     $elapsedMin   = businessMinutesElapsed($slaStart, $now);
     $remainingMin = SLA_TOTAL_MIN - $elapsedMin;

@@ -1,7 +1,6 @@
 <?php
-// dept/afsmd/requisition_detail.php
-require_once __DIR__ . '/../auth_guard.php';
-if (isset($_GET['logout'])) { staffLogout(); }
+// dept_admin/afsmd/requisition_detail.php
+require '_layout.php';
 require_once __DIR__ . '/../../db_connect.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -12,7 +11,11 @@ require __DIR__ . '/../../PHPMailer-master/src/SMTP.php';
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 
+$adminStaffId   = (int)($_SESSION['staff_id'] ?? 0);
+$adminStaffName = $_SESSION['staff_name'] ?? 'Admin AFSMD';
+
 // ── Sidebar badge counts (tickets) ───────────────────────────────────────────
+$deptId = 1;
 $tcStmt = $conn->prepare("SELECT SUM(status='open') AS oc, SUM(status='in_progress') AS ipc, SUM(status='closed') AS cc FROM complaints WHERE dept_id = ?");
 $tcStmt->bind_param("i", $deptId);
 $tcStmt->execute();
@@ -86,8 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $requisition) {
             $upd->execute(); $upd->close();
 
             $assignRemarks = trim($_POST['assign_remarks'] ?? '');
-            $logId   = (int)$_SESSION['staff_id'];
-            $logName = $_SESSION['staff_name'] ?? 'Staff';
+$logId   = $adminStaffId;
+$logName = $adminStaffName;
             $logStmt = $conn->prepare("INSERT INTO requisition_logs (ref_number,changed_by_id,changed_by,field_changed,old_status,new_status,remarks,changed_at) VALUES (?,?,?,'assigned',?,?,?,NOW())");
             if ($logStmt) {
                 $logStmt->bind_param("sissss", $refNumber, $logId, $logName, $oldName, $newName, $assignRemarks);
@@ -125,8 +128,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $requisition) {
         if ($upd->execute()) {
             // Log change
             if ($oldStatus !== $newStatus) {
-                $logId   = (int)$_SESSION['staff_id'];
-                $logName = $_SESSION['staff_name'] ?? 'Staff';
+$logId   = $adminStaffId;
+$logName = $adminStaffName;
                 $logStmt = $conn->prepare("INSERT INTO requisition_logs (ref_number,changed_by_id,changed_by,field_changed,old_status,new_status,changed_at) VALUES (?,?,?,'status',?,?,NOW())");
                 if ($logStmt) {
                     $logStmt->bind_param("sisss", $refNumber, $logId, $logName, $oldStatus, $newStatus);
@@ -136,8 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $requisition) {
 
             // Handle inline message
             $inlineMessage = trim($_POST['message'] ?? '');
-            $senderName = $_SESSION['staff_name'] ?? 'Staff';
-            $senderId   = (int)($_SESSION['staff_id'] ?? 0);
+            $senderName = $adminStaffName;
+            $senderId   = $adminStaffId;
 
             if (!empty($inlineMessage)) {
                 $ins = $conn->prepare("INSERT INTO requisition_replies (ref_number,sender_id,sender_name,sender_role,message) VALUES (?,?,?,'staff',?)");
@@ -342,15 +345,15 @@ if ($requisition) {
 
 // ── AFSMD dept staff list (for reassign) ─────────────────────────────────────
 $deptStaffList = [];
-$dsStmt = $conn->prepare("SELECT staff_id, full_name FROM staff WHERE dept_id = ? AND role = 'staff' ORDER BY staff_id ASC");
+$dsStmt = $conn->prepare("SELECT staff_id, full_name, role FROM staff WHERE dept_id = ? AND role IN ('staff','admin') ORDER BY role ASC, full_name ASC");
 $dsStmt->bind_param("i", $deptId);
 $dsStmt->execute();
 $dsRes = $dsStmt->get_result();
 while ($row = $dsRes->fetch_assoc()) $deptStaffList[] = $row;
 $dsStmt->close();
 
-$currentStaffId   = (int)($_SESSION['staff_id'] ?? 0);
-$isAssignedStaff  = ($assignedStaff && (int)$assignedStaff['staff_id'] === $currentStaffId);
+$currentStaffId  = $adminStaffId;
+$isAssignedStaff = ($assignedStaff && (int)$assignedStaff['staff_id'] === $adminStaffId);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function reqStatusBadge(string $s): string {
@@ -423,8 +426,8 @@ $pageSubtitle = 'Administration & Facilities Management Department';
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Requisition Detail | UniKL Help Desk – AFSMD</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="css/tickets_details.css">
+<?php include '_head_assets.php'; ?>
+<link rel="stylesheet" href="css/tickets_detail.css">
   <style>
     /* ── Requisition-specific overrides ── */
 .req-meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-radius:12px;overflow:hidden;margin-bottom:20px;}
@@ -444,10 +447,110 @@ $pageSubtitle = 'Administration & Facilities Management Department';
     /* Rejected notice banner */
     .rejected-notice{display:flex;align-items:center;gap:12px;padding:14px 18px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:12px;margin-bottom:20px;}
     .approved-notice{display:flex;align-items:center;gap:12px;padding:14px 18px;background:#D1FAE5;border:1px solid #6EE7B7;border-radius:12px;margin-bottom:20px;}
+    .no-permission-box {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 11px 13px; background: #FEF3C7;
+  border: 1.5px solid #FCD34D; border-radius: 9px;
+  font-size: 12.5px; color: #B45309;
+}
+.no-permission-box svg {
+  width: 15px; height: 15px; flex-shrink: 0;
+  margin-top: 1px; fill: none; stroke: #B45309; stroke-width: 2;
+}
+.no-permission-title { font-size: 12.5px; font-weight: 600; color: #92400E; margin-bottom: 2px; }
+.no-permission-desc  { font-size: 11.5px; color: #B45309; line-height: 1.5; }
+/* ── Modal backdrop fix ── */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(10,20,50,.55);
+  backdrop-filter: blur(4px);
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.show {
+  display: flex;
+  animation: tdFadeIn .2s ease;
+}
+
+/* ── Save button always visible for admin ── */
+.btn-update-save {
+  display: block !important;
+}
+/* ── Modal styles fix ── */
+.td-modal {
+  background: white;
+  border-radius: 14px;
+  padding: 30px 26px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,.15);
+  animation: tdScaleIn .25s cubic-bezier(.34,1.56,.64,1);
+  position: relative;
+  z-index: 201;
+}
+.td-modal-icon {
+  width: 52px; height: 52px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+}
+.td-modal-icon svg {
+  width: 24px; height: 24px; fill: none; stroke-width: 2;
+}
+.td-modal-icon.save { background: #EFF6FF; }
+.td-modal-icon.save svg { stroke: #1A56DB; }
+.td-modal h3 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 20px; color: #0D1F3C; margin-bottom: 7px;
+}
+.td-modal > p {
+  font-size: 13.5px; color: #6B7280; line-height: 1.6; margin-bottom: 18px;
+}
+.td-modal-summary {
+  background: #F9FAFB; border-radius: 9px;
+  margin-bottom: 20px; text-align: left;
+  border: 1px solid #F3F4F6;
+}
+.td-modal-summary-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 15px; border-bottom: 1px solid #F3F4F6;
+  font-size: 13.5px;
+}
+.td-modal-summary-row:last-child { border-bottom: none; }
+.td-modal-summary-label { color: #9CA3AF; font-size: 12.5px; }
+.td-modal-actions {
+  display: flex; gap: 9px; justify-content: center;
+}
+.btn-modal-cancel {
+  padding: 9px 20px; border-radius: 7px;
+  border: 1.5px solid #E5E7EB; background: white;
+  color: #374151; font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px; font-weight: 500; cursor: pointer;
+}
+.btn-modal-cancel:hover { border-color: #9CA3AF; }
+.btn-modal-confirm {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 20px; border-radius: 7px; border: none;
+  background: #001f5c; color: white;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px; font-weight: 600; cursor: pointer;
+}
+.btn-modal-confirm:hover { background: #1A56DB; }
+.btn-modal-confirm svg {
+  width: 14px; height: 14px; fill: none; stroke: white; stroke-width: 2.2;
+}
+@keyframes tdScaleIn {
+  from { opacity: 0; transform: scale(.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
   </style>
 </head>
 <body>
-<?php require_once __DIR__ . '/_layout.php'; ?>
+<?php include '_sidebar.php'; ?>
+<main class="main-content">
 
   <!-- Breadcrumb -->
   <div class="td-breadcrumb">
@@ -665,7 +768,9 @@ $pageSubtitle = 'Administration & Facilities Management Department';
                   <option value="">— Select staff —</option>
                   <?php foreach ($deptStaffList as $s): ?>
                   <?php if ((int)$s['staff_id'] === (int)($assignedStaff['staff_id'] ?? 0)) continue; ?>
-                  <option value="<?php echo $s['staff_id']; ?>"><?php echo htmlspecialchars($s['full_name']); ?></option>
+                  <option value="<?php echo $s['staff_id']; ?>">
+  <?php echo htmlspecialchars($s['full_name']); ?><?php echo $s['role'] === 'admin' ? ' (Admin)' : ''; ?>
+</option>
                   <?php endforeach; ?>
                 </select>
               </div>
@@ -693,8 +798,8 @@ $pageSubtitle = 'Administration & Facilities Management Department';
           <div class="td-card-body">
             <?php $curStatus = strtolower($requisition['status'] ?? 'pending'); ?>
 
-            <?php if (!$assignedStaff): ?>
-            <div class="no-permission-box">
+            <?php if (false): // Admin always has permission ?>
+<div class="no-permission-box">
               <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               <div>
                 <div class="no-permission-title">No Staff Assigned</div>
@@ -718,19 +823,19 @@ $pageSubtitle = 'Administration & Facilities Management Department';
               <!-- Status select -->
               <div class="pri-label-sm">Status</div>
               <div class="status-select-wrap" style="margin-bottom:12px;">
-<select name="status" id="reqStatus" class="status-select-styled" onchange="handleReqStatusChange(this.value)">
-  <?php if ($curStatus === 'pending'): ?>
-  <option value="" disabled selected>— Select action —</option>
+                <select name="status" id="reqStatus" class="status-select-styled" onchange="handleReqStatusChange(this.value)">
+                  <?php if ($curStatus === 'pending'): ?>
+  <option value="pending"  selected>Pending</option>
   <option value="approved">Approved</option>
   <option value="rejected">Rejected</option>
 <?php elseif ($curStatus === 'approved'): ?>
-  <option value="" disabled selected>— Select action —</option>
+  <option value="approved" selected>Approved</option>
   <option value="completed">Completed</option>
   <option value="rejected">Rejected</option>
 <?php elseif ($curStatus === 'completed'): ?>
   <option value="completed" selected>Completed</option>
 <?php endif; ?>
-</select>
+                </select>
               </div>
 
               <!-- Message to Submitter (always visible) -->
@@ -858,12 +963,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 
   <?php endif; // end if $requisition ?>
 
-  </div></main>
-
-
-
-
-</div>
+</main>
 
 <!-- ── Confirm Modal ── -->
 <div class="modal-backdrop" id="reqConfirmModal">
@@ -894,10 +994,6 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 // ── Confirm modal ─────────────────────────────────────────────────────────────
 function openReqConfirmModal() {
   var status = document.getElementById('reqStatus')?.value;
-  if (!status) {
-    alert('Please select a status before saving.');
-    return;
-  }
   var curStat = _reqCurrentStatus;
 
 var map = {
@@ -940,7 +1036,7 @@ function handleReassignChange(sel) {
 }
 
 // ── Status change: show message box ──────────────────────────────────────────
-var _reqCurrentStatus = '<?php echo addslashes($curStatus ?? 'pending'); ?>';
+var _reqCurrentStatus = '<?php echo $requisition ? addslashes($requisition['status']) : 'pending'; ?>';
 function handleReqStatusChange(val) {
   // Message box is always visible now — nothing to toggle
 }
@@ -1016,5 +1112,6 @@ document.addEventListener('keydown',function(e){
   showPage(1);
 })();
 </script>
+<?php include '_foot_scripts.php'; ?>
 </body>
 </html>

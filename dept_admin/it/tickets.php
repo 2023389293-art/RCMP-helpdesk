@@ -104,13 +104,6 @@ if (!function_exists('pgstr')) {
     .data-table tbody td {
       vertical-align: middle;
     }
-    .td-title {
-      max-width: 200px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-weight: 500;
-    }
     .td-cat {
       color: var(--gray-500);
       font-size: 12px;
@@ -559,7 +552,6 @@ if (!function_exists('pgstr')) {
       <thead>
         <tr>
           <th>Ticket ID</th>
-          <th>Title</th>
           <th>Submitted By</th>
           <th>Category</th>
           <th>Priority</th>
@@ -570,7 +562,7 @@ if (!function_exists('pgstr')) {
       </thead>
       <tbody>
         <?php if (empty($tickets)): ?>
-        <tr><td colspan="8" class="empty-row">No tickets match your filters.</td></tr>
+        <tr><td colspan="7" class="empty-row">No tickets match your filters.</td></tr>
         <?php else: foreach ($tickets as $t): ?>
         <tr class="ticket-row">
 
@@ -579,8 +571,7 @@ if (!function_exists('pgstr')) {
             <span class="ticket-id"><?= htmlspecialchars($t['ticket_id']) ?></span>
           </td>
 
-          <!-- Title -->
-          <td class="td-title"><?= htmlspecialchars($t['title']) ?></td>
+          
 
           <!-- Submitted By: department name + date/time below -->
           <td class="td-submitted-by">

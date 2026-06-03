@@ -36,13 +36,10 @@ if ($filterDateTo   !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterDateTo)
 if ($filterDept !== '') { $extraWhere .= " AND complaints.my_department = ?"; $extraParams[] = $filterDept; $extraTypes .= 's'; }
 if ($filterCategory !== '') { $extraWhere .= " AND complaints.category_id = ?"; $extraParams[] = (int)$filterCategory; $extraTypes .= 'i'; }
 
-function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTypes, array $extraParams): void {
-    if (empty($extraTypes)) return;
-    $types = $baseTypes . $extraTypes;
-    $allParams = array_merge($baseRefs, $extraParams);
+function bindAll($stmt, string $types, array $params): void {
     $refs = [];
-    foreach ($allParams as $key => $val) {
-        $refs[$key] = &$allParams[$key];
+    foreach ($params as $key => $val) {
+        $refs[$key] = &$params[$key];
     }
     $stmt->bind_param($types, ...$refs);
 }
@@ -56,7 +53,7 @@ $stmt = $conn->prepare(
      WHERE complaints.dept_id = ? $extraWhere"
 );
 if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
-else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
+else { bindAll($stmt, "i" . $extraTypes, array_merge([$deptId], $extraParams)); }
 $stmt->execute();
 $counts = $stmt->get_result()->fetch_assoc(); $stmt->close();
 $openCount       = (int)($counts['oc']  ?? 0);
@@ -66,11 +63,11 @@ $closedCount     = (int)($counts['cc']  ?? 0);
 if ($filterStatus === 'all') {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("i",$deptId); }
-    else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
+    else { bindAll($stmt, "i" . $extraTypes, array_merge([$deptId], $extraParams)); }
 } else {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("is",$deptId,$filterStatus); }
-    else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes,$extraParams); }
+    else { bindAll($stmt, "is" . $extraTypes, array_merge([$deptId, $filterStatus], $extraParams)); }
 }
 $stmt->execute();
 $totalTickets = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0); $stmt->close();
@@ -95,7 +92,7 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("iii",$deptId,$perPage,$offset); }
-    else { bindAdvanced($stmt,"i",[$deptId],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
+    else { bindAll($stmt, "i" . $extraTypes . "ii", array_merge([$deptId], $extraParams, [$perPage, $offset])); }
 } else {
     $stmt = $conn->prepare(
         "SELECT complaints.ticket_id, complaints.title, complaints.status,
@@ -111,7 +108,7 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("isii",$deptId,$filterStatus,$perPage,$offset); }
-    else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
+    else { bindAll($stmt, "is" . $extraTypes . "ii", array_merge([$deptId, $filterStatus], $extraParams, [$perPage, $offset])); }
 }
 $stmt->execute();
 $res = $stmt->get_result();
@@ -299,6 +296,7 @@ col.col-action   { width: 80px;  }
   <a href="<?php echo ticketUrl(['status'=>'open','page'=>1]); ?>" class="filter-tab tab-open <?php echo $filterStatus==='open'?'active':''; ?>"><span class="tab-dot tab-dot-open"></span>Open <span class="ft-count"><?php echo $openCount; ?></span></a>
   <a href="<?php echo ticketUrl(['status'=>'in_progress','page'=>1]); ?>" class="filter-tab tab-inprogress <?php echo $filterStatus==='in_progress'?'active':''; ?>"><span class="tab-dot tab-dot-inprogress"></span>In Progress <span class="ft-count"><?php echo $inProgressCount; ?></span></a>
   <a href="<?php echo ticketUrl(['status'=>'closed','page'=>1]); ?>" class="filter-tab tab-closed <?php echo $filterStatus==='closed'?'active':''; ?>"><span class="tab-dot tab-dot-closed"></span>Closed <span class="ft-count"><?php echo $closedCount; ?></span></a>
+  
 </div>
 
     <!-- ── Advanced filters ── -->

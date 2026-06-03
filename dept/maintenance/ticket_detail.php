@@ -217,6 +217,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
 
             $statusLabel = ucfirst(str_replace('_', ' ', $newStatus));
 
+            // ── Always notify submitter on status change ───────────────────────
+            if ($statChanged && empty(trim($_POST['message'] ?? ''))) {
+                $subType  = $ticket['submitter_type'] ?? 'student';
+                $subTable = $subType === 'student' ? 'students' : 'staff';
+                $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
+                $subQ = $conn->prepare("SELECT full_name, email FROM {$subTable} WHERE {$subPk}=? LIMIT 1");
+                if ($subQ) {
+                    $subQ->bind_param("i", $ticket['submitter_id']);
+                    $subQ->execute();
+                    $submitterData = $subQ->get_result()->fetch_assoc();
+                    $subQ->close();
+                    if ($submitterData && !empty($submitterData['email'])) {
+                        $toName      = $submitterData['full_name'];
+                        $toEmail     = $submitterData['email'];
+                        $currentYear = date('Y');
+                        $currentDate = date('d F Y');
+                        $escapedTo   = htmlspecialchars($toName);
+                        $escapedTid  = htmlspecialchars($ticketId);
+                        $escapedStat = htmlspecialchars($statusLabel);
+                        $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
+                        $statFg  = $newStatus==='closed' ? '#059669' : ($newStatus==='in_progress' ? '#1D4ED8' : '#D97706');
+
+                        $statusOnlyHtml = <<<HTML
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background-color:#ffffff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;padding:40px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:white;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #e4e7ed;">
+  <tr><td style="background:#00327a;padding:0;">
+    <table width="100%"><tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr></table>
+    <table width="100%"><tr><td style="padding:28px 40px 24px;">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:4px;">Universiti Kuala Lumpur</div>
+      <div style="font-size:18px;font-weight:700;color:#fff;">RCMP Help Desk</div>
+    </td></tr></table>
+    <table width="100%"><tr><td style="padding:12px 40px 16px;background:#002660;">
+      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Ticket Update — Status Changed</span>
+    </td></tr></table>
+  </td></tr>
+  <tr><td style="background:#f7f8fa;border-bottom:1px solid #e4e7ed;padding:14px 40px;">
+    <table width="100%"><tr>
+      <td style="font-size:12px;color:#6b7280;">Reference No.</td>
+      <td align="right" style="font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTid}</td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:36px 40px 0;">
+    <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">{$currentDate}</p>
+    <p style="margin:0 0 20px;font-size:15px;font-weight:600;color:#111827;">Dear {$escapedTo},</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">Your complaint ticket status has been updated. Please find the current status below.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:24px;">
+      <tr><td colspan="2" style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Ticket Status Update</span></td></tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Ticket Reference</td>
+        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTid}</td>
+      </tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Current Status</td>
+        <td style="padding:12px 18px;"><span style="display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:{$statBg};color:{$statFg};">{$escapedStat}</span></td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+      <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details or reply to this ticket.</p>
+        <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
+      </td></tr>
+    </table>
+    <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
+    <p style="margin:20px 0 4px;font-size:14px;color:#374151;">Yours sincerely,</p>
+    <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#00327a;">UniKL RCMP Help Desk Team</p>
+    <p style="margin:0 0 28px;font-size:12px;color:#9ca3af;">Universiti Kuala Lumpur</p>
+  </td></tr>
+  <tr><td style="background:#f7f8fa;border-top:1px solid #e4e7ed;padding:20px 40px;">
+    <p style="margin:0;font-size:11px;color:#9ca3af;">This is a system-generated notification. Please do not reply directly to this email. &bull; &copy; {$currentYear} Universiti Kuala Lumpur.</p>
+  </td></tr>
+  <tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr>
+</table></td></tr></table></body></html>
+HTML;
+                        $mail = new PHPMailer(true);
+                        try {
+                            $mail->isSMTP(); $mail->Host='smtp.office365.com'; $mail->SMTPAuth=true;
+                            $mail->Username='rush.rcmp@unikl.edu.my'; $mail->Password='Rcmp@4321';
+                            $mail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $mail->Port=587;
+                            $mail->SMTPDebug=0; $mail->Debugoutput='error_log';
+                            $mail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
+                            $mail->addAddress($toEmail,$toName);
+                            $mail->isHTML(true); $mail->CharSet='UTF-8';
+                            $mail->Subject="Ticket Status Updated ({$statusLabel}) — {$ticketId}";
+                            $mail->Body=$statusOnlyHtml;
+                            $mail->AltBody="Status updated to: {$statusLabel}\n\nTicket: {$ticketId}\n\nLogin: https://rush.rcmp.edu.my/";
+                            $mail->send();
+                        } catch (Exception $e) {
+                            error_log("[UniKL Mail] Status-only email failed for {$ticketId}: ".$mail->ErrorInfo);
+                        }
+                    }
+                }
+            } // end status-change notification
+
+            // ── Send message if provided ──────────────────────────────────────
             $inlineMessage = trim($_POST['message'] ?? '');
             if (!empty($inlineMessage)) {
                 $senderName = $_SESSION['staff_name'] ?? 'Staff';
@@ -290,12 +388,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
       <tr><td style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Message from {$escapedFrom}</span></td></tr>
       <tr><td style="padding:16px 18px;background:#f7f8fa;font-size:14px;color:#374151;line-height:1.75;">{$escapedMsg}</td></tr>
     </table>
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-      <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
-        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
-        <p style="margin:0;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details or reply to this ticket.</p>
-      </td></tr>
-    </table>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+  <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
+    <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
+    <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details or reply to this ticket.</p>
+    <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
+  </td></tr>
+</table>
     <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
     <p style="margin:20px 0 4px;font-size:14px;color:#374151;">Yours sincerely,</p>
     <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#00327a;">UniKL RCMP Help Desk Team</p>
@@ -757,7 +856,13 @@ $pageSubtitle = 'Maintenance Department';
       <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     </div>
     <div class="ths-info">
-      <div class="ths-title"><?php echo htmlspecialchars($ticket['title']); ?></div>
+      <div class="ths-title"><?php
+  $displayCategory = $ticket['category_name'] ?? $ticket['title'];
+  if (strpos($displayCategory, ' / ') !== false) {
+      $displayCategory = explode(' / ', $displayCategory, 2)[1];
+  }
+  echo htmlspecialchars($displayCategory);
+?></div>
       <?php if (!empty($ticket['description'])): ?>
       <div class="ths-desc"><?php echo htmlspecialchars($ticket['description']); ?></div>
       <?php endif; ?>
@@ -881,14 +986,11 @@ $pageSubtitle = 'Maintenance Department';
                 <div class="ti-submitter-lbl">Email</div>
                 <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['email'] ?? '—'); ?></div>
               </div>
-              <div class="ti-submitter-cell">
+              <div class="ti-submitter-cell" style="border-right:none">
                 <div class="ti-submitter-lbl">Phone</div>
                 <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone'] ?? '—'); ?></div>
               </div>
-              <div class="ti-submitter-cell" style="border-right:none">
-                <div class="ti-submitter-lbl">Type</div>
-                <div class="ti-submitter-val" style="text-transform:capitalize"><?php echo htmlspecialchars($ticket['submitter_type'] ?? '—'); ?></div>
-              </div>
+              
             </div>
 
          </div>

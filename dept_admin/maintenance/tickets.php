@@ -2,6 +2,15 @@
 // dept_admin/maintenance/tickets.php 
 require '_layout.php';
 
+if (!function_exists('staffInitials')) {
+    function staffInitials(string $name): string {
+        $parts = explode(' ', trim($name));
+        $ini   = strtoupper(substr($parts[0], 0, 1));
+        if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
+        return $ini;
+    }
+}
+
 $status   = $_GET['status']   ?? '';
 $priority = $_GET['priority'] ?? '';
 $category = $_GET['category'] ?? '';
@@ -196,6 +205,8 @@ if (!function_exists('pgstr')) {
       align-items: center;
       gap: 7px;
       overflow: hidden;
+      min-width: 0;
+      max-width: 180px;
     }
     .staff-avatar-sm {
       width: 28px;
@@ -217,6 +228,8 @@ if (!function_exists('pgstr')) {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      min-width: 0;
+      flex: 1;
     }
 
     /* ══════════════════════════════════════════
@@ -441,17 +454,17 @@ if (!function_exists('pgstr')) {
       .filter-bar .btn-primary-sm,
       .filter-bar .btn-ghost-sm { width: 100%; }
 
+      .data-table thead th:nth-child(2),
       .data-table thead th:nth-child(3),
-      .data-table thead th:nth-child(4),
-      .data-table thead th:nth-child(7),
+      .data-table thead th:nth-child(6),
+      .data-table tbody td:nth-child(2),
       .data-table tbody td:nth-child(3),
-      .data-table tbody td:nth-child(4),
-      .data-table tbody td:nth-child(7) { display: none; }
+      .data-table tbody td:nth-child(6) { display: none; }
 
       .card.no-pad {
-  overflow-x: auto;
+  overflow-x: auto !important;
 }
-      .data-table  { min-width: 400px; }
+      .data-table  { min-width: 750px; }
       .ticket-id   { max-width: 70px; font-size: 10px; }
       .td-title    { max-width: 100px; }
 
@@ -539,7 +552,6 @@ if (!function_exists('pgstr')) {
       <thead>
         <tr>
           <th>Ticket ID</th>
-          <th>Title</th>
           <th>Submitted By</th>
           <th>Category</th>
           <th>Priority</th>
@@ -550,7 +562,7 @@ if (!function_exists('pgstr')) {
       </thead>
       <tbody>
         <?php if (empty($tickets)): ?>
-        <tr><td colspan="8" class="empty-row">No tickets match your filters.</td></tr>
+        <tr><td colspan="7" class="empty-row">No tickets match your filters.</td></tr>
         <?php else: foreach ($tickets as $t): ?>
         <tr class="ticket-row">
 
@@ -558,9 +570,6 @@ if (!function_exists('pgstr')) {
           <td>
             <span class="ticket-id"><?= htmlspecialchars($t['ticket_id']) ?></span>
           </td>
-
-          <!-- Title -->
-          <td class="td-title"><?= htmlspecialchars($t['title']) ?></td>
 
           <!-- Submitted By: department name + date/time below -->
           <td class="td-submitted-by">
@@ -599,7 +608,7 @@ if (!function_exists('pgstr')) {
           </td>
 
           <!-- Assigned To -->
-          <td class="td-assigned">
+          <td class="td-assigned" style="max-width:130px;">
             <?php if (!empty($t['assigned_staff_name'])): ?>
               <div class="assigned-cell">
                 <div class="staff-avatar-sm"><?= staffInitials($t['assigned_staff_name']) ?></div>
@@ -613,7 +622,7 @@ if (!function_exists('pgstr')) {
           </td>
 
           <!-- View Button -->
-          <td>
+          <td style="white-space:nowrap; width:80px;">
             <a href="ticket_detail.php?id=<?= urlencode($t['ticket_id']) ?>" class="btn-view">
               <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               View
@@ -735,17 +744,6 @@ if (!function_exists('pgstr')) {
 </div>
 
 <?php include '_foot_scripts.php'; ?>
-
-<?php
-if (!function_exists('staffInitials')) {
-    function staffInitials(string $name): string {
-        $parts = explode(' ', trim($name));
-        $ini   = strtoupper(substr($parts[0], 0, 1));
-        if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
-        return $ini;
-    }
-}
-?>
 
 <script>
 /* ── PER-PAGE CHANGE — reload with page reset ── */

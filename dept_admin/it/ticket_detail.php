@@ -1,5 +1,5 @@
 <?php
-// dept_admin/it/ticket_detail.php
+// dept_admin/it/ticket_detail.php 
 require '_layout.php';
 require_once __DIR__ . '/../../db_connect.php';
 require_once __DIR__ . '/../../assign_helper.php';
@@ -136,7 +136,10 @@ if ($logStmt2) {
     // ── ACTION: admin_update (admin is assigned, changes priority + status + message) ──
     if ($action === 'admin_update') {
         $assignedNow     = getAssignedStaff($conn, $ticketId);
-        $isAdminAssigned = ($assignedNow && (int)$assignedNow['staff_id'] === $adminStaffId);
+        $isAdminAssigned = ($assignedNow && (
+    (int)$assignedNow['staff_id'] === $adminStaffId ||
+    in_array(strtolower($assignedNow['role'] ?? ''), ['admin', 'hod'])
+));
 
         if (!$isAdminAssigned) {
             $_SESSION['flash_error'] = 'You must be assigned to this ticket to update its status.';
@@ -213,15 +216,17 @@ if ($logStmt2) {
     }
 }
 
-            // Save message if provided + send email (same as staff)
+// Save message if provided
             $inlineMessage = trim($_POST['message'] ?? '');
-if (!empty($inlineMessage)) {
-    $ins = $conn->prepare("INSERT INTO ticket_replies (ticket_id,sender_id,sender_name,sender_role,message) VALUES (?,?,?,?,?)");
-    $senderRole = 'staff';
-    $ins->bind_param("sisss", $ticketId, $adminStaffId, $adminStaffName, $senderRole, $inlineMessage);
-    $ins->execute(); $ins->close();
+            if (!empty($inlineMessage)) {
+                $ins = $conn->prepare("INSERT INTO ticket_replies (ticket_id,sender_id,sender_name,sender_role,message) VALUES (?,?,?,?,?)");
+                $senderRole = 'staff';
+                $ins->bind_param("sisss", $ticketId, $adminStaffId, $adminStaffName, $senderRole, $inlineMessage);
+                $ins->execute(); $ins->close();
+            }
 
-                // Email to submitter
+            // Send email whenever status moves to in_progress or closed
+            if ($statChanged && in_array($newStatus, ['in_progress', 'closed'])) {
                 $subType  = $ticket['submitter_type'] ?? 'student';
                 $subTable = $subType === 'student' ? 'students' : 'staff';
                 $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
@@ -238,7 +243,7 @@ if (!empty($inlineMessage)) {
                         $currentDate = date('d F Y');
                         $escapedTo   = htmlspecialchars($toName);
                         $escapedTid  = htmlspecialchars($ticketId);
-                        $escapedMsg  = nl2br(htmlspecialchars($inlineMessage));
+                        $escapedMsg  = !empty($inlineMessage) ? nl2br(htmlspecialchars($inlineMessage)) : '<em style="color:#9CA3AF;">No message provided.</em>';
                         $escapedFrom = htmlspecialchars($adminStaffName);
                         $escapedStat = htmlspecialchars($statusLabel);
                         $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
@@ -253,11 +258,11 @@ if (!empty($inlineMessage)) {
   <tr><td style="background:#00327a;padding:0;">
     <table width="100%"><tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr></table>
     <table width="100%"><tr><td style="padding:28px 40px 24px;">
-<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:4px;">Universiti Kuala Lumpur</div>
-<div style="font-size:18px;font-weight:700;color:#fff;">RCMP Help Desk</div>
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:4px;">Universiti Kuala Lumpur</div>
+      <div style="font-size:18px;font-weight:700;color:#fff;">RCMP Help Desk</div>
     </td></tr></table>
     <table width="100%"><tr><td style="padding:12px 40px 16px;background:#002660;">
-      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Ticket Update — Message from Staff</span>
+      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Ticket Update — Status Changed</span>
     </td></tr></table>
   </td></tr>
   <tr><td style="background:#f7f8fa;border-bottom:1px solid #e4e7ed;padding:14px 40px;">
@@ -269,7 +274,7 @@ if (!empty($inlineMessage)) {
   <tr><td style="padding:36px 40px 0;">
     <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">{$currentDate}</p>
     <p style="margin:0 0 20px;font-size:15px;font-weight:600;color:#111827;">Dear {$escapedTo},</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">Your complaint ticket has been updated by a staff member. Please find the current status and message below.</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">Your complaint ticket status has been updated. Please find the details below.</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:20px;">
       <tr><td colspan="2" style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Ticket Status Update</span></td></tr>
       <tr>
@@ -285,12 +290,13 @@ if (!empty($inlineMessage)) {
       <tr><td style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Message from {$escapedFrom}</span></td></tr>
       <tr><td style="padding:16px 18px;background:#f7f8fa;font-size:14px;color:#374151;line-height:1.75;">{$escapedMsg}</td></tr>
     </table>
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-      <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
-        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
-        <p style="margin:0;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details or reply to this ticket.</p>
-      </td></tr>
-    </table>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+  <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
+    <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
+    <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details or reply to this ticket.</p>
+    <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
+  </td></tr>
+</table>
     <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
     <p style="margin:20px 0 4px;font-size:14px;color:#374151;">Yours sincerely,</p>
     <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#00327a;">UniKL RCMP Help Desk Team</p>
@@ -313,14 +319,14 @@ HTML;
                             $mail->isHTML(true); $mail->CharSet='UTF-8';
                             $mail->Subject="Ticket Update ({$statusLabel}) — {$ticketId}";
                             $mail->Body=$htmlBody;
-                            $mail->AltBody="Status: {$statusLabel}\n\nMessage from {$adminStaffName}:\n\n{$inlineMessage}\n\nTicket: {$ticketId}";
+                            $mail->AltBody="Status: {$statusLabel}\n\nUpdated by: {$adminStaffName}\n\nTicket: {$ticketId}";
                             $mail->send();
                         } catch (Exception $e) {
-                            error_log("[UniKL Mail] Admin message send failed for {$ticketId}: ".$mail->ErrorInfo);
+                            error_log("[UniKL Mail] Admin status email failed for {$ticketId}: ".$mail->ErrorInfo);
                         }
                     }
                 }
-            } // end if(!empty($inlineMessage))
+            } // end email block
 
             
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>' . htmlspecialchars($statusLabel) . '</strong>.';
@@ -353,9 +359,6 @@ $assignedStaff = null;
 if ($ticket) {
     $assignedStaff = getAssignedStaff($conn, $ticketId);
 }
-
-// Is the currently logged-in admin the one assigned to this ticket?
-$isAdminAssigned = ($assignedStaff && (int)$assignedStaff['staff_id'] === $adminStaffId);
 
 // ── SLA data ──────────────────────────────────────────────────────────────────
 $slaData = null;
@@ -474,6 +477,12 @@ if (!in_array($activeTab, ['detail', 'history', 'feedback'])) $activeTab = 'deta
 $isClosed    = $ticket && strtolower($ticket['status']) === 'closed';
 $hasFeedback = $feedback !== null;
 
+// Admin can update if assigned to ticket OR if any admin/hod role is assigned
+$isAdminAssigned = (!$isClosed && $assignedStaff && (
+    (int)$assignedStaff['staff_id'] === $adminStaffId ||
+    in_array(strtolower($assignedStaff['role'] ?? ''), ['admin', 'hod'])
+));
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 if (!function_exists('statusBadge')) {
 function statusBadge(string $s): string {
@@ -578,7 +587,11 @@ function ratingColors(int $rating): array {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Ticket Detail | UniKL Help Desk – IT Admin</title>
+  <?php
+  $rawCatTitle = $ticket['category_name'] ?? 'Ticket Detail';
+  $catTitle = preg_replace('/^[^\/]+\/\s*/', '', $rawCatTitle);
+?>
+<title><?= htmlspecialchars($catTitle) ?> | UniKL Help Desk – IT Admin</title>
   <?php include '_head_assets.php'; ?>
   <link rel="stylesheet" href="css/tickets_detail.css"/>
 </head>
@@ -633,10 +646,11 @@ function ratingColors(int $rating): array {
       <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     </div>
     <div class="ths-info">
-      <div class="ths-title"><?= htmlspecialchars($ticket['title']) ?></div>
-      <?php if (!empty($ticket['description'])): ?>
-      <div class="ths-desc"><?= htmlspecialchars($ticket['description']) ?></div>
-      <?php endif; ?>
+      <?php
+  $rawCat = $ticket['category_name'] ?? '';
+  $catDisplay = preg_replace('/^[^\/]+\/\s*/', '', $rawCat); // strips "IT Dept / " prefix
+?>
+<div class="ths-title"><?= htmlspecialchars($catDisplay) ?></div>
       <div class="ths-bottom-row">
         <div class="ths-badges">
           <?= statusBadge($ticket['status']) ?>
@@ -746,14 +760,11 @@ function ratingColors(int $rating): array {
                 <div class="ti-submitter-lbl">Email</div>
                 <div class="ti-submitter-val"><?= htmlspecialchars($submitter['email'] ?? '—') ?></div>
               </div>
-              <div class="ti-submitter-cell">
+              <div class="ti-submitter-cell" style="border-right:none">
                 <div class="ti-submitter-lbl">Phone</div>
                 <div class="ti-submitter-val">+60 <?= htmlspecialchars($ticket['phone'] ?? '—') ?></div>
               </div>
-              <div class="ti-submitter-cell" style="border-right:none">
-                <div class="ti-submitter-lbl">Type</div>
-                <div class="ti-submitter-val" style="text-transform:capitalize"><?= htmlspecialchars($ticket['submitter_type'] ?? '—') ?></div>
-              </div>
+              
             </div>
           </div>
         </div><!-- /.ticket-info-card -->
@@ -968,16 +979,16 @@ $wasReopened = ($slaStartTs > $createdTs + 60);
               <input type="hidden" name="priority" id="priorityForUpdate" value="<?= htmlspecialchars($curPri) ?>"/>
 
               <div class="status-select-wrap">
-                <select name="status" id="adminStatusSelect" class="status-select-styled" onchange="handleAdminStatusChange(this.value)">
-                  <?php if ($curStat === 'open'): ?>
-                    <option value="open" selected>Open</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="closed">Closed</option>
-                  <?php elseif ($curStat === 'in_progress'): ?>
-                    <option value="in_progress" selected>In Progress</option>
-                    <option value="closed">Closed</option>
-                  <?php endif; ?>
-                </select>
+             <select name="status" id="adminStatusSelect" class="status-select-styled" onchange="handleAdminStatusChange(this.value)">
+  <?php if ($curStat === 'open'): ?>
+    <option value="" disabled selected>— Select action —</option>
+    <option value="in_progress">In Progress</option>
+    <option value="closed">Closed</option>
+  <?php elseif ($curStat === 'in_progress'): ?>
+    <option value="" disabled selected>— Select action —</option>
+    <option value="closed">Closed</option>
+  <?php endif; ?>
+</select>
               </div>
 
               <div id="adminMsgBox" style="display:none;">
@@ -991,7 +1002,7 @@ $wasReopened = ($slaStartTs > $createdTs + 60);
                   maxlength="2000" rows="3"></textarea>
               </div>
 
-              <button type="submit" class="btn-update-save" style="display:block;">Save Changes</button>
+              <button type="button" class="btn-update-save" style="display:block;" onclick="submitAdminUpdate()">Save Changes</button>
             </form>
 
           </div>
@@ -1435,6 +1446,14 @@ document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close
   }
   showPage(1);
 })();
+function submitAdminUpdate() {
+  var status = document.getElementById('adminStatusSelect')?.value;
+  if (!status) {
+    alert('Please select a status before saving.');
+    return;
+  }
+  document.getElementById('adminUpdateForm').submit();
+}
 </script>
 </body>
 </html>

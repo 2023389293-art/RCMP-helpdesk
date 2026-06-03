@@ -248,7 +248,6 @@ function staffInitials(string $name): string {
 
     /* ── Column widths ── */
     col.col-id       { width: 16%; }
-    col.col-title    { width: 13%; }
     col.col-dept     { width: 16%; }
     col.col-status   { width: 9%;  }
     col.col-priority { width: 8%;  }
@@ -430,7 +429,6 @@ function staffInitials(string $name): string {
       <table id="ticket-table">
         <colgroup>
           <col class="col-id">
-          <col class="col-title">
           <col class="col-dept">
           <col class="col-status">
           <col class="col-priority">
@@ -440,7 +438,6 @@ function staffInitials(string $name): string {
         </colgroup>
         <thead><tr>
           <th>Ticket ID</th>
-          <th>Title</th>
           <th>From Department</th>
           <th>Status</th>
           <th>Priority</th>
@@ -450,7 +447,7 @@ function staffInitials(string $name): string {
         </tr></thead>
         <tbody id="ticket-tbody">
           <?php if (empty($tickets)): ?>
-          <tr><td colspan="8"><div class="empty">
+          <tr><td colspan="7"><div class="empty">
             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
             <h3>No tickets found</h3>
             <p>No complaints match your current filter.</p>
@@ -479,13 +476,7 @@ else { $flagFill = '#64748b'; }
               </a>
             </td>
 
-            <!-- Title -->
-            <td>
-              <div class="title-cell">
-                <?php if ($isHighOpen): ?><span class="high-dot"></span><?php endif; ?>
-                <?php echo htmlspecialchars($t['title']); ?>
-              </div>
-            </td>
+            
 
             <!-- From Department + date/time stacked -->
             <td>
@@ -551,7 +542,7 @@ else { $flagFill = '#64748b'; }
 
           </tr>
           <?php endforeach; ?>
-          <tr id="no-search-row"><td colspan="8"><div class="empty">
+          <tr id="no-search-row"><td colspan="7"><div class="empty">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <h3>No results</h3><p>No tickets match your search.</p>
           </div></td></tr>

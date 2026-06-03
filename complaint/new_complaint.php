@@ -101,7 +101,7 @@ $ticketId = '';
 // ── HANDLE REQUISITION SUBMISSION ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_type']) && $_POST['form_type'] === 'requisition' && $isWorkingHours) {
     $req_category      = trim($_POST['req_category']      ?? '');
-    $req_item_name     = $req_category;
+    $req_item_name     = trim($_POST['req_item_name'] ?? '');
     $req_quantity      = (int)($_POST['req_quantity']     ?? 0);
     $req_my_department = trim($_POST['req_my_department'] ?? '');
     $req_location      = trim($_POST['req_location']      ?? '');
@@ -118,8 +118,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_type']) && $_POS
         $error = 'Quantity must be between 1 and 999.';
     } elseif (empty($req_my_department)) {
         $error = 'Please select your department.';
-    } elseif (empty($req_location)) {
-        $error = 'Please specify a location.';
+    } elseif (empty($req_item_name)) {
+    $error = 'Please specify the item name or specification.';
+} elseif (empty($req_location)) {
+    $error = 'Please specify a location.';
     } elseif (empty($req_reason)) {
         $error = 'Please provide a justification.';
     } elseif (empty($req_phone)) {
@@ -127,11 +129,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_type']) && $_POS
     } elseif (!in_array($req_urgency, $allowedUrgency)) {
         $error = 'Invalid urgency level.';
     } else {
-        $dateStr   = date('dmY');
-        $seqRes    = $conn->query("SELECT COUNT(*) AS cnt FROM requisitions WHERE DATE(created_at) = CURDATE()");
-        $seqRow    = $seqRes ? $seqRes->fetch_assoc() : ['cnt' => 0];
-        $seq       = ($seqRow['cnt'] ?? 0) + 1;
-        $refNumber = 'REQ-AFSMD-' . $dateStr . '-' . str_pad($seq, 5, '0', STR_PAD_LEFT);
+$dateStr   = date('dmY');
+$seqRes    = $conn->query("SELECT COUNT(*) AS cnt FROM requisitions WHERE DATE(created_at) = CURDATE()");
+$seqRow    = $seqRes ? $seqRes->fetch_assoc() : ['cnt' => 0];
+$seq       = ($seqRow['cnt'] ?? 0) + 1;
+$refNumber = 'REQ-' . $dateStr . '-' . $seq;
 
         $attachmentPath = null;
         if (!empty($_FILES['req_attachment']['name'])) {
@@ -205,11 +207,11 @@ if (!$catRow) {
     $title   = $catRow['category_name'] ?? 'Complaint #' . $category_id;
 
 // Generate ticket ID
-            $dateStr = date('dmY');
-            $dayRes  = $conn->query("SELECT MAX(CAST(SUBSTRING_INDEX(ticket_id, '-', -1) AS UNSIGNED)) AS last_seq FROM complaints WHERE DATE(created_at) = CURDATE()");
-            $dayRow  = $dayRes->fetch_assoc();
-            $seq     = ($dayRow['last_seq'] ?? 0) + 1;
-            $ticketId = 'RCMP-' . $dateStr . '-' . str_pad($seq, 5, '0', STR_PAD_LEFT);
+$dateStr  = date('dmY');
+$dayRes   = $conn->query("SELECT COUNT(*) AS cnt FROM complaints WHERE DATE(created_at) = CURDATE()");
+$dayRow   = $dayRes->fetch_assoc();
+$seq      = ($dayRow['cnt'] ?? 0) + 1;
+$ticketId = 'RCMP-' . $dateStr . '-' . $seq;
 
             // Handle file upload
             $attachmentPath = null;
@@ -1028,6 +1030,13 @@ require 'layout.php';
 
         <!-- Request Details -->
         <div class="form-section-label">Request Details</div>
+
+        <div class="field">
+          <label for="req_item_name">Item Name / Specification <span class="req">*</span></label>
+          <input type="text" id="req_item_name" name="req_item_name" maxlength="200"
+                 placeholder="e.g. High-back ergonomic chair, Samsung 55-inch projector screen"/>
+        </div>
+
         <div class="field-grid">
           <div class="field">
             <label for="req_quantity">Quantity <span class="req">*</span></label>
@@ -1155,6 +1164,7 @@ require 'layout.php';
           <div class="preview-grid">
             <div class="preview-field"><div class="preview-label">Category</div><div class="preview-value" id="rpv-category">—</div></div>
             <div class="preview-field"><div class="preview-label">Urgency</div><div class="preview-value" id="rpv-urgency">—</div></div>
+            <div class="preview-field full"><div class="preview-label">Item Name / Specification</div><div class="preview-value" id="rpv-item-name">—</div></div>
             <div class="preview-field"><div class="preview-label">Quantity</div><div class="preview-value" id="rpv-quantity">—</div></div>
             <div class="preview-field"><div class="preview-label">Location</div><div class="preview-value" id="rpv-location">—</div></div>
           </div>
@@ -1479,6 +1489,8 @@ function getBatchSummaryHtml(currentItem) {
                <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(item.data.urgency || 'normal')}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Quantity</div>
                <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(String(item.data.quantity || 1))} unit(s)</div></div>
+          <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Item Name</div>
+               <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(item.data.item_name || '—')}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Location</div>
                <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(item.data.location || '—')}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Department</div>
@@ -1547,6 +1559,8 @@ function getBatchSummaryHtml(currentItem) {
                <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(currentItem.data.urgency || 'normal')}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Quantity</div>
                <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(String(currentItem.data.quantity || 1))} unit(s)</div></div>
+          <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Item Name</div>
+               <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(currentItem.data.item_name || '—')}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Location</div>
                <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(currentItem.data.location || '—')}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Department</div>
@@ -1751,6 +1765,7 @@ function restoreReqToPreview(data) {
   document.getElementById('req_quantity').value      = data.quantity || 1;
   document.getElementById('req_my_department').value = data.my_department || '';
   document.getElementById('req_phone').value         = data.phone || '';
+  document.getElementById('req_item_name').value     = data.item_name || '';
   document.getElementById('req_location').value      = data.location || '';
   document.getElementById('req_reason').value        = data.reason || '';
   const urgRadio = document.getElementById('req-urg-' + (data.urgency || 'normal'));
@@ -1763,7 +1778,8 @@ function restoreReqToPreview(data) {
   document.getElementById('rpv-category').innerHTML = `<span class="preview-badge" style="background:#f0fdfa;color:#0D9488;border-color:rgba(13,148,136,.2)">${esc(data.category)}</span>`;
   document.getElementById('rpv-urgency').innerHTML  = `<span class="preview-urg-badge ${urgClasses[urgency]}">${esc(urgLabels[urgency] || urgency)}</span>`;
   document.getElementById('rpv-quantity').textContent = (data.quantity || 1) + ((data.quantity === 1) ? ' unit' : ' units');
-  document.getElementById('rpv-location').textContent = data.location || '—';
+  document.getElementById('rpv-item-name').textContent = data.item_name || '—';
+          document.getElementById('rpv-location').textContent = data.location || '—';
   document.getElementById('rpv-dept').textContent     = data.my_department || '—';
   document.getElementById('rpv-phone').textContent    = '+60 ' + (data.phone || '—');
   document.getElementById('rpv-reason').textContent   = data.reason || '—';
@@ -1983,6 +1999,7 @@ function showReqPreview() {
   const location = document.getElementById('req_location').value.trim();
   const reason   = document.getElementById('req_reason').value.trim();
   const urgency  = document.querySelector('input[name="req_urgency"]:checked')?.value || '';
+  const itemName = document.getElementById('req_item_name').value.trim();
 
   // Clear old errors
   document.querySelectorAll('#afsmdRequisitionSection .input-error').forEach(el => el.classList.remove('input-error'));
@@ -2004,6 +2021,7 @@ function showReqPreview() {
   if (!dept)     markReqErr('req_my_department','Please select your department.');
   const pd = phone.replace(/\D/g,'');
   if (!phone || pd.length < 9 || pd.length > 10) markReqErr('req_phone', !phone ? 'Phone is required.' : 'Phone must be 9–10 digits.');
+  if (!itemName) markReqErr('req_item_name','Please specify the item name or specification.');
   if (!location) markReqErr('req_location','Please specify the delivery location.');
   if (!reason)   markReqErr('req_reason','Please provide a justification.');
 
@@ -2015,6 +2033,7 @@ function showReqPreview() {
   document.getElementById('rpv-category').innerHTML = `<span class="preview-badge" style="background:#f0fdfa;color:#0D9488;border-color:rgba(13,148,136,.2)">${esc(category)}</span>`;
   document.getElementById('rpv-urgency').innerHTML  = `<span class="preview-urg-badge ${urgClasses[urgency]||''}">${esc(urgLabels[urgency]||urgency)}</span>`;
   document.getElementById('rpv-quantity').textContent = qty + (qty===1?' unit':' units');
+  document.getElementById('rpv-item-name').textContent = itemName;
   document.getElementById('rpv-location').textContent = location;
   document.getElementById('rpv-dept').textContent     = dept;
   document.getElementById('rpv-phone').textContent    = '+60 ' + phone;
@@ -2040,6 +2059,7 @@ const currentItem = {
     quantity:      qty,
     my_department: dept,
     phone:         phone,
+    item_name:     itemName,
     location:      location,
     reason:        reason,
     urgency:       urgency,
@@ -2530,6 +2550,7 @@ function addReqToBatch() {
   const qty      = parseInt(document.getElementById('req_quantity').value) || 0;
   const dept     = document.getElementById('req_my_department').value;
   const phone    = document.getElementById('req_phone').value.trim();
+  const itemName = document.getElementById('req_item_name').value.trim();
   const location = document.getElementById('req_location').value.trim();
   const reason   = document.getElementById('req_reason').value.trim();
   const urgency  = document.querySelector('input[name="req_urgency"]:checked')?.value || 'normal';
@@ -2546,6 +2567,7 @@ function addReqToBatch() {
       quantity:      qty,
       my_department: dept,
       phone:         phone,
+      item_name:     itemName,
       location:      location,
       reason:        reason,
       urgency:       urgency,
@@ -2591,6 +2613,7 @@ function resetReqForm() {
   document.getElementById('req_quantity').value = 1;
   document.getElementById('req_my_department').value = '';
   document.getElementById('req_phone').value = '';
+  document.getElementById('req_item_name').value = '';
   document.getElementById('req_location').value = '';
   document.getElementById('req_reason').value = '';
   document.getElementById('req_attachment').value = '';
@@ -2686,6 +2709,7 @@ function pickAddAnotherDept(deptName, mode) {
       document.getElementById('req_quantity').value = 1;
       document.getElementById('req_my_department').value = '';
       document.getElementById('req_phone').value = '';
+      document.getElementById('req_item_name').value = '';
       document.getElementById('req_location').value = '';
       document.getElementById('req_reason').value = '';
       document.getElementById('req_attachment').value = '';
@@ -2752,6 +2776,7 @@ function showConfirmationPanel() {
         quantity:      qty,
         my_department: document.getElementById('req_my_department')?.value || '—',
         phone:         document.getElementById('req_phone')?.value.trim() || '—',
+        item_name:     document.getElementById('req_item_name')?.value.trim() || '—',
         location:      document.getElementById('req_location')?.value.trim() || '—',
         reason:        document.getElementById('req_reason')?.value.trim() || '—',
         urgency:       document.querySelector('input[name="req_urgency"]:checked')?.value || 'normal',
@@ -2874,6 +2899,7 @@ async function submitAllBatch() {
     fd.append('items[current][quantity]',       String(currentItem.data.quantity));
     fd.append('items[current][my_department]',  currentItem.data.my_department);
     fd.append('items[current][phone]',          currentItem.data.phone);
+    fd.append('items[current][item_name]',      currentItem.data.item_name || '');
     fd.append('items[current][location]',       currentItem.data.location);
     fd.append('items[current][reason]',         currentItem.data.reason);
     fd.append('items[current][urgency]',        currentItem.data.urgency || 'normal');

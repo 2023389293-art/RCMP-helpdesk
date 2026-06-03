@@ -7,7 +7,7 @@ require_once __DIR__ . '/../../db_connect.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 $filterStatus  = $_GET['status'] ?? 'all';
-$allowedFilter = ['all','pending','approved','rejected'];
+$allowedFilter = ['all','pending','approved','rejected','completed'];
 if (!in_array($filterStatus, $allowedFilter)) $filterStatus = 'all';
 
 $allowedPerPage = [10,25,50];
@@ -36,34 +36,43 @@ if ($filterDateTo   !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterDateTo)
 if ($filterDept !== '')     { $extraWhere .= " AND r.my_department = ?";                     $extraParams[] = $filterDept;          $extraTypes .= 's'; }
 if ($filterCategory !== '') { $extraWhere .= " AND r.category = ?";                          $extraParams[] = $filterCategory;      $extraTypes .= 's'; }
 
+function bindAll($stmt, string $types, array $params): void {
+    $refs = [];
+    foreach ($params as $key => $val) {
+        $refs[$key] = &$params[$key];
+    }
+    $stmt->bind_param($types, ...$refs);
+}
+
+
 // Count by status (for sidebar + tabs) — only dept_id = 1 (AFSMD)
 $cStmt = $conn->prepare(
     "SELECT
-        SUM(r.status='pending')  AS pc,
-        SUM(r.status='approved') AS ac,
-        SUM(r.status='rejected') AS rc
+        SUM(r.status='pending')   AS pc,
+        SUM(r.status='approved')  AS ac,
+        SUM(r.status='rejected')  AS rc,
+        SUM(r.status='completed') AS cc
      FROM requisitions r
      LEFT JOIN staff s ON s.staff_id = r.assigned_to
      WHERE 1=1 $extraWhere"
 );
 if (!empty($extraParams)) {
-    $cStmt->bind_param($extraTypes, ...$extraParams);
+    bindAll($cStmt, $extraTypes, $extraParams);
 }
 $cStmt->execute();
 $counts = $cStmt->get_result()->fetch_assoc(); $cStmt->close();
-$reqPendingCount  = (int)($counts['pc'] ?? 0);
-$reqApprovedCount = (int)($counts['ac'] ?? 0);
-$rejectedCount    = (int)($counts['rc'] ?? 0);
+$reqPendingCount   = (int)($counts['pc'] ?? 0);
+$reqApprovedCount  = (int)($counts['ac'] ?? 0);
+$reqRejectedCount  = (int)($counts['rc'] ?? 0);
+$reqCompletedCount = (int)($counts['cc'] ?? 0);
 
 // Total for pagination
 $statusWhere = $filterStatus !== 'all' ? " AND r.status = ?" : '';
 $tStmt = $conn->prepare("SELECT COUNT(*) AS total FROM requisitions r LEFT JOIN staff s ON s.staff_id = r.assigned_to WHERE 1=1 $extraWhere $statusWhere");
 if ($filterStatus !== 'all') {
-    $allParams = array_merge($extraParams, [$filterStatus]);
-    $allTypes  = $extraTypes . 's';
-    $tStmt->bind_param($allTypes, ...$allParams);
+    bindAll($tStmt, $extraTypes . 's', array_merge($extraParams, [$filterStatus]));
 } elseif (!empty($extraParams)) {
-    $tStmt->bind_param($extraTypes, ...$extraParams);
+    bindAll($tStmt, $extraTypes, $extraParams);
 }
 $tStmt->execute();
 $totalReqs = (int)($tStmt->get_result()->fetch_assoc()['total'] ?? 0); $tStmt->close();
@@ -88,7 +97,7 @@ $dataStmt = $conn->prepare(
      ORDER BY r.created_at DESC LIMIT ? OFFSET ?"
 );
 if (!empty($dataParams)) {
-    $dataStmt->bind_param($dataTypes, ...$dataParams);
+    bindAll($dataStmt, $dataTypes, $dataParams);
 }
 $dataStmt->execute();
 $res = $dataStmt->get_result();
@@ -108,9 +117,10 @@ $catStmt = $conn->query("SELECT DISTINCT category FROM requisitions ORDER BY cat
 while ($row = $catStmt->fetch_assoc()) $catOptions[] = $row['category'];
 
 // Nav state
-if ($filterStatus === 'pending')  $activeNav = 'requisitions-pending';
-elseif ($filterStatus === 'approved') $activeNav = 'requisitions-approved';
-elseif ($filterStatus === 'rejected') $activeNav = 'requisitions-rejected';
+if ($filterStatus === 'pending')       $activeNav = 'requisitions-pending';
+elseif ($filterStatus === 'approved')  $activeNav = 'requisitions-approved';
+elseif ($filterStatus === 'rejected')  $activeNav = 'requisitions-rejected';
+elseif ($filterStatus === 'completed') $activeNav = 'requisitions-completed';
 else $activeNav = 'requisitions';
 
 $pageTitle    = 'Requisitions';
@@ -140,12 +150,14 @@ function reqUrl(array $overrides = []): string {
     return 'requisitions.php?' . http_build_query($params);
 }
 
+if (!function_exists('staffInitials')) {
 function staffInitials(string $name): string {
     $parts = explode(' ', trim($name));
     $ini = strtoupper(substr($parts[0],0,1));
     if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts)-1],0,1));
     return $ini;
 }
+} // ← closing the if (!function_exists) block
 
 $activeFilterCount = (int)($filterUrgency!=='')+(int)($filterDateFrom!=='')+(int)($filterDateTo!=='')+(int)($filterDept!=='')+(int)($filterCategory!=='');
 ?>
@@ -163,11 +175,12 @@ $activeFilterCount = (int)($filterUrgency!=='')+(int)($filterDateFrom!=='')+(int
 .filter-tab.active.tab-all      {background:var(--accent);border-color:var(--accent);color:white;font-weight:600;box-shadow:0 2px 10px rgba(91,140,204,.22);}
 .filter-tab.active.tab-pending  {background:#D97706;border-color:#D97706;color:white;font-weight:600;}
 .filter-tab.active.tab-approved {background:#059669;border-color:#059669;color:white;font-weight:600;}
-.filter-tab.active.tab-rejected {background:#DC2626;border-color:#DC2626;color:white;font-weight:600;}
+.filter-tab.active.tab-rejected   {background:#DC2626;border-color:#DC2626;color:white;font-weight:600;}
+.filter-tab.active.tab-completed  {background:#7C3AED;border-color:#7C3AED;color:white;font-weight:600;}
 .ft-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 5px;border-radius:9px;font-size:11px;font-weight:700;background:var(--g100);color:var(--g500);}
 .filter-tab.active .ft-count{background:rgba(255,255,255,.28);color:white;}
 .tab-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
-.tab-dot-pending{background:#F59E0B;}.tab-dot-approved{background:#10B981;}.tab-dot-rejected{background:#EF4444;}
+.tab-dot-pending{background:#F59E0B;}.tab-dot-approved{background:#10B981;}.tab-dot-rejected{background:#EF4444;}.tab-dot-completed{background:#7C3AED;}
 .filter-tab.active .tab-dot{background:rgba(255,255,255,.75);}
 
 /* ── Toolbar ── */
@@ -212,14 +225,16 @@ tbody tr:last-child{border-bottom:none;}
 tbody tr:hover{background:#F8FAFF;}
 tbody td{padding:11px 12px;color:var(--g700);vertical-align:middle;overflow:hidden;}
 
-col.col-ref      { width: 16%; }
-col.col-dept     { width: 17%; }
-col.col-cat      { width: 12%; }
-col.col-qty      { width: 5%;  }
-col.col-urgency  { width: 9%;  }
-col.col-status   { width: 9%;  }
-col.col-assigned { width: 13%; }
-col.col-action   { width: 7%;  }
+col.col-ref      { width: 14%; }
+col.col-dept     { width: 16%; }
+col.col-cat      { width: 11%; }
+col.col-item     { width: 16%; }
+col.col-urgency  { width: 8%;  }
+thead th:nth-child(5) { text-align: left; padding-left: 6px; }
+tbody td:nth-child(5) { padding-left: 6px; }
+col.col-status   { width: 11%; }
+col.col-assigned { width: 16%; }
+col.col-action   { width: 9%;  }
 
 /* ── Ref number ── */
 .ref-link{font-weight:600;color:var(--accent);font-size:12px;text-decoration:none;font-family:monospace;letter-spacing:.01em;background:#EFF6FF;padding:3px 6px;border-radius:5px;white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
@@ -233,20 +248,26 @@ col.col-action   { width: 7%;  }
 /* ── Item cell ── */
 .item-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;}
 
-/* ── Status badges ── */
-.bdg{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:20px;text-transform:capitalize;white-space:nowrap;}
-.bdg::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block;flex-shrink:0;}
-.bdg-pending  {background:#FEF3C7;color:#D97706;}
-.bdg-approved {background:#D1FAE5;color:#059669;}
-.bdg-rejected {background:#FEE2E2;color:#DC2626;}
+/* ── Status badges (matched to homepage pill style) ── */
+.bdg{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;white-space:nowrap;letter-spacing:.01em;}
+.bdg-dot{display:none;}
+.bdg-pending   {background:#FEF3E2;color:#92520C;}
+.bdg-pending   .bdg-dot{background:#F59E0B;}
+.bdg-approved  {background:#F0FDF4;color:#166534;}
+.bdg-approved  .bdg-dot{background:#22C55E;}
+.bdg-rejected  {background:#FEF2F2;color:#991B1B;}
+.bdg-rejected  .bdg-dot{background:#DC2626;}
+.bdg-completed {background:#dcdee1;color:#374151;}
+.bdg-completed .bdg-dot{background:#9a9ea4;}
 
 /* ── Urgency pill ── */
-.urgency-pill{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;}
+.urgency-pill{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;font-weight:600;letter-spacing:.01em;text-transform:capitalize;background:none;border:none;padding:0;white-space:nowrap;}
+.urgency-flag-icon{width:13px;height:13px;flex-shrink:0;vertical-align:middle;position:relative;top:-1px;}
 .urgency-pill.up-urgent{color:#DC2626;}
+.urgency-pill.up-urgent .urgency-flag-icon{fill:#DC2626;stroke:#DC2626;}
 .urgency-pill.up-normal{color:#2563EB;}
-.urgency-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
-.up-urgent .urgency-dot{background:#DC2626;}
-.up-normal .urgency-dot{background:#3B82F6;}
+.urgency-pill.up-normal .urgency-flag-icon{fill:#3B82F6;stroke:#3B82F6;}
+.urgency-dot{display:none;}
 
 /* ── Qty badge ── */
 .qty-badge{display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--g700);padding:0;}
@@ -259,6 +280,11 @@ col.col-action   { width: 7%;  }
 
 /* ── Cat text ── */
 .cat-text{font-size:14px;font-weight:500;color:var(--g700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:100%;}
+
+/* ── Item cell ── */
+.item-main{font-size:14px;font-weight:600;color:var(--g900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.item-meta{font-size:12px;color:var(--g400);margin-top:2px;white-space:nowrap;}
+.item-meta span+span::before{content:' · ';}
 
 /* ── View button ── */
 .btn-view{display:inline-flex;align-items:center;gap:4px;padding:5px 12px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;text-decoration:none;border-radius:8px;border:1.5px solid var(--accent);color:var(--accent);background:transparent;white-space:nowrap;transition:background .15s,color .15s,transform .1s;}
@@ -288,7 +314,7 @@ col.col-action   { width: 7%;  }
 <!-- ── Filter tabs ── -->
 <div class="filter-bar">
   <a href="<?php echo reqUrl(['status'=>'all','page'=>1]); ?>" class="filter-tab tab-all <?php echo $filterStatus==='all'?'active':''; ?>">
-    All Requisitions <span class="ft-count"><?php echo $reqPendingCount+$reqApprovedCount+$rejectedCount; ?></span>
+    All Requisitions <span class="ft-count"><?php echo $reqPendingCount+$reqApprovedCount+$reqRejectedCount+$reqCompletedCount; ?></span>
   </a>
   <a href="<?php echo reqUrl(['status'=>'pending','page'=>1]); ?>" class="filter-tab tab-pending <?php echo $filterStatus==='pending'?'active':''; ?>">
     <span class="tab-dot tab-dot-pending"></span>Pending <span class="ft-count"><?php echo $reqPendingCount; ?></span>
@@ -297,7 +323,10 @@ col.col-action   { width: 7%;  }
     <span class="tab-dot tab-dot-approved"></span>Approved <span class="ft-count"><?php echo $reqApprovedCount; ?></span>
   </a>
   <a href="<?php echo reqUrl(['status'=>'rejected','page'=>1]); ?>" class="filter-tab tab-rejected <?php echo $filterStatus==='rejected'?'active':''; ?>">
-    <span class="tab-dot tab-dot-rejected"></span>Rejected <span class="ft-count"><?php echo $rejectedCount; ?></span>
+    <span class="tab-dot tab-dot-rejected"></span>Rejected <span class="ft-count"><?php echo $reqRejectedCount; ?></span>
+  </a>
+  <a href="<?php echo reqUrl(['status'=>'completed','page'=>1]); ?>" class="filter-tab tab-completed <?php echo $filterStatus==='completed'?'active':''; ?>">
+    <span class="tab-dot tab-dot-completed"></span>Completed <span class="ft-count"><?php echo $reqCompletedCount; ?></span>
   </a>
 </div>
 
@@ -371,7 +400,8 @@ col.col-action   { width: 7%;  }
     <span class="sec-title"><?php
       if ($filterStatus==='pending')  echo 'Pending Requisitions';
       elseif ($filterStatus==='approved') echo 'Approved Requisitions';
-      elseif ($filterStatus==='rejected') echo 'Rejected Requisitions';
+      elseif ($filterStatus==='rejected')  echo 'Rejected Requisitions';
+      elseif ($filterStatus==='completed') echo 'Completed Requisitions';
       else echo 'All Requisitions';
     ?></span>
     <span class="result-count" id="result-label">— <?php echo $totalReqs; ?> requisition<?php echo $totalReqs!==1?'s':''; ?></span>
@@ -399,7 +429,7 @@ col.col-action   { width: 7%;  }
       <col class="col-ref">
       <col class="col-dept">
       <col class="col-cat">
-      <col class="col-qty">
+      <col class="col-item">
       <col class="col-urgency">
       <col class="col-status">
       <col class="col-assigned">
@@ -409,7 +439,7 @@ col.col-action   { width: 7%;  }
       <th>Ref Number</th>
       <th>From Department</th>
       <th>Category</th>
-      <th>Qty</th>
+      <th>Item</th>
       <th>Urgency</th>
       <th>Status</th>
       <th>Assigned To</th>
@@ -432,7 +462,9 @@ col.col-action   { width: 7%;  }
           data-cat="<?php echo strtolower(htmlspecialchars($r['category']??'')); ?>">
 
         <!-- Ref Number -->
-        <td><a class="ref-link" href="requisition_detail.php?id=<?php echo urlencode($r['ref_number']); ?>"><?php echo htmlspecialchars($r['ref_number']); ?></a></td>
+        <td>
+          <a class="ref-link" href="requisition_detail.php?id=<?php echo urlencode($r['ref_number']); ?>"><?php echo htmlspecialchars($r['ref_number']); ?></a>
+        </td>
 
         <!-- From Department + date -->
         <td>
@@ -445,19 +477,27 @@ col.col-action   { width: 7%;  }
         <!-- Category -->
         <td><span class="cat-text" title="<?php echo htmlspecialchars($r['category']??''); ?>"><?php echo htmlspecialchars($r['category']??'—'); ?></span></td>
 
-        <!-- Qty -->
-        <td><span class="qty-badge"><?php echo (int)$r['quantity']; ?></span></td>
-
-        <!-- Urgency -->
+        <!-- Item -->
         <td>
-          <span class="urgency-pill up-<?php echo $urg; ?>">
-            <span class="urgency-dot"></span>
-            <?php echo ucfirst($urg); ?>
-          </span>
+          <div class="item-main" title="<?php echo htmlspecialchars($r['item_name']??''); ?>"><?php echo htmlspecialchars($r['item_name']??'—'); ?></div>
+          <div class="item-meta">
+            <span>Qty: <?php echo (int)$r['quantity']; ?></span>
+            <?php if (!empty($r['location'])): ?><span><?php echo htmlspecialchars($r['location']); ?></span><?php endif; ?>
+          </div>
         </td>
 
+<!-- Urgency -->
+<td>
+  <span class="urgency-pill up-<?php echo $urg; ?>">
+    <svg class="urgency-flag-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M4 3h13l-3 5 3 5H4V3z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="4" y1="3" x2="4" y2="21" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <?php echo ucfirst($urg); ?>
+  </span>
+</td>
         <!-- Status -->
-        <td><span class="bdg bdg-<?php echo $st; ?>"><?php echo ucfirst($st); ?></span></td>
+        <td><span class="bdg bdg-<?php echo $st; ?>"><span class="bdg-dot"></span><?php echo ucfirst($st); ?></span></td>
 
         <!-- Assigned To -->
         <td>

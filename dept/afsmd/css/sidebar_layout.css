@@ -258,11 +258,13 @@ body {
 .sub-badge-open       { background: rgba(217,119,6,.25);   color: #FBBF24; }
 .sub-badge-closed     { background: rgba(5,150,105,.2);    color: #34D399; }
 .sub-badge-inprogress { background: rgba(59,130,246,.2);   color: #60A5FA; }
+.sub-badge-completed  { background: rgba(124,58,237,.2);   color: #A78BFA; }
 
 /* Requisition sub-badges */
 .sub-badge-req-pending  { background: rgba(217,119,6,.25);  color: #FBBF24; }
 .sub-badge-req-approved { background: rgba(5,150,105,.2);   color: #34D399; }
-.sub-badge-req-rejected { background: rgba(239,68,68,.2);   color: #F87171; }
+.sub-badge-req-rejected   { background: rgba(239,68,68,.2);   color: #F87171; }
+.sub-badge-req-completed  { background: rgba(16,185,129,.2);  color: #34D399; }
 
 /* ── Footer ── */
 .sb-footer {

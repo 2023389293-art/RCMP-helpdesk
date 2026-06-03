@@ -99,10 +99,10 @@ foreach ($allItems as $idx => $item) {
         $title   = $catRow['category_name'];
 
         // Generate ticket ID
-        $dateStr = date('dmY');
-$dayRes  = $conn->query("SELECT MAX(CAST(SUBSTRING_INDEX(ticket_id,'-',-1) AS UNSIGNED)) AS last_seq FROM complaints WHERE DATE(created_at)=CURDATE()");
-$seq     = (($dayRes->fetch_assoc()['last_seq'] ?? 0)) + 1 + count($tickets);
-        $ticketId= 'RCMP-'.$dateStr.'-'.str_pad($seq,5,'0',STR_PAD_LEFT);
+$dateStr  = date('dmY');
+$dayRes   = $conn->query("SELECT COUNT(*) AS cnt FROM complaints WHERE DATE(created_at)=CURDATE()");
+$seq      = ($dayRes->fetch_assoc()['cnt'] ?? 0) + 1 + count($tickets);
+$ticketId = 'RCMP-' . $dateStr . '-' . $seq;
 
         // File upload
         $attachmentPath = null;
@@ -150,10 +150,10 @@ $seq     = (($dayRes->fetch_assoc()['last_seq'] ?? 0)) + 1 + count($tickets);
             $errors[] = "Item ".($idx+1).": missing/invalid requisition fields"; continue;
         }
 
-        $dateStr   = date('dmY');
+$dateStr   = date('dmY');
 $seqRes    = $conn->query("SELECT COUNT(*) AS cnt FROM requisitions WHERE DATE(created_at)=CURDATE()");
 $seq       = ($seqRes->fetch_assoc()['cnt'] ?? 0) + 1 + count($requisitions);
-        $refNumber = 'REQ-AFSMD-'.$dateStr.'-'.str_pad($seq,5,'0',STR_PAD_LEFT);
+$refNumber = 'REQ-' . $dateStr . '-' . $seq;
 
         $attachmentPath = null;
         $fileData = $item['file'] ?? null;

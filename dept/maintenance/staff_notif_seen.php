@@ -8,7 +8,7 @@ require_once __DIR__ . '/../../db_connect.php';
 
 header('Content-Type: application/json');
 
-$staffId = (int)($staffId ?? 0);
+$staffId = (int)(($_SESSION['staff_id'] ?? $staffId ?? 0));
 if (!$staffId) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorised']);

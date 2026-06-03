@@ -1,11 +1,12 @@
 <?php
 // dept/afsmd/_layout.php
 $inProgressCount = $inProgressCount ?? 0;
-$openCount   = $openCount   ?? 0;
-$closedCount = $closedCount ?? 0;
-$nav         = $activeNav   ?? 'dashboard';
+$openCount       = $openCount       ?? 0;
+$closedCount     = $closedCount     ?? 0;
+$completedCount  = $completedCount  ?? 0;
+$nav             = $activeNav       ?? 'dashboard';
 ?>
-<link rel="stylesheet" href="css/sidebar_layoutt.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="css/sidebar_layout.css?v=<?php echo time(); ?>">
 
 <?php $ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress', 'tickets-closed']); ?>
 
@@ -124,6 +125,8 @@ $nav         = $activeNav   ?? 'dashboard';
             <span class="sub-badge sub-badge-closed"><?php echo $closedCount; ?></span>
           <?php endif; ?>
         </a>
+
+        
       </div>
     </div>
 
@@ -132,8 +135,9 @@ $nav         = $activeNav   ?? 'dashboard';
     <?php
 $reqPendingCount  = $reqPendingCount  ?? 0;
 $reqApprovedCount = $reqApprovedCount ?? 0;
-$reqRejectedCount = $reqRejectedCount ?? 0;
-$reqNavOpen = in_array($nav, ['requisitions','requisitions-pending','requisitions-approved','requisitions-rejected']);
+$reqRejectedCount   = $reqRejectedCount   ?? 0;
+$reqCompletedCount  = $reqCompletedCount  ?? 0;
+$reqNavOpen = in_array($nav, ['requisitions','requisitions-pending','requisitions-approved','requisitions-rejected','requisitions-completed']);
 ?>
 
 <div class="nav-group">
@@ -182,17 +186,29 @@ $reqNavOpen = in_array($nav, ['requisitions','requisitions-pending','requisition
     </a>
 
     <a href="requisitions.php?status=rejected"
-       class="nav-sub-item <?php echo $nav === 'requisitions-rejected' ? 'active' : ''; ?>">
-      <svg viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="15" y1="9" x2="9" y2="15"/>
-        <line x1="9" y1="9" x2="15" y2="15"/>
-      </svg>
-      Rejected
-      <?php if ($reqRejectedCount > 0): ?>
-        <span class="sub-badge sub-badge-req-rejected"><?php echo $reqRejectedCount; ?></span>
-      <?php endif; ?>
-    </a>
+   class="nav-sub-item <?php echo $nav === 'requisitions-rejected' ? 'active' : ''; ?>">
+  <svg viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="15" y1="9" x2="9" y2="15"/>
+    <line x1="9" y1="9" x2="15" y2="15"/>
+  </svg>
+  Rejected
+  <?php if ($reqRejectedCount > 0): ?>
+    <span class="sub-badge sub-badge-req-rejected"><?php echo $reqRejectedCount; ?></span>
+  <?php endif; ?>
+</a>
+
+<a href="requisitions.php?status=completed"
+   class="nav-sub-item <?php echo $nav === 'requisitions-completed' ? 'active' : ''; ?>">
+  <svg viewBox="0 0 24 24">
+    <path d="M9 11l3 3L22 4"/>
+    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+  </svg>
+  Completed
+  <?php if (($reqCompletedCount ?? 0) > 0): ?>
+    <span class="sub-badge sub-badge-req-completed"><?php echo $reqCompletedCount; ?></span>
+  <?php endif; ?>
+</a>
   </div>
 </div>
 
@@ -551,7 +567,6 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
     el.innerHTML =
       '<div class="ntt-header">'
         +'<div class="ntt-stripe" style="background:'+colors.stripe+'"></div>'
-        +'<div class="ntt-avatar">'+esc(getInitials(submitter))+'</div>'
         +'<div class="ntt-header-text">'
           +'<div class="ntt-header-label">New ticket assigned to you</div>'
           +'<div class="ntt-ticket-id">'+esc(data.ticket_id||'—')+'</div>'
@@ -562,19 +577,9 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
         +'</button>'
       +'</div>'
       +'<div class="ntt-body">'
-        +'<div class="ntt-title">'+esc(truncate(data.ticket_title||'New Ticket', 80))+'</div>'
-        +'<div class="ntt-meta">'
-          +'<span class="ntt-meta-chip ntt-chip-category">'
-            +'<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
-            +esc(catLabel)
-          +'</span>'
-          +'<span class="ntt-meta-chip ntt-chip-from">'
-            +'<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-            +esc(truncate(submitter, 24))
-          +'</span>'
-        +'</div>'
+        +'<div class="ntt-title">'+esc(catLabel||'New Ticket')+'</div>'
         +(data.remarks ? '<div class="ntt-remarks">'+esc(truncate(data.remarks,100))+'</div>' : '')
-+'<div class="ntt-actions">'
+        +'<div class="ntt-actions">'
           +'<a class="ntt-view-btn" href="'+esc(DETAIL_URL+'?id='+encodeURIComponent(data.ticket_id||''))+'">'
             +'View Ticket'
             +'<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>'

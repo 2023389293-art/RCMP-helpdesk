@@ -93,10 +93,16 @@ usort($recentActivity, function($a, $b) { return strtotime($b['created_at']) - s
 $recentActivity = array_slice($recentActivity, 0, 5);
 
 $statusMeta = [
+    // Complaint statuses
     'open'        => ['label' => 'Open',        'class' => 'pill-open'],
     'in_progress' => ['label' => 'In Progress',  'class' => 'pill-progress'],
     'resolved'    => ['label' => 'Resolved',     'class' => 'pill-resolved'],
     'closed'      => ['label' => 'Closed',       'class' => 'pill-closed'],
+    // Requisition statuses — matched to complaint equivalents
+    'pending'     => ['label' => 'Pending',      'class' => 'pill-open'],      // same as open
+    'approved'    => ['label' => 'Approved',     'class' => 'pill-resolved'],  // same as resolved (green)
+    'completed'   => ['label' => 'Completed',    'class' => 'pill-closed'],    // same as closed (grey)
+    'rejected'    => ['label' => 'Rejected',     'class' => 'pill-rejected'],  // same red
 ];
 
 $pageTitle    = 'Universiti Kuala Lumpur Royal College of Medicine Perak';
@@ -318,8 +324,11 @@ $extraHead = '
 .pill-resolved { background: #F0FDF4; color: #166534; }
 .pill-resolved .rc-pill-dot { background: #22C55E; }
 
-.pill-closed   { background: #F3F4F6; color: #6B7280; }
-.pill-closed   .rc-pill-dot { background: #9CA3AF; }
+.pill-rejected { background: #FEF2F2; color: #991B1B; }
+.pill-rejected .rc-pill-dot { background: #DC2626; }
+
+.pill-closed { background: #dcdee1; color: #374151; }
+.pill-closed .rc-pill-dot { background: #9a9ea4; }
 
 /* ── Type badges ── */
 .type-badge {
