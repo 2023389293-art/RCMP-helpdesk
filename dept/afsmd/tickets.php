@@ -4,30 +4,30 @@ require_once __DIR__ . '/../auth_guard.php';
 if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+if (!isset($_SESSION)) session_start();
 
-$filterStatus  = $_GET['status'] ?? 'all';
-$allowedFilter = ['all','open','in_progress','closed'];
+$filterStatus  = isset($_GET['status']) ? $_GET['status'] : 'all';
+$allowedFilter = array('all','open','in_progress','closed');
 if (!in_array($filterStatus, $allowedFilter)) $filterStatus = 'all';
 
-$allowedPerPage = [10,25,50];
+$allowedPerPage = array(10,25,50);
 $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 10;
 if (!in_array($perPage, $allowedPerPage)) $perPage = 10;
 
-$page   = max(1, (int)($_GET['page'] ?? 1));
+$page   = max(1, (int)(isset($_GET['page']) ? $_GET['page'] : 1));
 $offset = ($page - 1) * $perPage;
 
-$filterPriority = $_GET['priority'] ?? '';
-$filterDateFrom = $_GET['date_from'] ?? '';
-$filterDateTo   = $_GET['date_to']   ?? '';
-$filterDept     = $_GET['dept']      ?? '';
-$filterCategory = $_GET['category']  ?? '';
+$filterPriority = isset($_GET['priority']) ? $_GET['priority'] : '';
+$filterDateFrom = isset($_GET['date_from']) ? $_GET['date_from'] : '';
+$filterDateTo   = isset($_GET['date_to'])   ? $_GET['date_to']   : '';
+$filterDept     = isset($_GET['dept'])      ? $_GET['dept']      : '';
+$filterCategory = isset($_GET['category'])  ? $_GET['category']  : '';
 
-$allowedPriority = ['','low','medium','high'];
+$allowedPriority = array('','low','medium','high');
 if (!in_array($filterPriority, $allowedPriority)) $filterPriority = '';
 
 $extraWhere  = '';
-$extraParams = [];
+$extraParams = array();
 $extraTypes  = '';
 
 if ($filterPriority !== '') { $extraWhere .= " AND complaints.priority = ?"; $extraParams[] = $filterPriority; $extraTypes .= 's'; }
@@ -36,8 +36,8 @@ if ($filterDateTo   !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterDateTo)
 if ($filterDept !== '') { $extraWhere .= " AND complaints.my_department = ?"; $extraParams[] = $filterDept; $extraTypes .= 's'; }
 if ($filterCategory !== '') { $extraWhere .= " AND complaints.category_id = ?"; $extraParams[] = (int)$filterCategory; $extraTypes .= 'i'; }
 
-function bindAll($stmt, string $types, array $params): void {
-    $refs = [];
+function bindAll($stmt, $types, $params) {
+    $refs = array();
     foreach ($params as $key => $val) {
         $refs[$key] = &$params[$key];
     }
@@ -53,30 +53,32 @@ $stmt = $conn->prepare(
      WHERE complaints.dept_id = ? $extraWhere"
 );
 if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
-else { bindAll($stmt, "i" . $extraTypes, array_merge([$deptId], $extraParams)); }
+else { bindAll($stmt, "i" . $extraTypes, array_merge(array($deptId), $extraParams)); }
 $stmt->execute();
 $counts = $stmt->get_result()->fetch_assoc(); $stmt->close();
-$openCount       = (int)($counts['oc']  ?? 0);
-$inProgressCount = (int)($counts['ipc'] ?? 0);
-$closedCount     = (int)($counts['cc']  ?? 0);
+$openCount       = (int)(isset($counts['oc'])  ? $counts['oc']  : 0);
+$inProgressCount = (int)(isset($counts['ipc']) ? $counts['ipc'] : 0);
+$closedCount     = (int)(isset($counts['cc'])  ? $counts['cc']  : 0);
 
 if ($filterStatus === 'all') {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("i",$deptId); }
-    else { bindAll($stmt, "i" . $extraTypes, array_merge([$deptId], $extraParams)); }
+    else { bindAll($stmt, "i" . $extraTypes, array_merge(array($deptId), $extraParams)); }
 } else {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("is",$deptId,$filterStatus); }
-    else { bindAll($stmt, "is" . $extraTypes, array_merge([$deptId, $filterStatus], $extraParams)); }
+    else { bindAll($stmt, "is" . $extraTypes, array_merge(array($deptId, $filterStatus), $extraParams)); }
 }
 $stmt->execute();
-$totalTickets = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0); $stmt->close();
+$_row = $stmt->get_result()->fetch_assoc();
+$totalTickets = (int)(isset($_row['total']) ? $_row['total'] : 0);
+$stmt->close();
 
 $totalPages = ($totalTickets > 0) ? (int)ceil($totalTickets / $perPage) : 1;
 if ($page > $totalPages) $page = $totalPages;
 $offset = ($page - 1) * $perPage;
 
-$tickets = [];
+$tickets = array();
 if ($filterStatus === 'all') {
     $stmt = $conn->prepare(
         "SELECT complaints.ticket_id, complaints.title, complaints.status,
@@ -92,7 +94,7 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("iii",$deptId,$perPage,$offset); }
-    else { bindAll($stmt, "i" . $extraTypes . "ii", array_merge([$deptId], $extraParams, [$perPage, $offset])); }
+    else { bindAll($stmt, "i" . $extraTypes . "ii", array_merge(array($deptId), $extraParams, array($perPage, $offset))); }
 } else {
     $stmt = $conn->prepare(
         "SELECT complaints.ticket_id, complaints.title, complaints.status,
@@ -108,7 +110,7 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("isii",$deptId,$filterStatus,$perPage,$offset); }
-    else { bindAll($stmt, "is" . $extraTypes . "ii", array_merge([$deptId, $filterStatus], $extraParams, [$perPage, $offset])); }
+    else { bindAll($stmt, "is" . $extraTypes . "ii", array_merge(array($deptId, $filterStatus), $extraParams, array($perPage, $offset))); }
 }
 $stmt->execute();
 $res = $stmt->get_result();
@@ -122,19 +124,28 @@ else { $activeNav = 'tickets'; }
 $pageTitle    = 'All Tickets';
 $pageSubtitle = 'Administration & Facilities Management Department';
 
-function ticketUrl(array $overrides = []): string {
-    $params = array_merge(['status'=>$_GET['status']??'all','per_page'=>$_GET['per_page']??10,'page'=>$_GET['page']??1,'priority'=>$_GET['priority']??'','date_from'=>$_GET['date_from']??'','date_to'=>$_GET['date_to']??'','dept'=>$_GET['dept']??'','category'=>$_GET['category']??''], $overrides);
-    $params = array_filter($params, fn($v) => $v !== '');
+function ticketUrl($overrides = array()) {
+$params = array_merge(array(
+    'status'    => isset($_GET['status'])    ? $_GET['status']    : 'all',
+    'per_page'  => isset($_GET['per_page'])  ? $_GET['per_page']  : 10,
+    'page'      => isset($_GET['page'])      ? $_GET['page']      : 1,
+    'priority'  => isset($_GET['priority'])  ? $_GET['priority']  : '',
+    'date_from' => isset($_GET['date_from']) ? $_GET['date_from'] : '',
+    'date_to'   => isset($_GET['date_to'])   ? $_GET['date_to']   : '',
+    'dept'      => isset($_GET['dept'])      ? $_GET['dept']      : '',
+    'category'  => isset($_GET['category'])  ? $_GET['category']  : ''
+), $overrides);
+$params = array_filter($params, function($v) { return $v !== ''; });
     return 'tickets.php?' . http_build_query($params);
 }
 
-$deptOptions = [];
+$deptOptions = array();
 $dStmt = $conn->prepare("SELECT name FROM my_departments ORDER BY sort_order ASC");
 $dStmt->execute(); $dRes = $dStmt->get_result();
 while ($row = $dRes->fetch_assoc()) $deptOptions[] = $row['name'];
 $dStmt->close();
 
-$categoryOptions = [];
+$categoryOptions = array();
 $cStmt = $conn->prepare("SELECT category_id, category_name FROM categories WHERE dept_id = ? ORDER BY category_name ASC");
 $cStmt->bind_param("i", $deptId);
 $cStmt->execute(); $cRes = $cStmt->get_result();
@@ -143,7 +154,7 @@ $cStmt->close();
 
 $activeFilterCount = (int)($filterPriority!=='')+(int)($filterDateFrom!=='')+(int)($filterDateTo!=='')+(int)($filterDept!=='')+(int)($filterCategory!=='');
 
-function staffInitials(string $name): string {
+function staffInitials($name) {
     $parts = explode(' ', trim($name));
     $ini = strtoupper(substr($parts[0],0,1));
     if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts)-1],0,1));
@@ -292,10 +303,10 @@ col.col-action   { width: 80px;  }
 
 <!-- ── Filter tabs ── -->
 <div class="filter-bar">
-  <a href="<?php echo ticketUrl(['status'=>'all','page'=>1]); ?>" class="filter-tab tab-all <?php echo $filterStatus==='all'?'active':''; ?>">All Tickets <span class="ft-count"><?php echo $openCount+$inProgressCount+$closedCount; ?></span></a>
-  <a href="<?php echo ticketUrl(['status'=>'open','page'=>1]); ?>" class="filter-tab tab-open <?php echo $filterStatus==='open'?'active':''; ?>"><span class="tab-dot tab-dot-open"></span>Open <span class="ft-count"><?php echo $openCount; ?></span></a>
-  <a href="<?php echo ticketUrl(['status'=>'in_progress','page'=>1]); ?>" class="filter-tab tab-inprogress <?php echo $filterStatus==='in_progress'?'active':''; ?>"><span class="tab-dot tab-dot-inprogress"></span>In Progress <span class="ft-count"><?php echo $inProgressCount; ?></span></a>
-  <a href="<?php echo ticketUrl(['status'=>'closed','page'=>1]); ?>" class="filter-tab tab-closed <?php echo $filterStatus==='closed'?'active':''; ?>"><span class="tab-dot tab-dot-closed"></span>Closed <span class="ft-count"><?php echo $closedCount; ?></span></a>
+  <a href="<?php echo ticketUrl(array('status'=>'all','page'=>1)); ?>" class="filter-tab tab-all <?php echo $filterStatus==='all'?'active':''; ?>">All Tickets <span class="ft-count"><?php echo $openCount+$inProgressCount+$closedCount; ?></span></a>
+  <a href="<?php echo ticketUrl(array('status'=>'open','page'=>1)); ?>" class="filter-tab tab-open <?php echo $filterStatus==='open'?'active':''; ?>"><span class="tab-dot tab-dot-open"></span>Open <span class="ft-count"><?php echo $openCount; ?></span></a>
+  <a href="<?php echo ticketUrl(array('status'=>'in_progress','page'=>1)); ?>" class="filter-tab tab-inprogress <?php echo $filterStatus==='in_progress'?'active':''; ?>"><span class="tab-dot tab-dot-inprogress"></span>In Progress <span class="ft-count"><?php echo $inProgressCount; ?></span></a>
+  <a href="<?php echo ticketUrl(array('status'=>'closed','page'=>1)); ?>" class="filter-tab tab-closed <?php echo $filterStatus==='closed'?'active':''; ?>"><span class="tab-dot tab-dot-closed"></span>Closed <span class="ft-count"><?php echo $closedCount; ?></span></a>
   
 </div>
 
@@ -343,14 +354,14 @@ col.col-action   { width: 80px;  }
     <?php if ($activeFilterCount > 0): ?>
     <div class="active-chips">
       <span style="font-size:12px;color:var(--g500);font-weight:500;">Active:</span>
-      <?php if ($filterPriority): ?><span class="chip">Priority: <?php echo ucfirst($filterPriority); ?><a class="chip-x" href="<?php echo ticketUrl(['priority'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
-      <?php if ($filterDept): ?><span class="chip">Dept: <?php echo htmlspecialchars($filterDept); ?><a class="chip-x" href="<?php echo ticketUrl(['dept'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
+      <?php if ($filterPriority): ?><span class="chip">Priority: <?php echo ucfirst($filterPriority); ?><a class="chip-x" href="<?php echo ticketUrl(array('priority'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
+      <?php if ($filterDept): ?><span class="chip">Dept: <?php echo htmlspecialchars($filterDept); ?><a class="chip-x" href="<?php echo ticketUrl(array('dept'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
       <?php if ($filterCategory):
         $activeCatName = '';
         foreach ($categoryOptions as $cat) { if ((string)$cat['category_id'] === $filterCategory) { $activeCatName = strpos($cat['category_name'],' / ')!==false ? trim(substr($cat['category_name'],strpos($cat['category_name'],' / ')+3)) : $cat['category_name']; break; } }
-      ?><span class="chip">Category: <?php echo htmlspecialchars($activeCatName); ?><a class="chip-x" href="<?php echo ticketUrl(['category'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
-      <?php if ($filterDateFrom): ?><span class="chip">From: <?php echo date('d M Y',strtotime($filterDateFrom)); ?><a class="chip-x" href="<?php echo ticketUrl(['date_from'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
-      <?php if ($filterDateTo): ?><span class="chip">To: <?php echo date('d M Y',strtotime($filterDateTo)); ?><a class="chip-x" href="<?php echo ticketUrl(['date_to'=>'','page'=>1]); ?>">×</a></span><?php endif; ?>
+      ?><span class="chip">Category: <?php echo htmlspecialchars($activeCatName); ?><a class="chip-x" href="<?php echo ticketUrl(array('category'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
+      <?php if ($filterDateFrom): ?><span class="chip">From: <?php echo date('d M Y',strtotime($filterDateFrom)); ?><a class="chip-x" href="<?php echo ticketUrl(array('date_from'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
+      <?php if ($filterDateTo): ?><span class="chip">To: <?php echo date('d M Y',strtotime($filterDateTo)); ?><a class="chip-x" href="<?php echo ticketUrl(array('date_to'=>'','page'=>1)); ?>">×</a></span><?php endif; ?>
     </div>
     <?php endif; ?>
 
@@ -374,7 +385,7 @@ col.col-action   { width: 80px;  }
           <input type="hidden" name="status" value="<?php echo htmlspecialchars($filterStatus); ?>">
           <input type="hidden" name="page" value="1">
           <select name="per_page" class="perpage-select" onchange="this.form.submit()">
-            <?php foreach([10,25,50] as $n): ?><option value="<?php echo $n; ?>" <?php echo $perPage===$n?'selected':''; ?>><?php echo $n; ?> per page</option><?php endforeach; ?>
+            <?php foreach(array(10,25,50) as $n): ?><option value="<?php echo $n; ?>" <?php echo $perPage===$n?'selected':''; ?>><?php echo $n; ?> per page</option><?php endforeach; ?>
           </select>
         </form>
       </div>
@@ -410,7 +421,7 @@ col.col-action   { width: 80px;  }
           <?php else: ?>
           <?php foreach ($tickets as $t):
             $s           = strtolower($t['status']);
-            $pri         = strtolower($t['priority'] ?? 'medium');
+            $pri         = strtolower(isset($t['priority']) ? $t['priority'] : 'medium');
             $isHighOpen  = ($pri === 'high' && $s === 'open');
             $statusLabel = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
             if ($pri === 'high') { $flagFill = '#DC2626'; }
@@ -420,8 +431,8 @@ col.col-action   { width: 80px;  }
           ?>
           <tr data-id="<?php echo strtolower(htmlspecialchars($t['ticket_id'])); ?>"
               data-title="<?php echo strtolower(htmlspecialchars($t['title'])); ?>"
-              data-dept="<?php echo strtolower(htmlspecialchars($t['my_department']??'')); ?>"
-              data-cat="<?php echo strtolower(htmlspecialchars($t['category_name']??'')); ?>"
+              data-dept="<?php echo strtolower(htmlspecialchars(isset($t['my_department']) ? $t['my_department'] : '')); ?>"
+data-cat="<?php echo strtolower(htmlspecialchars(isset($t['category_name']) ? $t['category_name'] : '')); ?>"
               style="<?php echo $isHighOpen ? 'background:#FFFAFA;' : ''; ?>">
 
             <!-- Ticket ID -->
@@ -434,8 +445,8 @@ col.col-action   { width: 80px;  }
             <!-- From Department + date/time stacked -->
             <td>
               <div class="dept-cell">
-                <span class="dept-name" title="<?php echo htmlspecialchars($t['my_department'] ?? '—'); ?>">
-                  <?php echo htmlspecialchars($t['my_department'] ?? '—'); ?>
+                <span class="dept-name" title="<?php echo htmlspecialchars(isset($t['my_department']) ? $t['my_department'] : '—'); ?>">
+                  <?php echo htmlspecialchars(isset($t['my_department']) ? $t['my_department'] : '—'); ?>
                 </span>
                 <span class="dept-datetime">
                   <?php echo date('d M Y, H:i', strtotime($t['created_at'])); ?>
@@ -509,13 +520,13 @@ col.col-action   { width: 80px;  }
     <div class="pagination-bar">
       <span class="pg-info">Showing <?php echo $offset+1; ?>–<?php echo min($offset+$perPage,$totalTickets); ?> of <?php echo $totalTickets; ?> tickets</span>
       <div class="pg-btns">
-        <?php if ($page<=1): ?><span class="pg-btn disabled">← Prev</span><?php else: ?><a class="pg-btn" href="<?php echo ticketUrl(['page'=>$page-1]); ?>">← Prev</a><?php endif; ?>
+        <?php if ($page<=1): ?><span class="pg-btn disabled">← Prev</span><?php else: ?><a class="pg-btn" href="<?php echo ticketUrl(array('page'=>$page-1)); ?>">← Prev</a><?php endif; ?>
         <?php $window=2;$start=max(1,$page-$window);$end=min($totalPages,$page+$window);
-          if($start>1){echo '<a class="pg-btn" href="'.ticketUrl(['page'=>1]).'">1</a>';if($start>2)echo '<span class="pg-btn disabled" style="border:none">…</span>';}
-          for($p=$start;$p<=$end;$p++) echo '<a class="pg-btn'.($p===$page?' active':'').'" href="'.ticketUrl(['page'=>$p]).'">'.$p.'</a>';
-          if($end<$totalPages){if($end<$totalPages-1)echo '<span class="pg-btn disabled" style="border:none">…</span>';echo '<a class="pg-btn" href="'.ticketUrl(['page'=>$totalPages]).'">'.$totalPages.'</a>';}
+          if($start>1){echo '<a class="pg-btn" href="'.ticketUrl(array('page'=>1)).'">1</a>';if($start>2)echo '<span class="pg-btn disabled" style="border:none">…</span>';}
+          for($p=$start;$p<=$end;$p++) echo '<a class="pg-btn'.($p===$page?' active':'').'" href="'.ticketUrl(array('page'=>$p)).'">'.$p.'</a>';
+          if($end<$totalPages){if($end<$totalPages-1)echo '<span class="pg-btn disabled" style="border:none">…</span>';echo '<a class="pg-btn" href="'.ticketUrl(array('page'=>$totalPages)).'">'.$totalPages.'</a>';}
         ?>
-        <?php if ($page>=$totalPages): ?><span class="pg-btn disabled">Next →</span><?php else: ?><a class="pg-btn" href="<?php echo ticketUrl(['page'=>$page+1]); ?>">Next →</a><?php endif; ?>
+        <?php if ($page>=$totalPages): ?><span class="pg-btn disabled">Next →</span><?php else: ?><a class="pg-btn" href="<?php echo ticketUrl(array('page'=>$page+1)); ?>">Next →</a><?php endif; ?>
       </div>
     </div>
     <?php endif; ?>

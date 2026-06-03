@@ -1,9 +1,9 @@
 <?php
 // dept_admin/afsmd/tickets.php 
-require __DIR__ . '/_layout.php';
+require '_layout.php';
 
 if (!function_exists('staffInitials')) {
-    function staffInitials($name) {
+    function staffInitials(string $name): string {
         $parts = explode(' ', trim($name));
         $ini   = strtoupper(substr($parts[0], 0, 1));
         if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
@@ -11,20 +11,19 @@ if (!function_exists('staffInitials')) {
     }
 }
 
-$status   = isset($_GET['status'])   ? $_GET['status']   : '';
-$priority = isset($_GET['priority']) ? $_GET['priority'] : '';
-$category = isset($_GET['category']) ? $_GET['category'] : '';
-$search   = isset($_GET['q'])        ? trim($_GET['q'])  : '';
-$page     = isset($_GET['page'])     ? max(1, (int)$_GET['page']) : 1;
-$perPage  = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 10;
+$status   = $_GET['status']   ?? '';
+$priority = $_GET['priority'] ?? '';
+$category = $_GET['category'] ?? '';
+$search   = trim($_GET['q']   ?? '');
+$page     = max(1, (int)($_GET['page'] ?? 1));
 
 // ── PER-PAGE: accept 10 / 25 / 50, default 10 ──
-$allowedPerPage = array(10, 25, 50, 100);
-$perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 10;
+$allowedPerPage = [10, 25, 50, 100];
+$perPage = (int)($_GET['per_page'] ?? 10);
 if (!in_array($perPage, $allowedPerPage)) $perPage = 10;
 
-$where  = array("c.dept_id = 1");
-$params = array();
+$where  = ["c.dept_id = 1"];
+$params = [];
 $types  = '';
 
 if ($status)   { $where[] = "c.status = ?";           $params[] = $status;   $types .= 's'; }
@@ -61,7 +60,7 @@ $sql = "
     LIMIT ? OFFSET ?
 ";
 $stmt = $conn->prepare($sql);
-$allParams = array_merge($params, array($perPage, $offset));
+$allParams = array_merge($params, [$perPage, $offset]);
 $allTypes  = $types . 'ii';
 $stmt->bind_param($allTypes, ...$allParams);
 $stmt->execute();
@@ -71,7 +70,7 @@ $cats = $conn->query("SELECT category_id, category_name FROM categories WHERE de
 
 /* Build query string helper — preserves all active filters, drops page */
 if (!function_exists('qstr')) {
-    function qstr($extra = array()) {
+    function qstr(array $extra = []): string {
         $p = array_merge($_GET, $extra);
         unset($p['page']);
         $filtered = array_filter($p, function($v) { return $v !== ''; });
@@ -82,7 +81,7 @@ if (!function_exists('qstr')) {
 
 /* Build query string for pagination links — keeps page */
 if (!function_exists('pgstr')) {
-    function pgstr($extra = array()) {
+    function pgstr(array $extra = []): string {
         $p = array_merge($_GET, $extra);
         $filtered = array_filter($p, function($v) { return $v !== ''; });
         $qs = http_build_query($filtered);
@@ -96,7 +95,7 @@ if (!function_exists('pgstr')) {
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AFSMD Admin — All Tickets | UniKL Help Desk</title>
-  <?php include __DIR__ . '/_head_assets.php'; ?>
+  <?php include '_head_assets.php'; ?>
   <style>
     /* ── TABLE CELL FIXES ── */
     .data-table tbody td {
@@ -466,7 +465,7 @@ if (!function_exists('pgstr')) {
   </style>
 </head>
 <body>
-<?php include __DIR__ . '/_sidebar.php'; ?>
+<?php include '_sidebar.php'; ?>
 
 <main class="main-content">
   <div class="page-header">
@@ -484,16 +483,14 @@ if (!function_exists('pgstr')) {
 
     <select name="status">
       <option value="">All Status</option>
-      <?php $statusOptions = array('open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed');
-foreach ($statusOptions as $v=>$l): ?>
+      <?php foreach (['open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed'] as $v=>$l): ?>
       <option value="<?= $v ?>" <?= $status===$v?'selected':'' ?>><?= $l ?></option>
       <?php endforeach; ?>
     </select>
 
     <select name="priority">
       <option value="">All Priority</option>
-      <?php $priorityOptions = array('high'=>'High','medium'=>'Medium','low'=>'Low');
-foreach ($priorityOptions as $v=>$l): ?>
+      <?php foreach (['high'=>'High','medium'=>'Medium','low'=>'Low'] as $v=>$l): ?>
       <option value="<?= $v ?>" <?= $priority===$v?'selected':'' ?>><?= $l ?></option>
       <?php endforeach; ?>
     </select>
@@ -502,7 +499,7 @@ foreach ($priorityOptions as $v=>$l): ?>
       <option value="">All Categories</option>
       <?php foreach ($cats as $c): ?>
       <option value="<?= $c['category_id'] ?>" <?= $category==$c['category_id']?'selected':'' ?>>
-        <?php $cp = explode(' / ', $c['category_name']); echo htmlspecialchars(isset($cp[1]) ? $cp[1] : $c['category_name']); ?>
+        <?= htmlspecialchars(explode(' / ',$c['category_name'])[1] ?? $c['category_name']) ?>
       </option>
       <?php endforeach; ?>
     </select>
@@ -566,7 +563,7 @@ foreach ($priorityOptions as $v=>$l): ?>
 
           <!-- Submitted By: department name + date/time below -->
           <td class="td-submitted-by">
-            <span class="dept-name" title="<?= htmlspecialchars(isset($t['my_department']) ? $t['my_department'] : '') ?>">
+            <span class="dept-name" title="<?= htmlspecialchars($t['my_department'] ?? '') ?>">
               <?= htmlspecialchars($t['my_department'] ?: '—') ?>
             </span>
             <span class="submitted-datetime">
@@ -576,7 +573,7 @@ foreach ($priorityOptions as $v=>$l): ?>
 
           <!-- Category -->
           <td class="td-cat">
-            <?php $catParts = explode(' / ', $t['category_name']); echo htmlspecialchars(isset($catParts[1]) ? $catParts[1] : $t['category_name']); ?>
+            <?= htmlspecialchars(explode(' / ',$t['category_name'])[1] ?? $t['category_name']) ?>
           </td>
 
           <!-- Priority — flag style -->
@@ -595,8 +592,8 @@ foreach ($priorityOptions as $v=>$l): ?>
           <td>
             <?php
               $s  = $t['status'];
-              $sl = array('open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed');
-              echo "<span class='badge status-{$s}'>" . (isset($sl[$s]) ? $sl[$s] : $s) . "</span>";
+              $sl = ['open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed'];
+              echo "<span class='badge status-{$s}'>" . ($sl[$s] ?? $s) . "</span>";
             ?>
           </td>
 
@@ -636,7 +633,7 @@ foreach ($priorityOptions as $v=>$l): ?>
 
     <!-- Prev -->
     <?php if ($page > 1): ?>
-      <a href="<?= pgstr(array('page'=>$page-1)) ?>" class="pg-btn" title="Previous page">
+      <a href="<?= pgstr(['page'=>$page-1]) ?>" class="pg-btn" title="Previous page">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
       </a>
     <?php else: ?>
@@ -648,7 +645,7 @@ foreach ($priorityOptions as $v=>$l): ?>
     <!-- Page numbers with ellipsis -->
     <?php
       $window = 2;
-      $shown  = array();
+      $shown  = [];
       for ($i = 1; $i <= $pages; $i++) {
         if ($i === 1 || $i === $pages || abs($i - $page) <= $window) {
           $shown[] = $i;
@@ -664,7 +661,7 @@ foreach ($priorityOptions as $v=>$l): ?>
         if ($pg === $page): ?>
           <span class="pg-num active"><?= $pg ?></span>
         <?php else: ?>
-          <a href="<?= pgstr(array('page'=>$pg)) ?>" class="pg-num"><?= $pg ?></a>
+          <a href="<?= pgstr(['page'=>$pg]) ?>" class="pg-num"><?= $pg ?></a>
         <?php endif;
         $prev = $pg;
       endforeach;
@@ -672,7 +669,7 @@ foreach ($priorityOptions as $v=>$l): ?>
 
     <!-- Next -->
     <?php if ($page < $pages): ?>
-      <a href="<?= pgstr(array('page'=>$page+1)) ?>" class="pg-btn" title="Next page">
+      <a href="<?= pgstr(['page'=>$page+1]) ?>" class="pg-btn" title="Next page">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
       </a>
     <?php else: ?>
@@ -736,7 +733,7 @@ foreach ($priorityOptions as $v=>$l): ?>
   </div>
 </div>
 
-<?php include __DIR__ . '/_foot_scripts.php'; ?>
+<?php include '_foot_scripts.php'; ?>
 
 
 
