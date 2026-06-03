@@ -71,7 +71,7 @@ $cats = $conn->query("SELECT category_id, category_name FROM categories WHERE de
 
 /* Build query string helper — preserves all active filters, drops page */
 if (!function_exists('qstr')) {
-    function qstr(array $extra = array()) {
+    function qstr($extra = array()) {
         $p = array_merge($_GET, $extra);
         unset($p['page']);
         $filtered = array_filter($p, function($v) { return $v !== ''; });
@@ -82,7 +82,7 @@ if (!function_exists('qstr')) {
 
 /* Build query string for pagination links — keeps page */
 if (!function_exists('pgstr')) {
-    function pgstr(array $extra = array()) {
+    function pgstr($extra = array()) {
         $p = array_merge($_GET, $extra);
         $filtered = array_filter($p, function($v) { return $v !== ''; });
         $qs = http_build_query($filtered);
@@ -484,14 +484,16 @@ if (!function_exists('pgstr')) {
 
     <select name="status">
       <option value="">All Status</option>
-      <?php foreach (array('open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed') as $v=>$l): ?>
+      <?php $statusOptions = array('open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed');
+foreach ($statusOptions as $v=>$l): ?>
       <option value="<?= $v ?>" <?= $status===$v?'selected':'' ?>><?= $l ?></option>
       <?php endforeach; ?>
     </select>
 
     <select name="priority">
       <option value="">All Priority</option>
-      <?php foreach (array('high'=>'High','medium'=>'Medium','low'=>'Low') as $v=>$l): ?>
+      <?php $priorityOptions = array('high'=>'High','medium'=>'Medium','low'=>'Low');
+foreach ($priorityOptions as $v=>$l): ?>
       <option value="<?= $v ?>" <?= $priority===$v?'selected':'' ?>><?= $l ?></option>
       <?php endforeach; ?>
     </select>

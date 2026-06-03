@@ -182,15 +182,15 @@ if (!$stmtReq) {
 
 // ── Merge and sort all rows, then paginate ────────────────────────────────────
 $allRows = array_merge($complaintRows, $requisitionRows);
-usort($allRows, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
+usort($allRows, function($a, $b) { return strtotime($b['created_at']) - strtotime($a['created_at']); });
 // Apply item_type filter after merge
 if ($filterItemType === 'complaint') {
-    $allRows = array_filter($allRows, fn($r) => $r['item_type'] === 'complaint');
+    $allRows = array_filter($allRows, function($r) { return $r['item_type'] === 'complaint'; });
     $allRows = array_values($allRows);
     $totalRows  = count($allRows);
     $totalPages = max(1, (int)ceil($totalRows / $perPage));
 } elseif ($filterItemType === 'requisition') {
-    $allRows = array_filter($allRows, fn($r) => $r['item_type'] === 'requisition');
+    $allRows = array_filter($allRows, function($r) { return $r['item_type'] === 'requisition'; });
     $allRows = array_values($allRows);
     $totalRows  = count($allRows);
     $totalPages = max(1, (int)ceil($totalRows / $perPage));
