@@ -1,11 +1,9 @@
 <?php
 // dept_admin/afsmd/tickets.php 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 require __DIR__ . '/_layout.php';
 
 if (!function_exists('staffInitials')) {
-    function staffInitials(string $name): string {
+    function staffInitials($name) {
         $parts = explode(' ', trim($name));
         $ini   = strtoupper(substr($parts[0], 0, 1));
         if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
@@ -13,19 +11,20 @@ if (!function_exists('staffInitials')) {
     }
 }
 
-$status   = $_GET['status']   ?? '';
-$priority = $_GET['priority'] ?? '';
-$category = $_GET['category'] ?? '';
-$search   = trim($_GET['q']   ?? '');
-$page     = max(1, (int)($_GET['page'] ?? 1));
+$status   = isset($_GET['status'])   ? $_GET['status']   : '';
+$priority = isset($_GET['priority']) ? $_GET['priority'] : '';
+$category = isset($_GET['category']) ? $_GET['category'] : '';
+$search   = isset($_GET['q'])        ? trim($_GET['q'])  : '';
+$page     = isset($_GET['page'])     ? max(1, (int)$_GET['page']) : 1;
+$perPage  = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 10;
 
 // ── PER-PAGE: accept 10 / 25 / 50, default 10 ──
-$allowedPerPage = [10, 25, 50, 100];
-$perPage = (int)($_GET['per_page'] ?? 10);
+$allowedPerPage = array(10, 25, 50, 100);
+$perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 10;
 if (!in_array($perPage, $allowedPerPage)) $perPage = 10;
 
-$where  = ["c.dept_id = 1"];
-$params = [];
+$where  = array("c.dept_id = 1");
+$params = array();
 $types  = '';
 
 if ($status)   { $where[] = "c.status = ?";           $params[] = $status;   $types .= 's'; }
@@ -62,7 +61,7 @@ $sql = "
     LIMIT ? OFFSET ?
 ";
 $stmt = $conn->prepare($sql);
-$allParams = array_merge($params, [$perPage, $offset]);
+$allParams = array_merge($params, array($perPage, $offset));
 $allTypes  = $types . 'ii';
 $stmt->bind_param($allTypes, ...$allParams);
 $stmt->execute();
@@ -72,7 +71,7 @@ $cats = $conn->query("SELECT category_id, category_name FROM categories WHERE de
 
 /* Build query string helper — preserves all active filters, drops page */
 if (!function_exists('qstr')) {
-    function qstr(array $extra = []): string {
+    function qstr(array $extra = array()) {
         $p = array_merge($_GET, $extra);
         unset($p['page']);
         $filtered = array_filter($p, function($v) { return $v !== ''; });
@@ -83,7 +82,7 @@ if (!function_exists('qstr')) {
 
 /* Build query string for pagination links — keeps page */
 if (!function_exists('pgstr')) {
-    function pgstr(array $extra = []): string {
+    function pgstr(array $extra = array()) {
         $p = array_merge($_GET, $extra);
         $filtered = array_filter($p, function($v) { return $v !== ''; });
         $qs = http_build_query($filtered);
@@ -485,14 +484,14 @@ if (!function_exists('pgstr')) {
 
     <select name="status">
       <option value="">All Status</option>
-      <?php foreach (['open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed'] as $v=>$l): ?>
+      <?php foreach (array('open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed') as $v=>$l): ?>
       <option value="<?= $v ?>" <?= $status===$v?'selected':'' ?>><?= $l ?></option>
       <?php endforeach; ?>
     </select>
 
     <select name="priority">
       <option value="">All Priority</option>
-      <?php foreach (['high'=>'High','medium'=>'Medium','low'=>'Low'] as $v=>$l): ?>
+      <?php foreach (array('high'=>'High','medium'=>'Medium','low'=>'Low') as $v=>$l): ?>
       <option value="<?= $v ?>" <?= $priority===$v?'selected':'' ?>><?= $l ?></option>
       <?php endforeach; ?>
     </select>
@@ -501,7 +500,7 @@ if (!function_exists('pgstr')) {
       <option value="">All Categories</option>
       <?php foreach ($cats as $c): ?>
       <option value="<?= $c['category_id'] ?>" <?= $category==$c['category_id']?'selected':'' ?>>
-        <?= htmlspecialchars(explode(' / ',$c['category_name'])[1] ?? $c['category_name']) ?>
+        <?php $cp = explode(' / ', $c['category_name']); echo htmlspecialchars(isset($cp[1]) ? $cp[1] : $c['category_name']); ?>
       </option>
       <?php endforeach; ?>
     </select>
@@ -565,7 +564,7 @@ if (!function_exists('pgstr')) {
 
           <!-- Submitted By: department name + date/time below -->
           <td class="td-submitted-by">
-            <span class="dept-name" title="<?= htmlspecialchars($t['my_department'] ?? '') ?>">
+            <span class="dept-name" title="<?= htmlspecialchars(isset($t['my_department']) ? $t['my_department'] : '') ?>">
               <?= htmlspecialchars($t['my_department'] ?: '—') ?>
             </span>
             <span class="submitted-datetime">
@@ -575,7 +574,7 @@ if (!function_exists('pgstr')) {
 
           <!-- Category -->
           <td class="td-cat">
-            <?= htmlspecialchars(explode(' / ',$t['category_name'])[1] ?? $t['category_name']) ?>
+            <?php $catParts = explode(' / ', $t['category_name']); echo htmlspecialchars(isset($catParts[1]) ? $catParts[1] : $t['category_name']); ?>
           </td>
 
           <!-- Priority — flag style -->
@@ -594,8 +593,8 @@ if (!function_exists('pgstr')) {
           <td>
             <?php
               $s  = $t['status'];
-              $sl = ['open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed'];
-              echo "<span class='badge status-{$s}'>" . ($sl[$s] ?? $s) . "</span>";
+              $sl = array('open'=>'Open','in_progress'=>'In Progress','closed'=>'Closed');
+              echo "<span class='badge status-{$s}'>" . (isset($sl[$s]) ? $sl[$s] : $s) . "</span>";
             ?>
           </td>
 
@@ -635,7 +634,7 @@ if (!function_exists('pgstr')) {
 
     <!-- Prev -->
     <?php if ($page > 1): ?>
-      <a href="<?= pgstr(['page'=>$page-1]) ?>" class="pg-btn" title="Previous page">
+      <a href="<?= pgstr(array('page'=>$page-1)) ?>" class="pg-btn" title="Previous page">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
       </a>
     <?php else: ?>
@@ -647,7 +646,7 @@ if (!function_exists('pgstr')) {
     <!-- Page numbers with ellipsis -->
     <?php
       $window = 2;
-      $shown  = [];
+      $shown  = array();
       for ($i = 1; $i <= $pages; $i++) {
         if ($i === 1 || $i === $pages || abs($i - $page) <= $window) {
           $shown[] = $i;
@@ -663,7 +662,7 @@ if (!function_exists('pgstr')) {
         if ($pg === $page): ?>
           <span class="pg-num active"><?= $pg ?></span>
         <?php else: ?>
-          <a href="<?= pgstr(['page'=>$pg]) ?>" class="pg-num"><?= $pg ?></a>
+          <a href="<?= pgstr(array('page'=>$pg)) ?>" class="pg-num"><?= $pg ?></a>
         <?php endif;
         $prev = $pg;
       endforeach;
@@ -671,7 +670,7 @@ if (!function_exists('pgstr')) {
 
     <!-- Next -->
     <?php if ($page < $pages): ?>
-      <a href="<?= pgstr(['page'=>$page+1]) ?>" class="pg-btn" title="Next page">
+      <a href="<?= pgstr(array('page'=>$page+1)) ?>" class="pg-btn" title="Next page">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
       </a>
     <?php else: ?>
