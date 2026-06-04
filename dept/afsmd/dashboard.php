@@ -128,9 +128,10 @@ $dashNow = new DateTime();
 $highPriTickets = [];
 $stmt = $conn->prepare(
     "SELECT c.ticket_id, c.title, c.my_department, c.status, c.assigned_to,
-            s.full_name AS handled_by
+            s.full_name AS handled_by, cat.category_name
      FROM complaints c
      LEFT JOIN staff s ON s.staff_id = c.assigned_to
+     LEFT JOIN categories cat ON cat.category_id = c.category_id
      WHERE c.dept_id = ? AND c.priority = 'high' AND c.status != 'closed'
      ORDER BY c.created_at ASC"
 );
@@ -168,9 +169,10 @@ if (!empty($slaBreachedTickets)) {
     $types = str_repeat('s', count($slaBreachedTickets));
     $stmt = $conn->prepare(
         "SELECT c.ticket_id, c.title, c.my_department, c.status, c.created_at,
-                s.full_name AS handled_by
+                s.full_name AS handled_by, cat.category_name
          FROM complaints c
          LEFT JOIN staff s ON s.staff_id = c.assigned_to
+         LEFT JOIN categories cat ON cat.category_id = c.category_id
          WHERE c.ticket_id IN ($placeholders)
          ORDER BY c.created_at ASC"
     );
@@ -185,7 +187,7 @@ if (!empty($slaBreachedTickets)) {
 $myTasks = [];
 $stmt = $conn->prepare(
     "SELECT c.ticket_id, c.title, c.my_department, c.status, c.priority,
-            c.created_at, c.first_response_at,
+            c.created_at, c.first_response_at, cat.category_name,
             (SELECT MIN(l.changed_at)
              FROM ticket_logs l
              WHERE l.ticket_id = c.ticket_id
@@ -193,6 +195,7 @@ $stmt = $conn->prepare(
                AND l.old_status = 'open'
             ) AS first_log_response_at
      FROM complaints c
+     LEFT JOIN categories cat ON cat.category_id = c.category_id
      WHERE c.dept_id = ? AND c.assigned_to = ? AND c.status != 'closed'
      ORDER BY
        FIELD(priority, 'high', 'medium', 'low'),
@@ -705,8 +708,14 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
       <div class="mytask-item pri-<?php echo $pri; ?>">
         <div class="mt-info">
           <div class="mt-tid"><?php echo htmlspecialchars($t['ticket_id']); ?></div>
-          <div class="mt-title" title="<?php echo htmlspecialchars($t['title']); ?>">
-            <?php echo htmlspecialchars($t['title']); ?>
+          <div class="mt-title" title="<?php echo htmlspecialchars($t['category_name'] ?? $t['title']); ?>">
+            <?php
+              $mtCat = $t['category_name'] ?? $t['title'];
+              if (strpos($mtCat, ' / ') !== false) {
+                  $mtCat = trim(substr($mtCat, strpos($mtCat, ' / ') + 3));
+              }
+              echo htmlspecialchars($mtCat);
+            ?>
           </div>
           <div class="mt-meta">
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>
@@ -738,8 +747,14 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
       <div class="mytask-item pri-high">
         <div class="mt-info">
           <div class="mt-tid"><?php echo htmlspecialchars($t['ticket_id']); ?></div>
-          <div class="mt-title" title="<?php echo htmlspecialchars($t['title']); ?>">
-            <?php echo htmlspecialchars($t['title']); ?>
+          <div class="mt-title" title="<?php echo htmlspecialchars($t['category_name'] ?? $t['title']); ?>">
+            <?php
+              $mtCat = $t['category_name'] ?? $t['title'];
+              if (strpos($mtCat, ' / ') !== false) {
+                  $mtCat = trim(substr($mtCat, strpos($mtCat, ' / ') + 3));
+              }
+              echo htmlspecialchars($mtCat);
+            ?>
           </div>
           <div class="mt-meta">
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>
@@ -771,8 +786,14 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
       <div class="mytask-item" style="border-left:3px solid #E02424;background:#FFF5F5;border-color:#FECACA;">
         <div class="mt-info">
           <div class="mt-tid"><?php echo htmlspecialchars($t['ticket_id']); ?></div>
-          <div class="mt-title" title="<?php echo htmlspecialchars($t['title']); ?>">
-            <?php echo htmlspecialchars($t['title']); ?>
+          <div class="mt-title" title="<?php echo htmlspecialchars($t['category_name'] ?? $t['title']); ?>">
+            <?php
+              $mtCat = $t['category_name'] ?? $t['title'];
+              if (strpos($mtCat, ' / ') !== false) {
+                  $mtCat = trim(substr($mtCat, strpos($mtCat, ' / ') + 3));
+              }
+              echo htmlspecialchars($mtCat);
+            ?>
           </div>
           <div class="mt-meta">
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>

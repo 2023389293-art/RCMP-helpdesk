@@ -1,5 +1,5 @@
 <?php
-// dept_admin/it/ticket_detail.php 
+// dept_admin/it/ticket_detail.php
 require '_layout.php';
 require_once __DIR__ . '/../../db_connect.php';
 require_once __DIR__ . '/../../assign_helper.php';

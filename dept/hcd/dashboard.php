@@ -15,7 +15,12 @@ $stmt = $conn->prepare(
         SUM(status='open')        AS oc,
         SUM(status='in_progress') AS ic,
         SUM(status='closed')      AS cc
-     FROM complaints WHERE dept_id = ?"
+     FROM (
+         SELECT ticket_id, status
+         FROM complaints
+         WHERE dept_id = ?
+         GROUP BY ticket_id
+     ) AS t"
 );
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
@@ -45,7 +50,7 @@ $priTotal  = $priLow + $priMedium + $priHigh;
 // ── Top Departments Filing Complaints ────────────────────────────────────────
 $topDepts = [];
 $stmt = $conn->prepare(
-    "SELECT my_department, COUNT(*) AS total
+    "SELECT my_department, COUNT(DISTINCT ticket_id) AS total
      FROM complaints
      WHERE dept_id = ?
      GROUP BY my_department
@@ -128,9 +133,10 @@ $dashNow = new DateTime();
 $highPriTickets = [];
 $stmt = $conn->prepare(
     "SELECT c.ticket_id, c.title, c.my_department, c.status, c.assigned_to,
-            s.full_name AS handled_by
+            s.full_name AS handled_by, cat.category_name
      FROM complaints c
      LEFT JOIN staff s ON s.staff_id = c.assigned_to
+     LEFT JOIN categories cat ON cat.category_id = c.category_id
      WHERE c.dept_id = ? AND c.priority = 'high' AND c.status != 'closed'
      ORDER BY c.created_at ASC"
 );
@@ -168,9 +174,10 @@ if (!empty($slaBreachedTickets)) {
     $types = str_repeat('s', count($slaBreachedTickets));
     $stmt = $conn->prepare(
         "SELECT c.ticket_id, c.title, c.my_department, c.status, c.created_at,
-                s.full_name AS handled_by
+                s.full_name AS handled_by, cat.category_name
          FROM complaints c
          LEFT JOIN staff s ON s.staff_id = c.assigned_to
+         LEFT JOIN categories cat ON cat.category_id = c.category_id
          WHERE c.ticket_id IN ($placeholders)
          ORDER BY c.created_at ASC"
     );
@@ -185,7 +192,7 @@ if (!empty($slaBreachedTickets)) {
 $myTasks = [];
 $stmt = $conn->prepare(
     "SELECT c.ticket_id, c.title, c.my_department, c.status, c.priority,
-            c.created_at, c.first_response_at,
+            c.created_at, c.first_response_at, cat.category_name,
             (SELECT MIN(l.changed_at)
              FROM ticket_logs l
              WHERE l.ticket_id = c.ticket_id
@@ -193,7 +200,9 @@ $stmt = $conn->prepare(
                AND l.old_status = 'open'
             ) AS first_log_response_at
      FROM complaints c
+     LEFT JOIN categories cat ON cat.category_id = c.category_id
      WHERE c.dept_id = ? AND c.assigned_to = ? AND c.status != 'closed'
+     GROUP BY c.ticket_id
      ORDER BY
        FIELD(priority, 'high', 'medium', 'low'),
        created_at ASC
@@ -248,6 +257,7 @@ $stmt = $conn->prepare(
      LEFT JOIN staff s ON s.staff_id = c.assigned_to
      LEFT JOIN categories cat ON cat.category_id = c.category_id
      WHERE c.dept_id = ? AND c.status != 'closed'
+     GROUP BY c.ticket_id
      ORDER BY c.created_at DESC"
 );
 $stmt->bind_param("i", $deptId);
@@ -705,9 +715,15 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
       <div class="mytask-item pri-<?php echo $pri; ?>">
         <div class="mt-info">
           <div class="mt-tid"><?php echo htmlspecialchars($t['ticket_id']); ?></div>
-          <div class="mt-title" title="<?php echo htmlspecialchars($t['title']); ?>">
-            <?php echo htmlspecialchars($t['title']); ?>
-          </div>
+          <div class="mt-title" title="<?php echo htmlspecialchars($t['category_name'] ?? $t['title']); ?>">
+  <?php
+    $mtCat = $t['category_name'] ?? $t['title'];
+    if (strpos($mtCat, ' / ') !== false) {
+        $mtCat = trim(substr($mtCat, strpos($mtCat, ' / ') + 3));
+    }
+    echo htmlspecialchars($mtCat);
+  ?>
+</div>
           <div class="mt-meta">
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>
             <span class="mt-status-bdg mt-status-<?php echo $s; ?>"><?php echo $statusLabel; ?></span>
@@ -738,9 +754,15 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
       <div class="mytask-item pri-high">
         <div class="mt-info">
           <div class="mt-tid"><?php echo htmlspecialchars($t['ticket_id']); ?></div>
-          <div class="mt-title" title="<?php echo htmlspecialchars($t['title']); ?>">
-            <?php echo htmlspecialchars($t['title']); ?>
-          </div>
+          <div class="mt-title" title="<?php echo htmlspecialchars($t['category_name'] ?? $t['title']); ?>">
+  <?php
+    $mtCat = $t['category_name'] ?? $t['title'];
+    if (strpos($mtCat, ' / ') !== false) {
+        $mtCat = trim(substr($mtCat, strpos($mtCat, ' / ') + 3));
+    }
+    echo htmlspecialchars($mtCat);
+  ?>
+</div>
           <div class="mt-meta">
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>
             <span class="mt-status-bdg mt-status-<?php echo $s; ?>"><?php echo $statusLabel; ?></span>
@@ -771,9 +793,15 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
       <div class="mytask-item" style="border-left:3px solid #E02424;background:#FFF5F5;border-color:#FECACA;">
         <div class="mt-info">
           <div class="mt-tid"><?php echo htmlspecialchars($t['ticket_id']); ?></div>
-          <div class="mt-title" title="<?php echo htmlspecialchars($t['title']); ?>">
-            <?php echo htmlspecialchars($t['title']); ?>
-          </div>
+          <div class="mt-title" title="<?php echo htmlspecialchars($t['category_name'] ?? $t['title']); ?>">
+  <?php
+    $mtCat = $t['category_name'] ?? $t['title'];
+    if (strpos($mtCat, ' / ') !== false) {
+        $mtCat = trim(substr($mtCat, strpos($mtCat, ' / ') + 3));
+    }
+    echo htmlspecialchars($mtCat);
+  ?>
+</div>
           <div class="mt-meta">
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>
             <span class="mt-status-bdg mt-status-<?php echo $s; ?>"><?php echo $statusLabel; ?></span>
@@ -823,7 +851,13 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
   <script>
   (function(){
     const data   = [<?php echo implode(',', array_column($topDepts, 'total')); ?>];
-    const labels = [<?php echo implode(',', array_map(fn($d) => json_encode($d['my_department'] ?? '—'), $topDepts)); ?>];
+    <?php
+$labelParts = [];
+foreach ($topDepts as $d) {
+    $labelParts[] = json_encode($d['my_department'] ?? '—');
+}
+?>
+const labels = [<?php echo implode(',', $labelParts); ?>];
     const colors = ['#2563EB','#7C3AED','#DB2777','#D97706','#059669'];
 const canvas = document.getElementById('deptPieChart');
 const ctx    = canvas.getContext('2d');
@@ -951,7 +985,6 @@ const cx=80, cy=80, r=68;
           <thead>
             <tr>
   <th>Ticket ID</th>
-  <th>Title</th>
   <th>From Department</th>
   <th>Status</th>
   <th>Priority</th>
@@ -975,12 +1008,10 @@ const cx=80, cy=80, r=68;
               $statusLabel   = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
               $handledBy     = $t['handled_by'] ?? null;
               $handledByCode = $t['handled_by_code'] ?? null;
-              $flagFill      = match($pri) {
-                'high'   => '#DC2626',
-                'medium' => '#EAB308',
-                'low'    => '#3B82F6',
-                default  => '#64748b',
-              };
+              if ($pri === 'high')        $flagFill = '#DC2626';
+elseif ($pri === 'medium')  $flagFill = '#EAB308';
+elseif ($pri === 'low')     $flagFill = '#3B82F6';
+else                        $flagFill = '#64748b';
             ?>
             <tr>
 
@@ -990,9 +1021,6 @@ const cx=80, cy=80, r=68;
                   <?php echo $tid; ?>
                 </a>
               </td>
-
-              <!-- Title -->
-              <td><?php echo htmlspecialchars($t['title']); ?></td>
 
               <!-- From Department + date/time stacked (Created column removed) -->
               <td>

@@ -315,10 +315,10 @@ $nav         = $activeNav   ?? 'dashboard';
     body.classList.toggle('sidebar-collapsed', isCollapsed);
     localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
     if (isCollapsed) {
-      var sub = document.getElementById('tickets-sub');
-      var chevron = sidebar.querySelector('.nav-group-chevron');
-      if (sub) sub.classList.remove('open');
-      if (chevron) chevron.classList.remove('open');
+      var subs = sidebar.querySelectorAll('.nav-sub');
+      subs.forEach(function(sub) { sub.classList.remove('open'); });
+      var chevrons = sidebar.querySelectorAll('.nav-group-chevron');
+      chevrons.forEach(function(c) { c.classList.remove('open'); });
     }
   };
 })();
@@ -326,8 +326,9 @@ $nav         = $activeNav   ?? 'dashboard';
 function toggleTicketsNav(btn) {
   var sidebar = document.getElementById('mainSidebar');
   if (sidebar.classList.contains('collapsed')) { toggleSidebar(); return; }
+  var sub = btn.closest('.nav-group').querySelector('.nav-sub');
   btn.classList.toggle('open');
-  document.getElementById('tickets-sub').classList.toggle('open');
+  sub.classList.toggle('open');
 }
 
 /* ── Logout modal ── */
@@ -425,7 +426,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
 (function () {
   'use strict';
 
-  var POPUP_API  = window.location.origin + '/uniKL/complaint/new_ticket_popup_api.php';
+  var POPUP_API  = '../../new_ticket_popup_api.php';
   var DETAIL_URL = 'ticket_detail.php';
   var DURATION   = 10000;
   var MAX_TOASTS = 5;
@@ -480,7 +481,6 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
     el.innerHTML =
       '<div class="ntt-header">'
         +'<div class="ntt-stripe" style="background:'+colors.stripe+'"></div>'
-        +'<div class="ntt-avatar">'+esc(getInitials(submitter))+'</div>'
         +'<div class="ntt-header-text">'
           +'<div class="ntt-header-label">New ticket assigned to you</div>'
           +'<div class="ntt-ticket-id">'+esc(data.ticket_id||'—')+'</div>'
@@ -491,17 +491,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
         +'</button>'
       +'</div>'
       +'<div class="ntt-body">'
-        +'<div class="ntt-title">'+esc(truncate(data.ticket_title||'New Ticket', 80))+'</div>'
-        +'<div class="ntt-meta">'
-          +'<span class="ntt-meta-chip ntt-chip-category">'
-            +'<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
-            +esc(catLabel)
-          +'</span>'
-          +'<span class="ntt-meta-chip ntt-chip-from">'
-            +'<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-            +esc(truncate(submitter, 24))
-          +'</span>'
-        +'</div>'
+        +'<div class="ntt-title">'+esc(catLabel||'New Ticket')+'</div>'
         +(data.remarks ? '<div class="ntt-remarks">'+esc(truncate(data.remarks,100))+'</div>' : '')
         +'<div class="ntt-actions">'
           +'<a class="ntt-view-btn" href="'+esc(DETAIL_URL+'?id='+encodeURIComponent(data.ticket_id||''))+'">'
