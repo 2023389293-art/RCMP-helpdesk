@@ -2,6 +2,15 @@
 // dept_admin/ccu/tickets.php
 require '_layout.php';
 
+if (!function_exists('staffInitials')) {
+    function staffInitials(string $name): string {
+        $parts = explode(' ', trim($name));
+        $ini   = strtoupper(substr($parts[0], 0, 1));
+        if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
+        return $ini;
+    }
+}
+
 $status   = $_GET['status']   ?? '';
 $priority = $_GET['priority'] ?? '';
 $category = $_GET['category'] ?? '';
@@ -60,18 +69,24 @@ $tickets = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $cats = $conn->query("SELECT category_id, category_name FROM categories WHERE dept_id = 3 ORDER BY category_name")->fetch_all(MYSQLI_ASSOC);
 
 /* Build query string helper — preserves all active filters, drops page */
-function qstr(array $extra = []): string {
-    $p = array_merge($_GET, $extra);
-    unset($p['page']);
-    $qs = http_build_query(array_filter($p, fn($v) => $v !== ''));
-    return $qs ? '?' . $qs : '?';
+if (!function_exists('qstr')) {
+    function qstr(array $extra = []): string {
+        $p = array_merge($_GET, $extra);
+        unset($p['page']);
+        $filtered = array_filter($p, function($v) { return $v !== ''; });
+        $qs = http_build_query($filtered);
+        return $qs ? '?' . $qs : '?';
+    }
 }
 
 /* Build query string for pagination links — keeps page */
-function pgstr(array $extra = []): string {
-    $p = array_merge($_GET, $extra);
-    $qs = http_build_query(array_filter($p, fn($v) => $v !== ''));
-    return $qs ? '?' . $qs : '?';
+if (!function_exists('pgstr')) {
+    function pgstr(array $extra = []): string {
+        $p = array_merge($_GET, $extra);
+        $filtered = array_filter($p, function($v) { return $v !== ''; });
+        $qs = http_build_query($filtered);
+        return $qs ? '?' . $qs : '?';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -86,13 +101,7 @@ function pgstr(array $extra = []): string {
     .data-table tbody td {
       vertical-align: middle;
     }
-    .td-title {
-      max-width: 200px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-weight: 500;
-    }
+    
     .td-cat {
       color: var(--gray-500);
       font-size: 12px;
@@ -438,18 +447,17 @@ function pgstr(array $extra = []): string {
       .filter-bar .btn-ghost-sm { width: 100%; }
 
       .data-table thead th:nth-child(3),
-      .data-table thead th:nth-child(4),
-      .data-table thead th:nth-child(7),
-      .data-table tbody td:nth-child(3),
-      .data-table tbody td:nth-child(4),
-      .data-table tbody td:nth-child(7) { display: none; }
+.data-table thead th:nth-child(4),
+.data-table thead th:nth-child(6),
+.data-table tbody td:nth-child(3),
+.data-table tbody td:nth-child(4),
+.data-table tbody td:nth-child(6) { display: none; }
 
       .card.no-pad {
   overflow-x: auto;
 }
       .data-table  { min-width: 400px; }
       .ticket-id   { max-width: 70px; font-size: 10px; }
-      .td-title    { max-width: 100px; }
 
       .pagination-top  { flex-direction: column; align-items: flex-start; }
       .pg-controls     { width: 100%; justify-content: flex-end; }
@@ -535,7 +543,6 @@ function pgstr(array $extra = []): string {
       <thead>
         <tr>
           <th>Ticket ID</th>
-          <th>Title</th>
           <th>Submitted By</th>
           <th>Category</th>
           <th>Priority</th>
@@ -546,7 +553,7 @@ function pgstr(array $extra = []): string {
       </thead>
       <tbody>
         <?php if (empty($tickets)): ?>
-        <tr><td colspan="8" class="empty-row">No tickets match your filters.</td></tr>
+        <tr><td colspan="7" class="empty-row">No tickets match your filters.</td></tr>
         <?php else: foreach ($tickets as $t): ?>
         <tr class="ticket-row">
 
@@ -554,9 +561,6 @@ function pgstr(array $extra = []): string {
           <td>
             <span class="ticket-id"><?= htmlspecialchars($t['ticket_id']) ?></span>
           </td>
-
-          <!-- Title -->
-          <td class="td-title"><?= htmlspecialchars($t['title']) ?></td>
 
           <!-- Submitted By: department name + date/time below -->
           <td class="td-submitted-by">
@@ -732,14 +736,7 @@ function pgstr(array $extra = []): string {
 
 <?php include '_foot_scripts.php'; ?>
 
-<?php
-function staffInitials(string $name): string {
-    $parts = explode(' ', trim($name));
-    $ini   = strtoupper(substr($parts[0], 0, 1));
-    if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts) - 1], 0, 1));
-    return $ini;
-}
-?>
+
 
 <script>
 /* ── PER-PAGE CHANGE — reload with page reset ── */

@@ -22,7 +22,7 @@ if ($submitterId <= 0) {
     exit;
 }
 
-$_SESSION['fb_popup_shown_' . $submitterId] = true;
+$_SESSION['fb_popup_dismissed_' . $submitterId] = true;
 
 echo json_encode(['success' => true]);
 exit;

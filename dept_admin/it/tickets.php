@@ -2,8 +2,7 @@
 // dept_admin/it/tickets.php
 require '_layout.php';
 
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
+
 
 if (!function_exists('staffInitials')) {
     function staffInitials(string $name): string {
@@ -448,17 +447,17 @@ if (!function_exists('pgstr')) {
       .filter-bar .btn-primary-sm,
       .filter-bar .btn-ghost-sm { width: 100%; }
 
-      .data-table thead th:nth-child(3),
-      .data-table thead th:nth-child(4),
-      .data-table thead th:nth-child(7),
-      .data-table tbody td:nth-child(3),
-      .data-table tbody td:nth-child(4),
-      .data-table tbody td:nth-child(7) { display: none; }
+.data-table thead th:nth-child(3),
+.data-table thead th:nth-child(4),
+.data-table thead th:nth-child(6),
+.data-table tbody td:nth-child(3),
+.data-table tbody td:nth-child(4),
+.data-table tbody td:nth-child(6) { display: none; }
 
       .card.no-pad {
   overflow-x: auto;
 }
-      .data-table  { min-width: 400px; }
+      .data-table  { min-width: 500px; }
       .ticket-id   { max-width: 70px; font-size: 10px; }
       .td-title    { max-width: 100px; }
 
@@ -466,12 +465,7 @@ if (!function_exists('pgstr')) {
       .pg-controls     { width: 100%; justify-content: flex-end; }
       .pagination-bottom { gap: 4px; }
     }
-    .card.no-pad {
-  overflow-x: auto !important;
-}
-.data-table {
-  min-width: 750px;
-}
+    
   </style>
 </head>
 <body>

@@ -1,5 +1,5 @@
 <?php
-// dept_admin/maintenance/users.php
+// dept_admin/maintenance/users.php 
 require '_layout.php';
 
 $msg   = '';

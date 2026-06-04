@@ -1,5 +1,5 @@
 <?php
-// dept_admin/maintenance/tickets.php 
+// dept_admin/maintenance/tickets.php  
 require '_layout.php';
 
 if (!function_exists('staffInitials')) {
@@ -99,13 +99,7 @@ if (!function_exists('pgstr')) {
     .data-table tbody td {
       vertical-align: middle;
     }
-    .td-title {
-      max-width: 200px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-weight: 500;
-    }
+    
     .td-cat {
       color: var(--gray-500);
       font-size: 12px;
@@ -205,8 +199,6 @@ if (!function_exists('pgstr')) {
       align-items: center;
       gap: 7px;
       overflow: hidden;
-      min-width: 0;
-      max-width: 180px;
     }
     .staff-avatar-sm {
       width: 28px;
@@ -228,8 +220,6 @@ if (!function_exists('pgstr')) {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      min-width: 0;
-      flex: 1;
     }
 
     /* ══════════════════════════════════════════
@@ -454,19 +444,19 @@ if (!function_exists('pgstr')) {
       .filter-bar .btn-primary-sm,
       .filter-bar .btn-ghost-sm { width: 100%; }
 
-      .data-table thead th:nth-child(2),
       .data-table thead th:nth-child(3),
-      .data-table thead th:nth-child(6),
-      .data-table tbody td:nth-child(2),
-      .data-table tbody td:nth-child(3),
-      .data-table tbody td:nth-child(6) { display: none; }
+.data-table thead th:nth-child(4),
+.data-table thead th:nth-child(6),
+.data-table tbody td:nth-child(3),
+.data-table tbody td:nth-child(4),
+.data-table tbody td:nth-child(6) { display: none; }
 
       .card.no-pad {
-  overflow-x: auto !important;
+  overflow-x: auto;
 }
-      .data-table  { min-width: 750px; }
+      .data-table  { min-width: 500px; }
       .ticket-id   { max-width: 70px; font-size: 10px; }
-      .td-title    { max-width: 100px; }
+      
 
       .pagination-top  { flex-direction: column; align-items: flex-start; }
       .pg-controls     { width: 100%; justify-content: flex-end; }

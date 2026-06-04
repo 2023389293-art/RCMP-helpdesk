@@ -445,18 +445,18 @@ if (!function_exists('pgstr')) {
       .filter-bar .btn-primary-sm,
       .filter-bar .btn-ghost-sm { width: 100%; }
 
-.data-table thead th:nth-child(2),
 .data-table thead th:nth-child(3),
+.data-table thead th:nth-child(4),
 .data-table thead th:nth-child(6),
-.data-table tbody td:nth-child(2),
 .data-table tbody td:nth-child(3),
+.data-table tbody td:nth-child(4),
 .data-table tbody td:nth-child(6) { display: none; }
       .card.no-pad {
   overflow-x: auto;
 }
-      .data-table  { min-width: 400px; }
+      .data-table  { min-width: 500px; }
       .ticket-id   { max-width: 70px; font-size: 10px; }
-      .td-title    { max-width: 100px; }
+      
 
       .pagination-top  { flex-direction: column; align-items: flex-start; }
       .pg-controls     { width: 100%; justify-content: flex-end; }
@@ -598,7 +598,7 @@ if (!function_exists('pgstr')) {
           </td>
 
           <!-- Assigned To -->
-          <td class="td-assigned">
+          <td class="td-assigned" style="max-width:130px;">
             <?php if (!empty($t['assigned_staff_name'])): ?>
               <div class="assigned-cell">
                 <div class="staff-avatar-sm"><?= staffInitials($t['assigned_staff_name']) ?></div>
@@ -612,7 +612,7 @@ if (!function_exists('pgstr')) {
           </td>
 
           <!-- View Button -->
-          <td>
+          <td style="white-space:nowrap; width:80px;">
             <a href="ticket_detail.php?id=<?= urlencode($t['ticket_id']) ?>" class="btn-view">
               <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               View

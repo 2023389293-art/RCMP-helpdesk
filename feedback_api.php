@@ -27,6 +27,12 @@ $action = $_GET['action'] ?? ($_POST['action'] ?? '');
 // ══════════════════════════════════════════════════════════════════════════════
 if ($action === 'check') {
 
+    // If user dismissed popup this session, don't show again until re-login
+    if (!empty($_SESSION['fb_popup_dismissed_' . $submitterId])) {
+        echo json_encode(['pending' => false, 'pending_count' => 0]);
+        exit;
+    }
+
     $tz          = new DateTimeZone('Asia/Kuala_Lumpur');
     $now         = new DateTime('now', $tz);
     $officeStart = 8;
@@ -119,7 +125,7 @@ if ($action === 'check') {
             'ticket_id'      => $oldest['ticket_id'],
             'ticket_title'   => $oldest['title'],
             'closed_at'      => $oldest['closed_at'],
-            'auto_ready'     => true,
+            'auto_ready'     => false,
             'remaining_secs' => $oldest['remaining_secs'],
             'elapsed_secs'   => $oldest['elapsed_secs'],
         ]);

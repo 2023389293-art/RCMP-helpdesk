@@ -13,7 +13,7 @@ require '../db_connect.php';
 $userName      = htmlspecialchars($_SESSION['user_name']  ?? 'User');
 $userEmail     = htmlspecialchars($_SESSION['user_email'] ?? '');
 $userRole      = $_SESSION['user_role'];
-$userId = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
+$userId = (int)(isset($_SESSION['user_id']) ? $_SESSION['user_id'] : (isset($_SESSION['staff_id']) ? $_SESSION['staff_id'] : 0));
 $submitterType = ($userRole === 'student') ? 'student' : 'staff';
 
 $ticketId = trim($_GET['id'] ?? '');
@@ -41,7 +41,7 @@ if ($ticketId !== '') {
 // Fetch "handled by" — only the assigned staff
 $handledBy = [];
 if ($ticket && !empty($ticket['assigned_to'])) {
-    $hs = $conn->prepare("SELECT full_name, role FROM staff WHERE staff_id = ? AND status = 'active' LIMIT 1");
+    $hs = $conn->prepare("SELECT full_name, role FROM staff WHERE staff_id = ? LIMIT 1");
     $hs->bind_param("i", $ticket['assigned_to']);
     $hs->execute();
     $handledBy = $hs->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -161,13 +161,12 @@ $priorityMap = [
     'high'   => ['label' => 'High',   'color' => '#A32D2D', 'bg' => '#FCEBEB'],
 ];
 
-$curStatus   = $statusMap[$ticket['status']   ?? 'open']   ?? $statusMap['open'];
-$curPriority = $priorityMap[$ticket['priority'] ?? 'medium'] ?? $priorityMap['medium'];
+$curStatus   = $statusMap[($ticket['status']   ?? 'open')]   ?? $statusMap['open'];
+$curPriority = $priorityMap[($ticket['priority'] ?? 'medium')] ?? $priorityMap['medium'];
 
-// Submitter info from joined query
-$submitterName  = $ticket['submitter_full_name']  ?? $ticket['submitter_staff_name']  ?? '—';
-$submitterEmail = $ticket['submitter_email']       ?? $ticket['submitter_staff_email'] ?? '—';
-$submitterPhone = $ticket['phone'] ?? '—';
+$submitterName  = ($ticket['submitter_full_name']  ?? $ticket['submitter_staff_name']  ?? '—');
+$submitterEmail = ($ticket['submitter_email']       ?? $ticket['submitter_staff_email'] ?? '—');
+$submitterPhone = ($ticket['phone'] ?? '—');
 $submitterType2 = ucfirst($submitterType);
 
 $pageTitle    = 'My Ticket';
@@ -636,7 +635,12 @@ require 'layout.php';
   </div>
   <div class="tp-meta-cell">
     <div class="tp-meta-label">Last Updated</div>
-    <div class="tp-meta-value"><?php echo date('d M Y, H:i', strtotime($ticket['updated_at'] ?? $ticket['created_at'])); ?></div>
+    <div class="tp-meta-value"><?php
+      $updAt = !empty($ticket['updated_at'] ?? null)
+        ? $ticket['updated_at']
+        : ($ticket['created_at'] ?? null);
+      echo $updAt ? date('d M Y, H:i', strtotime($updAt)) : '—';
+    ?></div>
   </div>
   
 </div>
@@ -722,7 +726,9 @@ require 'layout.php';
 
     <?php if ($feedback):
       $r = (int)$feedback['rating'];
-      [$fbBg, $fbColor] = feedbackRatingColors($r);
+      $fbColors = feedbackRatingColors($r);
+$fbBg     = $fbColors[0];
+$fbColor  = $fbColors[1];
       $label = feedbackEmojiLabel($r);
       $stars = str_repeat('★', $r) . str_repeat('☆', 5 - $r);
     ?>
@@ -767,7 +773,7 @@ require 'layout.php';
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span>Messages</span>
       </div>
-<?php $replyCount = count(array_filter($timeline, fn($i) => $i['type'] === 'reply')); ?>
+<?php $replyCount = count(array_filter($timeline, function($i) { return $i['type'] === 'reply'; })); ?>
 <?php if ($replyCount > 0): ?>
 <div class="tp-msg-count-pill"><?php echo $replyCount; ?></div>
       <?php endif; ?>

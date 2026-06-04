@@ -1,5 +1,5 @@
 <?php
-// dept_admin/afsmd/users.php
+// dept_admin/afsmd/users.php 
 require '_layout.php';
 
 $msg   = '';
@@ -104,6 +104,9 @@ if (!$code || !$name || !$email || !$rawPw || empty($categories)) {
             // ── When ACTIVATING: assign unassigned tickets to this staff ──
             if ($newSt === 'active') {
                 require_once __DIR__ . '/../../assign_helper.php';
+
+                // Step 1: Process queued tickets first
+                processQueue($conn, 1, $sid);
 
 // Get ALL categories for this staff from junction table
 $catQ = $conn->prepare("

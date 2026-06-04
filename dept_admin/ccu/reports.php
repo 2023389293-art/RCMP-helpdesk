@@ -331,14 +331,14 @@ function feedbackFaceSvg(int $rating, int $size = 28): string {
 }
 
 function ratingLabelText(int $r): string {
-    return match($r) {
-        5 => 'Very Satisfied',
-        4 => 'Satisfied',
-        3 => 'Neutral',
-        2 => 'Dissatisfied',
-        1 => 'Very Dissatisfied',
-        default => 'Unknown',
-    };
+    switch ($r) {
+        case 5: return 'Very Satisfied';
+        case 4: return 'Satisfied';
+        case 3: return 'Neutral';
+        case 2: return 'Dissatisfied';
+        case 1: return 'Very Dissatisfied';
+        default: return 'Unknown';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -1116,7 +1116,7 @@ data-rank="<?= $i+1 ?>">
     $twoS        = (int)($feedbackStats['two_star']   ?? 0);
     $oneS        = (int)($feedbackStats['one_star']   ?? 0);
     $autoCount   = (int)array_sum(array_column(
-        array_filter($feedbackList, fn($f) => $f['is_auto_submitted']), 'is_auto_submitted'
+        array_filter($feedbackList, function($f) { return $f['is_auto_submitted']; }), 'is_auto_submitted'
     ));
     $manualCount = $totF - $autoCount;
     $ratingCol   = $avgR >= 4 ? '#16A34A' : ($avgR >= 3 ? '#D97706' : '#DC2626');
@@ -1668,7 +1668,7 @@ $rateByCategory = count($catRates) > 0
   <!-- Rate by Category Average (BARU) -->
   <div class="ss-item">
     Rate (By Category Avg): <strong id="catss-rate-category" style="color:<?= $rateCatColor ?>;"><?= $rateByCategory ?>%</strong>
-    <span class="ss-rate-note">(<?= implode(' + ', array_map(fn($r) => $r.'%', $catRates)) ?>) ÷ <?= count($catRates) ?> categories</span>
+    <span class="ss-rate-note">(<?= implode(' + ', array_map(function($r) { return $r.'%'; }, $catRates)) ?>) ÷ <?= count($catRates) ?> categories</span>
   </div>
 </div>
 
@@ -1756,7 +1756,7 @@ window.FEEDBACK_DATA = {
 <?php if ($activeTab === 'category' && !empty($categoryStats)): ?>
 <script>
 window.CATEGORY_DATA = {
-  labels:     <?= json_encode(array_map(fn($c) => explode(' / ', $c['category_name'])[1] ?? $c['category_name'], $categoryStats)) ?>,
+  labels:     <?= json_encode(array_map(function($c) { return explode(' / ', $c['category_name'])[1] ?? $c['category_name']; }, $categoryStats)) ?>,
   open:       <?= json_encode(array_map('intval', array_column($categoryStats, 'open'))) ?>,
   inProgress: <?= json_encode(array_map('intval', array_column($categoryStats, 'in_progress'))) ?>,
   closed:     <?= json_encode(array_map('intval', array_column($categoryStats, 'closed'))) ?>,

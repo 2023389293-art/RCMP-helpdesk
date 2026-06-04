@@ -781,7 +781,7 @@ var POPUP_API = '../new_reply_popup_api.php';
    */
   var SESSION_KEY = 'fb_skipped_u<?php echo (int)$_fbUserId; ?>_<?php echo session_id(); ?>';
 
-  try { if (sessionStorage.getItem(SESSION_KEY)) return; } catch(e){}
+  
 
   var FB_API_URL = '<?php echo addslashes($_fbApiUrl); ?>';
 
@@ -829,18 +829,12 @@ var POPUP_API = '../new_reply_popup_api.php';
     clearCountdown();
     countdownTimer = setInterval(function () {
       remainingSecs--;
+      updateCountdownDisplay();
       if (remainingSecs <= 0) {
-        /*
-         * Countdown hit zero client-side.
-         * Close the popup silently — do NOT auto-submit from JS.
-         * The server will handle the auto-submit next time checkPending() runs
-         * (i.e. on next page load or next 2-second check).
-         */
         clearCountdown();
         timerNotice.style.display = 'none';
-        closePopup();
-      } else {
-        updateCountdownDisplay();
+        selectedRating = 5;
+        submitFeedback();
       }
     }, 1000);
   }
@@ -887,7 +881,14 @@ var POPUP_API = '../new_reply_popup_api.php';
     isShown = false;
     overlay.classList.remove('fb-active');
     document.body.style.overflow = '';
-    try { sessionStorage.setItem(SESSION_KEY, '1'); } catch(e){}
+
+    // Tell the server: user dismissed — don't show again this session
+    fetch('<?php echo addslashes($_fbMarkUrl); ?>', {
+        method: 'POST',
+        credentials: 'same-origin'
+    }).catch(function () {});
+
+    scheduleNextPoll();
   }
 
   function setRating(val) {
@@ -914,12 +915,13 @@ var POPUP_API = '../new_reply_popup_api.php';
     submitBtn.disabled    = true;
     submitBtn.textContent = 'Submitting…';
 
+    var isAutoSubmit = (remainingSecs <= 0 && selectedRating === 5 && commentEl.value.trim() === '');
     var fd = new FormData();
     fd.append('action',    'submit');
     fd.append('ticket_id', currentTicketId);
     fd.append('rating',    String(selectedRating));
     fd.append('comment',   commentEl.value.trim());
-    fd.append('auto',      '0');
+    fd.append('auto',      isAutoSubmit ? '1' : '0');
 
     fetch(FB_API_URL, { method:'POST', credentials:'same-origin', body:fd })
       .then(function (r) { return r.json(); })
@@ -943,9 +945,10 @@ var POPUP_API = '../new_reply_popup_api.php';
             }, 2200);
           } else {
             setTimeout(function () {
+              clearCountdown();
+              isShown = false;
               overlay.classList.remove('fb-active');
               document.body.style.overflow = '';
-              isShown = false;
             }, 2600);
           }
         } else {
@@ -996,8 +999,22 @@ var POPUP_API = '../new_reply_popup_api.php';
   overlay.addEventListener('click',    function (e) { if (e.target === overlay) closePopup(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isShown) closePopup(); });
 
-  /* 2-second delay so the page renders fully before the API call */
-  setTimeout(checkPending, 2000);
+  var pollTimer = null;
+
+  function scheduleNextPoll() {
+    clearTimeout(pollTimer);
+    // Re-poll every 30 seconds so tickets closed mid-session appear
+    pollTimer = setTimeout(function () {
+      if (!isShown) checkPending();
+      scheduleNextPoll();
+    }, 30000);
+  }
+
+  /* Initial check after page load */
+  setTimeout(function () {
+    checkPending();
+    scheduleNextPoll();
+  }, 2000);
 })();
 </script>
 <?php endif; /* end $_fbUserId > 0 */ ?>

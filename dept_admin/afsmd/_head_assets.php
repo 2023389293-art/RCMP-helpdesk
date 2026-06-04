@@ -310,10 +310,10 @@
   /* All Tickets page — hide less critical columns */
   .data-table thead th:nth-child(3),
   .data-table thead th:nth-child(4),
-  .data-table thead th:nth-child(7),
+  .data-table thead th:nth-child(6),
   .data-table tbody td:nth-child(3),
   .data-table tbody td:nth-child(4),
-  .data-table tbody td:nth-child(7) { display: none; }
+  .data-table tbody td:nth-child(6) { display: none; }
 
   /* Manage Users page — hide phone column */
   .data-table thead th:nth-child(4),
