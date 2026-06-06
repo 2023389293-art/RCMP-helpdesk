@@ -39,9 +39,14 @@ if ($filterCategory !== '') { $extraWhere .= " AND complaints.category_id = ?"; 
 function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTypes, array $extraParams): void {
     if (empty($extraTypes)) return;
     $types = $baseTypes . $extraTypes;
-    $refs  = $baseRefs;
-    foreach ($extraParams as &$v) $refs[] = &$v;
-    call_user_func_array([$stmt, 'bind_param'], array_merge([$types], $refs));
+    $allParams = array_merge($baseRefs, $extraParams);
+    $bindArgs = [$types];
+    $refs = [];
+    foreach ($allParams as $key => $val) {
+        $refs[$key] = $val;
+        $bindArgs[] = &$refs[$key];
+    }
+    call_user_func_array([$stmt, 'bind_param'], $bindArgs);
 }
 
 $stmt = $conn->prepare(
@@ -53,7 +58,7 @@ $stmt = $conn->prepare(
      WHERE complaints.dept_id = ? $extraWhere"
 );
 if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
-else { bindAdvanced($stmt,"i",[&$deptId],$extraTypes,$extraParams); }
+else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
 $stmt->execute();
 $counts = $stmt->get_result()->fetch_assoc(); $stmt->close();
 $openCount       = (int)($counts['oc']  ?? 0);
@@ -63,11 +68,11 @@ $closedCount     = (int)($counts['cc']  ?? 0);
 if ($filterStatus === 'all') {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("i",$deptId); }
-    else { bindAdvanced($stmt,"i",[&$deptId],$extraTypes,$extraParams); }
+    else { bindAdvanced($stmt,"i",[$deptId],$extraTypes,$extraParams); }
 } else {
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("is",$deptId,$filterStatus); }
-    else { bindAdvanced($stmt,"is",[&$deptId,&$filterStatus],$extraTypes,$extraParams); }
+    else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes,$extraParams); }
 }
 $stmt->execute();
 $totalTickets = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0); $stmt->close();
@@ -92,7 +97,7 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("iii",$deptId,$perPage,$offset); }
-    else { bindAdvanced($stmt,"i",[&$deptId],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
+    else { bindAdvanced($stmt,"i",[$deptId],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
 } else {
     $stmt = $conn->prepare(
         "SELECT complaints.ticket_id, complaints.title, complaints.status,
@@ -108,20 +113,21 @@ if ($filterStatus === 'all') {
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("isii",$deptId,$filterStatus,$perPage,$offset); }
-    else { bindAdvanced($stmt,"is",[&$deptId,&$filterStatus],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
+    else { bindAdvanced($stmt,"is",[$deptId,$filterStatus],$extraTypes.'ii',array_merge($extraParams,[$perPage,$offset])); }
 }
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) $tickets[] = $row;
 $stmt->close();
 
-$activeNav = match($filterStatus) { 'open'=>'tickets-open','in_progress'=>'tickets-inprogress','closed'=>'tickets-closed',default=>'tickets' };
+$navMap = ['open'=>'tickets-open','in_progress'=>'tickets-inprogress','closed'=>'tickets-closed'];
+$activeNav = $navMap[$filterStatus] ?? 'tickets';
 $pageTitle    = 'All Tickets';
 $pageSubtitle = 'Human Capital Department';
 
 function ticketUrl(array $overrides = []): string {
     $params = array_merge(['status'=>$_GET['status']??'all','per_page'=>$_GET['per_page']??10,'page'=>$_GET['page']??1,'priority'=>$_GET['priority']??'','date_from'=>$_GET['date_from']??'','date_to'=>$_GET['date_to']??'','dept'=>$_GET['dept']??'','category'=>$_GET['category']??''], $overrides);
-    $params = array_filter($params, fn($v) => $v !== '');
+    $params = array_filter($params, function($v) { return $v !== ''; });
     return 'tickets.php?' . http_build_query($params);
 }
 
@@ -356,7 +362,8 @@ function staffInitials(string $name): string {
     <!-- ── Toolbar ── -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <span class="sec-title"><?php echo match($filterStatus){'open'=>'Open Tickets','in_progress'=>'In Progress Tickets','closed'=>'Closed Tickets',default=>'All Tickets'}; ?></span>
+        <?php $titleMap = ['open'=>'Open Tickets','in_progress'=>'In Progress Tickets','closed'=>'Closed Tickets']; ?>
+<span class="sec-title"><?php echo $titleMap[$filterStatus] ?? 'All Tickets'; ?></span>
         <span class="result-count" id="result-label">— <?php echo $totalTickets; ?> ticket<?php echo $totalTickets!==1?'s':''; ?></span>
       </div>
       <div class="toolbar-right">
@@ -379,7 +386,6 @@ function staffInitials(string $name): string {
       <table id="ticket-table">
         <colgroup>
           <col class="col-id">
-          <col class="col-title">
           <col class="col-dept">
           <col class="col-status">
           <col class="col-priority">
@@ -389,7 +395,6 @@ function staffInitials(string $name): string {
         </colgroup>
         <thead><tr>
           <th>Ticket ID</th>
-          <th>Title</th>
           <th>From Department</th>
           <th>Status</th>
           <th>Priority</th>
@@ -399,7 +404,7 @@ function staffInitials(string $name): string {
         </tr></thead>
         <tbody id="ticket-tbody">
           <?php if (empty($tickets)): ?>
-          <tr><td colspan="8"><div class="empty">
+          <tr><td colspan="7"><div class="empty">
             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
             <h3>No tickets found</h3><p>No complaints match your current filter.</p>
           </div></td></tr>
@@ -409,12 +414,8 @@ function staffInitials(string $name): string {
             $pri         = strtolower($t['priority'] ?? 'medium');
             $isHighOpen  = ($pri === 'high' && $s === 'open');
             $statusLabel = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
-            $flagFill    = match($pri) {
-              'high'   => '#DC2626',
-              'medium' => '#EAB308',
-              'low'    => '#3B82F6',
-              default  => '#64748b',
-            };
+            $flagMap = ['high'=>'#DC2626','medium'=>'#EAB308','low'=>'#3B82F6'];
+$flagFill = $flagMap[$pri] ?? '#64748b';
           ?>
           <tr data-id="<?php echo strtolower(htmlspecialchars($t['ticket_id'])); ?>"
               data-title="<?php echo strtolower(htmlspecialchars($t['title'])); ?>"
@@ -429,13 +430,7 @@ function staffInitials(string $name): string {
               </a>
             </td>
 
-            <!-- Title -->
-            <td>
-              <div class="title-cell">
-                <?php if ($isHighOpen): ?><span class="high-dot"></span><?php endif; ?>
-                <?php echo htmlspecialchars($t['title']); ?>
-              </div>
-            </td>
+            
 
             <!-- From Department + date/time stacked -->
             <td>
@@ -501,7 +496,7 @@ function staffInitials(string $name): string {
 
           </tr>
           <?php endforeach; ?>
-          <tr id="no-search-row"><td colspan="8"><div class="empty">
+          <tr id="no-search-row"><td colspan="7"><div class="empty">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <h3>No results</h3><p>No tickets match your search.</p>
           </div></td></tr>

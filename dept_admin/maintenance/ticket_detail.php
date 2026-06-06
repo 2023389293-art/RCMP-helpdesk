@@ -459,9 +459,10 @@ $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq = $conn->prepare("
         SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at,
-               s.full_name AS student_name
+               COALESCE(s.full_name, st.full_name) AS student_name
         FROM ticket_feedback tf
-        LEFT JOIN students s ON s.student_id = tf.student_id
+        LEFT JOIN students s  ON s.student_id  = tf.submitter_id
+        LEFT JOIN staff    st ON st.staff_id   = tf.submitter_id
         WHERE tf.ticket_id = ?
         LIMIT 1
     ");
@@ -587,7 +588,11 @@ function ratingColors(int $rating): array {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Ticket Detail | UniKL Help Desk – Maintenance Admin</title>
+  <?php
+  $rawCatTitle = $ticket['category_name'] ?? 'Ticket Detail';
+  $catTitle = preg_replace('/^[^\/]+\/\s*/', '', $rawCatTitle);
+?>
+<title><?= htmlspecialchars($catTitle) ?> | UniKL Help Desk – Maintenance Admin</title>
   <?php include '_head_assets.php'; ?>
   <link rel="stylesheet" href="css/tickets_detail.css"/>
 </head>
@@ -642,10 +647,11 @@ function ratingColors(int $rating): array {
       <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     </div>
     <div class="ths-info">
-      <div class="ths-title"><?= htmlspecialchars($ticket['title']) ?></div>
-      <?php if (!empty($ticket['description'])): ?>
-      <div class="ths-desc"><?= htmlspecialchars($ticket['description']) ?></div>
-      <?php endif; ?>
+<?php
+  $rawCat = $ticket['category_name'] ?? '';
+  $catDisplay = preg_replace('/^[^\/]+\/\s*/', '', $rawCat);
+?>
+<div class="ths-title"><?= htmlspecialchars($catDisplay) ?></div>
       <div class="ths-bottom-row">
         <div class="ths-badges">
           <?= statusBadge($ticket['status']) ?>

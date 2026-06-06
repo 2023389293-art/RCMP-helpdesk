@@ -593,7 +593,11 @@ function ratingColors(int $rating): array {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Ticket Detail | UniKL Help Desk – AFSMD Admin</title>
+  <?php
+  $rawCatTitle = $ticket['category_name'] ?? 'Ticket Detail';
+  $catTitle = preg_replace('/^[^\/]+\/\s*/', '', $rawCatTitle);
+?>
+<title><?= htmlspecialchars($catTitle) ?> | UniKL Help Desk – AFSMD Admin</title>
   <?php include '_head_assets.php'; ?>
   <link rel="stylesheet" href="css/tickets_detail.css"/>
 </head>
@@ -648,10 +652,11 @@ function ratingColors(int $rating): array {
       <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     </div>
     <div class="ths-info">
-      <div class="ths-title"><?= htmlspecialchars(preg_replace('/^AFSMD\s*\/\s*/i', '', $ticket['title'])) ?></div>
-      <?php if (!empty($ticket['description'])): ?>
-      <div class="ths-desc"><?= htmlspecialchars($ticket['description']) ?></div>
-      <?php endif; ?>
+      <?php
+  $rawCat = $ticket['category_name'] ?? '';
+  $catDisplay = preg_replace('/^[^\/]+\/\s*/', '', $rawCat);
+?>
+<div class="ths-title"><?= htmlspecialchars($catDisplay) ?></div>
       <div class="ths-bottom-row">
         <div class="ths-badges">
           <?= statusBadge($ticket['status']) ?>

@@ -74,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
 
             $asnLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,remarks) VALUES (?,?,?,'assigned',?,?,?)");
             if ($asnLog) {
-                $alId   = (int)$_SESSION['staff_id'];
-                $alName = $_SESSION['staff_name'];
+                $alId   = (int)$staffId;
+                $alName = $staffName;
                 $asnLog->bind_param("sissss", $ticketId, $alId, $alName, $oldName, $newName, $assignRemarks);
                 $asnLog->execute(); $asnLog->close();
             }
@@ -170,8 +170,8 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
             $statChanged = ($oldStatus   !== $newStatus);
             if ($priChanged || $statChanged) {
                 $fc           = ($priChanged && $statChanged) ? 'both' : ($priChanged ? 'priority' : 'status');
-                $logStaffId   = (int)($_SESSION['staff_id'] ?? 0);
-$logStaffName = $_SESSION['staff_name'] ?? 'Staff';
+                $logStaffId   = (int)$staffId;
+$logStaffName = $staffName;
                 $logStmt = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,old_status,new_status) VALUES (?,?,?,?,?,?,?,?)");
                 if ($logStmt) {
                     $logStmt->bind_param("sissssss", $ticketId, $logStaffId, $logStaffName, $fc, $oldPriority, $newPriority, $oldStatus, $newStatus);
@@ -287,9 +287,9 @@ HTML;
             // ── Send message if provided ──────────────────────────────────────
             $inlineMessage = trim($_POST['message'] ?? '');
             if (!empty($inlineMessage)) {
-                $senderName = $_SESSION['staff_name'] ?? 'Staff';
+                $senderName = $staffName;
                 $senderRole = 'staff';
-                $senderId   = (int)($_SESSION['staff_id'] ?? 0);
+                $senderId   = (int)$staffId;
                 $ins = $conn->prepare("INSERT INTO ticket_replies (ticket_id,sender_id,sender_name,sender_role,message) VALUES (?,?,?,?,?)");
                 $ins->bind_param("sisss", $ticketId, $senderId, $senderName, $senderRole, $inlineMessage);
                 $ins->execute(); $ins->close();
@@ -398,7 +398,7 @@ HTML;
 
             // ── Fire processQueue ALWAYS (not just when message sent) ──────────
             if ($statChanged && in_array($newStatus, ['in_progress', 'closed'])) {
-                processQueue($conn, $deptId, (int)($_SESSION['staff_id'] ?? 0));
+                processQueue($conn, $deptId, (int)$staffId);
             }
 
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.';

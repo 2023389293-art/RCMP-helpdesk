@@ -123,8 +123,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
 
             $asnLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,remarks) VALUES (?,?,?,'assigned',?,?,?)");
             if ($asnLog) {
-                $alId   = (int)$_SESSION['staff_id'];
-                $alName = $_SESSION['staff_name'];
+                $alId   = (int)$staffId;
+                $alName = $staffName;
                 $asnLog->bind_param("sissss", $ticketId, $alId, $alName, $oldName, $newName, $assignRemarks);
                 $asnLog->execute(); $asnLog->close();
             }

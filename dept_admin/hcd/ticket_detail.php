@@ -11,7 +11,7 @@ require __DIR__ . '/../../PHPMailer-master/src/Exception.php';
 require __DIR__ . '/../../PHPMailer-master/src/PHPMailer.php';
 require __DIR__ . '/../../PHPMailer-master/src/SMTP.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+
 
 // ── Flash messages ────────────────────────────────────────────────────────────
 $updateMsg   = $_SESSION['flash_success'] ?? '';
@@ -138,7 +138,10 @@ if ($logStmt2) {
     // ── ACTION: admin_update (admin is assigned, changes priority + status + message) ──
     if ($action === 'admin_update') {
         $assignedNow     = getAssignedStaff($conn, $ticketId);
-        $isAdminAssigned = ($assignedNow && (int)$assignedNow['staff_id'] === $adminStaffId);
+        $isAdminAssigned = ($assignedNow && (
+    (int)$assignedNow['staff_id'] === $adminStaffId ||
+    in_array(strtolower($assignedNow['role'] ?? ''), ['admin', 'hod'])
+));
 
         if (!$isAdminAssigned) {
             $_SESSION['flash_error'] = 'You must be assigned to this ticket to update its status.';
@@ -215,15 +218,17 @@ if ($logStmt2) {
     }
 }
 
-            // Save message if provided + send email (same as staff)
+            // Save message if provided
             $inlineMessage = trim($_POST['message'] ?? '');
-if (!empty($inlineMessage)) {
-    $ins = $conn->prepare("INSERT INTO ticket_replies (ticket_id,sender_id,sender_name,sender_role,message) VALUES (?,?,?,?,?)");
-    $senderRole = 'staff';
-    $ins->bind_param("sisss", $ticketId, $adminStaffId, $adminStaffName, $senderRole, $inlineMessage);
-    $ins->execute(); $ins->close();
+            if (!empty($inlineMessage)) {
+                $ins = $conn->prepare("INSERT INTO ticket_replies (ticket_id,sender_id,sender_name,sender_role,message) VALUES (?,?,?,?,?)");
+                $senderRole = 'staff';
+                $ins->bind_param("sisss", $ticketId, $adminStaffId, $adminStaffName, $senderRole, $inlineMessage);
+                $ins->execute(); $ins->close();
+            }
 
-                // Email to submitter
+            // Send email whenever status moves to in_progress or closed
+            if ($statChanged && in_array($newStatus, ['in_progress', 'closed'])) {
                 $subType  = $ticket['submitter_type'] ?? 'student';
                 $subTable = $subType === 'student' ? 'students' : 'staff';
                 $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
@@ -240,7 +245,7 @@ if (!empty($inlineMessage)) {
                         $currentDate = date('d F Y');
                         $escapedTo   = htmlspecialchars($toName);
                         $escapedTid  = htmlspecialchars($ticketId);
-                        $escapedMsg  = nl2br(htmlspecialchars($inlineMessage));
+                        $escapedMsg  = !empty($inlineMessage) ? nl2br(htmlspecialchars($inlineMessage)) : '<em style="color:#9CA3AF;">No message provided.</em>';
                         $escapedFrom = htmlspecialchars($adminStaffName);
                         $escapedStat = htmlspecialchars($statusLabel);
                         $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
@@ -259,7 +264,7 @@ if (!empty($inlineMessage)) {
 <div style="font-size:18px;font-weight:700;color:#fff;">RCMP Help Desk</div>
     </td></tr></table>
     <table width="100%"><tr><td style="padding:12px 40px 16px;background:#002660;">
-      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Ticket Update — Message from Staff</span>
+      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Ticket Update — Status Changed</span>
     </td></tr></table>
   </td></tr>
   <tr><td style="background:#f7f8fa;border-bottom:1px solid #e4e7ed;padding:14px 40px;">
@@ -271,7 +276,7 @@ if (!empty($inlineMessage)) {
   <tr><td style="padding:36px 40px 0;">
     <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">{$currentDate}</p>
     <p style="margin:0 0 20px;font-size:15px;font-weight:600;color:#111827;">Dear {$escapedTo},</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">Your complaint ticket has been updated by a staff member. Please find the current status and message below.</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">Your complaint ticket status has been updated. Please find the details below.</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:20px;">
       <tr><td colspan="2" style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Ticket Status Update</span></td></tr>
       <tr>
@@ -307,25 +312,24 @@ if (!empty($inlineMessage)) {
 HTML;
                         $mail = new PHPMailer(true);
                         try {
-                            $mail->isSMTP(); $mail->Host='smtp.gmail.com'; $mail->SMTPAuth=true;
-                            $mail->Username='farahwdi33@gmail.com'; $mail->Password='wvgq vqdn dbiw vcjn';
+                            $mail->isSMTP(); $mail->Host='smtp.office365.com'; $mail->SMTPAuth=true;
+                            $mail->Username='rush.rcmp@unikl.edu.my'; $mail->Password='Rcmp@4321';
                             $mail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $mail->Port=587;
-                            $mail->Debugoutput='error_log';
-                            $mail->setFrom('farahwdi33@gmail.com','UniKL RCMP Help Desk');
+                            $mail->SMTPDebug=0; $mail->Debugoutput='error_log';
+                            $mail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
                             $mail->addAddress($toEmail,$toName);
                             $mail->isHTML(true); $mail->CharSet='UTF-8';
                             $mail->Subject="Ticket Update ({$statusLabel}) — {$ticketId}";
                             $mail->Body=$htmlBody;
-                            $mail->AltBody="Status: {$statusLabel}\n\nMessage from {$adminStaffName}:\n\n{$inlineMessage}\n\nTicket: {$ticketId}";
+                            $mail->AltBody="Status: {$statusLabel}\n\nUpdated by: {$adminStaffName}\n\nTicket: {$ticketId}";
                             $mail->send();
                         } catch (Exception $e) {
-                            error_log("[UniKL Mail] Admin message send failed for {$ticketId}: ".$mail->ErrorInfo);
+                            error_log("[UniKL Mail] Admin status email failed for {$ticketId}: ".$mail->ErrorInfo);
                         }
                     }
                 }
-            } // end if(!empty($inlineMessage))
+            } // end email block
 
-            
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>' . htmlspecialchars($statusLabel) . '</strong>.';
         } else {
             $_SESSION['flash_error'] = 'Failed to update ticket.';
@@ -356,9 +360,6 @@ $assignedStaff = null;
 if ($ticket) {
     $assignedStaff = getAssignedStaff($conn, $ticketId);
 }
-
-// Is the currently logged-in admin the one assigned to this ticket?
-$isAdminAssigned = ($assignedStaff && (int)$assignedStaff['staff_id'] === $adminStaffId);
 
 // ── SLA data ──────────────────────────────────────────────────────────────────
 $slaData = null;
@@ -457,9 +458,10 @@ $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq = $conn->prepare("
         SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at,
-               s.full_name AS student_name
+               COALESCE(s.full_name, st.full_name) AS student_name
         FROM ticket_feedback tf
-        LEFT JOIN students s ON s.student_id = tf.student_id
+        LEFT JOIN students s  ON s.student_id  = tf.submitter_id
+        LEFT JOIN staff    st ON st.staff_id   = tf.submitter_id
         WHERE tf.ticket_id = ?
         LIMIT 1
     ");
@@ -476,31 +478,46 @@ if (!in_array($activeTab, ['detail', 'history', 'feedback'])) $activeTab = 'deta
 $isClosed    = $ticket && strtolower($ticket['status']) === 'closed';
 $hasFeedback = $feedback !== null;
 
+// Admin can update if assigned to ticket OR if any admin/hod role is assigned
+$isAdminAssigned = (!$isClosed && $assignedStaff && (
+    (int)$assignedStaff['staff_id'] === $adminStaffId ||
+    in_array(strtolower($assignedStaff['role'] ?? ''), ['admin', 'hod'])
+));
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
+if (!function_exists('statusBadge')) {
 function statusBadge(string $s): string {
     $map = ['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
     [$bg,$fg] = $map[strtolower($s)] ?? ['#F3F4F6','#6B7280'];
     $label = $s === 'in_progress' ? 'In Progress' : ucfirst($s);
     return "<span style=\"display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:{$bg};color:{$fg}\">" . htmlspecialchars($label) . "</span>";
 }
+}
+if (!function_exists('priFlag')) {
 function priFlag(string $v): string {
     $map = ['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
     [$color,$label] = $map[strtolower($v)] ?? ['#6B7280',ucfirst($v)];
     $svg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="'.$color.'" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
     return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:'.$color.';">'.$svg.htmlspecialchars($label).'</span>';
 }
+}
+if (!function_exists('priChip')) {
 function priChip(string $v): string {
     $map = ['low'=>['#3B82F6','Low'],'medium'=>['#F59E0B','Medium'],'high'=>['#EF4444','High']];
     [$color,$label] = $map[strtolower($v)] ?? ['#6B7280',ucfirst($v)];
     $svg = '<svg width="10" height="10" viewBox="0 0 24 24" fill="'.$color.'" style="flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="'.$color.'" stroke-width="2" stroke-linecap="round"/></svg>';
     return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:'.$color.';">'.$svg.htmlspecialchars($label).'</span>';
 }
+}
+if (!function_exists('statChip')) {
 function statChip(string $v): string {
     $map = ['open'=>['#FEF3C7','#D97706'],'in_progress'=>['#DBEAFE','#1D4ED8'],'closed'=>['#D1FAE5','#059669']];
     [$bg,$fg] = $map[strtolower($v)] ?? ['#F3F4F6','#6B7280'];
     $label = $v === 'in_progress' ? 'In Progress' : ucfirst($v);
     return "<span style=\"display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;background:{$bg};color:{$fg}\">" . htmlspecialchars($label) . "</span>";
 }
+}
+if (!function_exists('timeAgo')) {
 function timeAgo(string $datetime): string {
     $now  = new DateTime('now', new DateTimeZone('Asia/Kuala_Lumpur'));
     $past = new DateTime($datetime, new DateTimeZone('Asia/Kuala_Lumpur'));
@@ -511,24 +528,30 @@ function timeAgo(string $datetime): string {
     if ($diff < 604800) { $d = floor($diff/86400); return $d . ' day' . ($d > 1 ? 's' : '') . ' ago'; }
     return date('d M Y', $past->getTimestamp());
 }
+}
+if (!function_exists('getInitials')) {
 function getInitials(string $name): string {
     $parts = explode(' ', trim($name));
     $ini   = strtoupper(substr($parts[0], 0, 1));
     if (count($parts) > 1) $ini .= strtoupper(substr($parts[count($parts)-1], 0, 1));
     return $ini;
 }
+}
+if (!function_exists('isImageFile')) {
 function isImageFile(string $path): bool {
     return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg','jpeg','png','gif','webp']);
 }
+}
+if (!function_exists('fileTypeIcon')) {
 function fileTypeIcon(string $path): array {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    return match($ext) {
-        'pdf'        => ['label' => 'PDF',  'color' => '#DC2626', 'bg' => '#FEF2F2'],
-        'doc','docx' => ['label' => 'DOC',  'color' => '#1D4ED8', 'bg' => '#EFF6FF'],
-        'txt'        => ['label' => 'TXT',  'color' => '#374151', 'bg' => '#F9FAFB'],
-        default      => ['label' => strtoupper($ext), 'color' => '#6B7280', 'bg' => '#F3F4F6'],
-    };
+    if ($ext === 'pdf') return ['label' => 'PDF', 'color' => '#DC2626', 'bg' => '#FEF2F2'];
+    if ($ext === 'doc' || $ext === 'docx') return ['label' => 'DOC', 'color' => '#1D4ED8', 'bg' => '#EFF6FF'];
+    if ($ext === 'txt') return ['label' => 'TXT', 'color' => '#374151', 'bg' => '#F9FAFB'];
+    return ['label' => strtoupper($ext), 'color' => '#6B7280', 'bg' => '#F3F4F6'];
 }
+}
+if (!function_exists('feedbackEmojiSvg')) {
 function feedbackEmojiSvg(int $rating, int $size = 32): string {
     $emojis = [
         1 => ['stroke'=>'#EF4444','fill'=>'#FEE2E2','face'=>'<circle cx="17" cy="20" r="2.5" fill="#EF4444"/><circle cx="31" cy="20" r="2.5" fill="#EF4444"/><path d="M16 33c2-4 14-4 16 0" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/><path d="M15 15l4 3M33 15l-4 3" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>'],
@@ -540,18 +563,24 @@ function feedbackEmojiSvg(int $rating, int $size = 32): string {
     $e = $emojis[$rating] ?? $emojis[3];
     return '<svg width="'.$size.'" height="'.$size.'" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="22" stroke="'.htmlspecialchars($e['stroke']).'" stroke-width="2.5" fill="'.htmlspecialchars($e['fill']).'"/>'.$e['face'].'</svg>';
 }
-function ratingLabel(int $rating): string {
-    return match($rating) { 1=>'Very Unsatisfied', 2=>'Unsatisfied', 3=>'Neutral', 4=>'Satisfied', 5=>'Very Satisfied', default=>'Unknown' };
 }
+if (!function_exists('ratingLabel')) {
+function ratingLabel(int $rating): string {
+    $map = [1=>'Very Unsatisfied', 2=>'Unsatisfied', 3=>'Neutral', 4=>'Satisfied', 5=>'Very Satisfied'];
+    return $map[$rating] ?? 'Unknown';
+}
+}
+if (!function_exists('ratingColors')) {
 function ratingColors(int $rating): array {
-    return match($rating) {
+    $map = [
         1 => ['#FEF2F2','#DC2626','#EF4444'],
         2 => ['#FFF7ED','#C2410C','#F97316'],
         3 => ['#FEFCE8','#854D0E','#EAB308'],
         4 => ['#F0FDF4','#166534','#22C55E'],
         5 => ['#ECFDF5','#166534','#16A34A'],
-        default => ['#F3F4F6','#374151','#6B7280'],
-    };
+    ];
+    return $map[$rating] ?? ['#F3F4F6','#374151','#6B7280'];
+}
 }
 ?>
 <!DOCTYPE html>
@@ -559,7 +588,11 @@ function ratingColors(int $rating): array {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Ticket Detail | UniKL Help Desk – HCD Admin</title>
+  <?php
+  $rawCatTitle = $ticket['category_name'] ?? 'Ticket Detail';
+  $catTitle = preg_replace('/^[^\/]+\/\s*/', '', $rawCatTitle);
+?>
+<title><?= htmlspecialchars($catTitle) ?> | UniKL Help Desk – HCD Admin</title>
   <?php include '_head_assets.php'; ?>
   <link rel="stylesheet" href="css/tickets_detail.css"/>
 </head>
@@ -614,10 +647,11 @@ function ratingColors(int $rating): array {
       <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     </div>
     <div class="ths-info">
-      <div class="ths-title"><?= htmlspecialchars($ticket['title']) ?></div>
-      <?php if (!empty($ticket['description'])): ?>
-      <div class="ths-desc"><?= htmlspecialchars($ticket['description']) ?></div>
-      <?php endif; ?>
+      <?php
+  $rawCat = $ticket['category_name'] ?? '';
+  $catDisplay = preg_replace('/^[^\/]+\/\s*/', '', $rawCat);
+?>
+<div class="ths-title"><?= htmlspecialchars($catDisplay) ?></div>
       <div class="ths-bottom-row">
         <div class="ths-badges">
           <?= statusBadge($ticket['status']) ?>
@@ -727,13 +761,9 @@ function ratingColors(int $rating): array {
                 <div class="ti-submitter-lbl">Email</div>
                 <div class="ti-submitter-val"><?= htmlspecialchars($submitter['email'] ?? '—') ?></div>
               </div>
-              <div class="ti-submitter-cell">
+              <div class="ti-submitter-cell" style="border-right:none">
                 <div class="ti-submitter-lbl">Phone</div>
                 <div class="ti-submitter-val">+60 <?= htmlspecialchars($ticket['phone'] ?? '—') ?></div>
-              </div>
-              <div class="ti-submitter-cell" style="border-right:none">
-                <div class="ti-submitter-lbl">Type</div>
-                <div class="ti-submitter-val" style="text-transform:capitalize"><?= htmlspecialchars($ticket['submitter_type'] ?? '—') ?></div>
               </div>
             </div>
           </div>
@@ -829,7 +859,7 @@ if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
               </div>
             </div>
             <?php
-              $slaStartTs  = strtotime($ticket['sla_start_at'] ?? $ticket['created_at']);
+              $slaStartTs  = strtotime(!empty($ticket['sla_start_at']) ? $ticket['sla_start_at'] : $ticket['created_at']);
               $createdTs   = strtotime($ticket['created_at']);
               $wasReopened = ($slaStartTs > $createdTs + 60);
             ?>
@@ -949,16 +979,16 @@ if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
               <input type="hidden" name="priority" id="priorityForUpdate" value="<?= htmlspecialchars($curPri) ?>"/>
 
               <div class="status-select-wrap">
-                <select name="status" id="adminStatusSelect" class="status-select-styled" onchange="handleAdminStatusChange(this.value)">
-                  <?php if ($curStat === 'open'): ?>
-                    <option value="open" selected>Open</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="closed">Closed</option>
-                  <?php elseif ($curStat === 'in_progress'): ?>
-                    <option value="in_progress" selected>In Progress</option>
-                    <option value="closed">Closed</option>
-                  <?php endif; ?>
-                </select>
+<select name="status" id="adminStatusSelect" class="status-select-styled" onchange="handleAdminStatusChange(this.value)">
+  <?php if ($curStat === 'open'): ?>
+    <option value="" disabled selected>— Select action —</option>
+    <option value="in_progress">In Progress</option>
+    <option value="closed">Closed</option>
+  <?php elseif ($curStat === 'in_progress'): ?>
+    <option value="" disabled selected>— Select action —</option>
+    <option value="closed">Closed</option>
+  <?php endif; ?>
+</select>
               </div>
 
               <div id="adminMsgBox" style="display:none;">
@@ -972,7 +1002,7 @@ if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
                   maxlength="2000" rows="3"></textarea>
               </div>
 
-              <button type="submit" class="btn-update-save" style="display:block;">Save Changes</button>
+              <button type="button" class="btn-update-save" style="display:block;" onclick="submitAdminUpdate()">Save Changes</button>
             </form>
 
           </div>
@@ -1367,6 +1397,14 @@ document.getElementById('lightboxClose').addEventListener('click', closeLightbox
 lb.addEventListener('click', function(e) { if (e.target === this) closeLightbox(); });
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeLightbox(); });
 
+function submitAdminUpdate() {
+  var status = document.getElementById('adminStatusSelect')?.value;
+  if (!status) {
+    alert('Please select a status before saving.');
+    return;
+  }
+  document.getElementById('adminUpdateForm').submit();
+}
 // ── Timeline pagination ───────────────────────────────────────────────────────
 (function() {
   var logs = document.querySelectorAll('.tl-item');

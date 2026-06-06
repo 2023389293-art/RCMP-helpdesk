@@ -105,6 +105,9 @@ $ins  = $conn->prepare(
             if ($newSt === 'active') {
                 require_once __DIR__ . '/../../assign_helper.php';
 
+                // Step 1: Process queued tickets first
+                processQueue($conn, 5, $sid);
+
 // Get ALL categories for this staff from junction table
 $catQ = $conn->prepare("
     SELECT c.category_name
@@ -127,7 +130,7 @@ $catQ->close();
 // Step 2: Find unassigned complaints matching this staff's categories
 if (!empty($staffCategories)) {
     $orClauses = implode(' OR ', array_fill(0, count($staffCategories), 'cat.category_name LIKE ?'));
-    $likeParams = array_map(fn($c) => '%/ ' . $c, $staffCategories);
+    $likeParams = array_map(function($c) { return '%/ ' . $c; }, $staffCategories);
 
     $unassignedStmt = $conn->prepare("
         SELECT c.ticket_id 
@@ -492,7 +495,7 @@ foreach ($scRows as $scRow) {
             </button>
 
             <!-- Toggle Status (hidden for own account) -->
-            <?php if ($s['staff_id'] !== (int)$_SESSION['staff_id']): ?>
+            <?php if ($s['staff_id'] !== (int)$_SESSION['staff_id'] && $s['role'] !== 'hod'): ?>
             <form method="POST">
               <input type="hidden" name="action"     value="toggle_status"/>
               <input type="hidden" name="staff_id"   value="<?= $s['staff_id'] ?>"/>
@@ -510,7 +513,7 @@ foreach ($scRows as $scRow) {
             <?php endif; ?>
 
             <!-- Delete (hidden for own account) -->
-            <?php if ($s['staff_id'] !== (int)$_SESSION['staff_id']): ?>
+            <?php if ($s['staff_id'] !== (int)$_SESSION['staff_id'] && $s['role'] !== 'hod'): ?>
             <button type="button" class="icon-btn btn-delete" title="Delete"
                     onclick="confirmDelete(<?= $s['staff_id'] ?>, '<?= htmlspecialchars(addslashes($s['full_name'])) ?>')">
               <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -873,23 +876,22 @@ function openViewModal(id, name, email, phone, role, status, code) {
   document.getElementById('viewEmail').textContent  = email || '—';
   document.getElementById('viewPhone').textContent  = phone || '—';
   document.getElementById('viewRole').textContent   = role.charAt(0).toUpperCase() + role.slice(1);
-  // Fetch categories for view modal too
-document.getElementById('viewCategory').textContent = 'Loading...';
-fetch('get_staff_categories.php?staff_id=' + id)
-  .then(r => r.json())
-  .then(data => {
-    const el = document.getElementById('viewCategory');
-    if (!data.categories.length) {
-      el.textContent = '—';
-    } else {
-      el.innerHTML = data.categories.map(c =>
-        `<span style="display:inline-block;font-size:11px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:4px;padding:1px 7px;margin:1px 2px 1px 0;">${c}</span>`
-      ).join('');
-    }
-  });
-  document.getElementById('viewStatus').textContent = status === 'inactive' ? 'Paused' : 'Active';
   document.getElementById('viewAvatar').textContent = name.charAt(0).toUpperCase();
   document.getElementById('viewAvatar').style.background = role === 'admin' ? '#6366f1' : '#0ea5e9';
+  document.getElementById('viewCategory').textContent = 'Loading...';
+  fetch('get_staff_categories.php?staff_id=' + id)
+    .then(r => r.json())
+    .then(data => {
+      const el = document.getElementById('viewCategory');
+      if (!data.categories.length) {
+        el.textContent = '—';
+      } else {
+        el.innerHTML = data.categories.map(c =>
+          `<span style="display:inline-block;font-size:11px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:4px;padding:1px 7px;margin:1px 2px 1px 0;">${c}</span>`
+        ).join('');
+      }
+    });
+  document.getElementById('viewStatus').textContent = status === 'inactive' ? 'Paused' : 'Active';
   openModal('viewModal');
 }
 
@@ -985,6 +987,14 @@ function openEditModal(id, name, email, phone, role) {
   document.getElementById('editEmail').value           = email;
   document.getElementById('editPhone').value           = phone || '';
   document.getElementById('editRoleDisplay').value     = role.charAt(0).toUpperCase() + role.slice(1);
+
+  // Hide category section for HOD
+  const catField = document.getElementById('editCategoryList').closest('.field');
+  if (role === 'hod') {
+    catField.style.display = 'none';
+  } else {
+    catField.style.display = '';
+  }
 
   // Uncheck all first
   document.querySelectorAll('.edit-cat-checkbox').forEach(cb => cb.checked = false);
