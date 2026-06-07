@@ -64,6 +64,8 @@ $nav         = $activeNav   ?? 'dashboard';
       <span>Dashboard</span>
     </a>
 
+    <div class="nav-lbl">Manage</div>
+
     <div class="nav-group">
       <div class="nav-group-header <?php echo $ticketsNavOpen ? 'has-active' : ''; ?>"
            data-tooltip="All Tickets">
@@ -124,8 +126,6 @@ $nav         = $activeNav   ?? 'dashboard';
         </a>
       </div>
     </div>
-
-    <div class="nav-lbl">Manage</div>
 
     <a href="categories.php"
        class="nav-item <?php echo $nav === 'categories' ? 'active' : ''; ?>"
