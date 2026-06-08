@@ -22,7 +22,7 @@ $deptStmt->execute();
 $deptRow        = $deptStmt->get_result()->fetch_assoc();
 $deptStmt->close();
 $deptName       = $deptRow['dept_name']  ?? 'Your Department';
-$deptGroupEmail = 'farahwdi33@gmail.com';
+$deptGroupEmail = $deptRow['dept_email'] ?? 'rush.rcmp@unikl.edu.my';
 
     $staffStmt = $conn->prepare(
         "SELECT full_name, email FROM staff WHERE dept_id = ? AND status = 'active'"
@@ -234,7 +234,7 @@ function sendRequisitionEmail($conn, string $refNumber, string $userName, string
     $afsmdEmailStmt->execute();
     $afsmdEmailRow   = $afsmdEmailStmt->get_result()->fetch_assoc();
     $afsmdEmailStmt->close();
-    $afsmdGroupEmail = 'farahwdi33@gmail.com';
+    $afsmdGroupEmail = $afsmdEmailRow['dept_email'] ?? 'afsmd.rcmp@unikl.edu.my';
 
     $anySuccess = false;
 

@@ -192,7 +192,7 @@ if (!$fullName || !$email || !$deptId || !$editStaffCode) {
     if ($action === 'toggle_status') {
         $staffId   = (int)($_POST['staff_id']   ?? 0);
         $newStatus = ($_POST['new_status'] ?? '') === 'active' ? 'active' : 'inactive';
-        $stmt = $conn->prepare("UPDATE staff SET status=? WHERE staff_id=? AND role='staff'");
+        $stmt = $conn->prepare("UPDATE staff SET status=? WHERE staff_id=?");
         $stmt->bind_param('si', $newStatus, $staffId);
         $stmt->execute();
         $successMsg = 'Staff status updated.';
@@ -221,8 +221,8 @@ if (!$fullName || !$email || !$deptId || !$editStaffCode) {
         $roleCheck->bind_param('i', $staffId);
         $roleCheck->execute();
         $roleResult = $roleCheck->get_result()->fetch_assoc();
-        if ($roleResult && $roleResult['role'] === 'admin') {
-            $errorMsg = 'Admin accounts cannot be deleted.';
+        if ($roleResult && in_array($roleResult['role'], ['admin', 'hod'])) {
+            $errorMsg = 'Admin and HOD accounts cannot be deleted.';
         } else {
             // Block delete if staff has open or in-progress tickets
             $ticketCheck = $conn->prepare("SELECT COUNT(*) AS cnt FROM complaints WHERE assigned_to = ? AND status IN ('open','in_progress')");
@@ -247,15 +247,16 @@ $filterStatus = $_GET['status'] ?? 'all';
 $filterRole   = $_GET['role'] ?? 'all';   // ← ADD THIS
 $search       = trim($_GET['q'] ?? '');
 
-$where  = ["s.role IN ('staff','admin')", "s.dept_id IN (1,2,3,4,5)"];
+$where  = ["s.role IN ('staff','admin','hod')", "(s.dept_id IN (1,2,3,4,5) OR s.dept_id IS NULL)"];
 $params = [];
 $types  = '';
 
 if ($filterDept > 0)              { $where[] = "s.dept_id = ?"; $params[] = $filterDept; $types .= 'i'; }
 if ($filterStatus === 'active')   { $where[] = "s.status = 'active'"; }
 if ($filterStatus === 'inactive') { $where[] = "s.status = 'inactive'"; }
-if ($filterRole === 'staff')      { $where[] = "s.role = 'staff'"; }   // ← ADD
-if ($filterRole === 'admin')      { $where[] = "s.role = 'admin'"; }   // ← ADD
+if ($filterRole === 'staff')      { $where[] = "s.role = 'staff'"; }
+if ($filterRole === 'admin')      { $where[] = "s.role = 'admin'"; }
+if ($filterRole === 'hod')        { $where[] = "s.role = 'hod'"; }
 if ($search !== '')               { $where[] = "(s.full_name LIKE ? OR s.email LIKE ? OR s.staff_code LIKE ?)"; $like = "%$search%"; $params = array_merge($params, [$like,$like,$like]); $types .= 'sss'; }
 
 $whereSQL = implode(' AND ', $where);
@@ -277,15 +278,14 @@ if ($params) {
     $staffList = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
 }
 
-$countAll      = (int)$conn->query("SELECT COUNT(*) AS n FROM staff WHERE role IN ('staff','admin') AND dept_id IN (1,2,3,4,5)")->fetch_assoc()['n'];
-$countActive   = (int)$conn->query("SELECT COUNT(*) AS n FROM staff WHERE role IN ('staff','admin') AND dept_id IN (1,2,3,4,5) AND status='active'")->fetch_assoc()['n'];
+$countAll      = (int)$conn->query("SELECT COUNT(*) AS n FROM staff WHERE role IN ('staff','admin','hod') AND (dept_id IN (1,2,3,4,5) OR dept_id IS NULL)")->fetch_assoc()['n'];
+$countActive   = (int)$conn->query("SELECT COUNT(*) AS n FROM staff WHERE role IN ('staff','admin','hod') AND (dept_id IN (1,2,3,4,5) OR dept_id IS NULL) AND status='active'")->fetch_assoc()['n'];
 $countInactive = $countAll - $countActive;
 
 $deptColors = [1=>'#7C3AED', 2=>'#059669', 3=>'#DC2626', 4=>'#2563EB', 5=>'#D97706'];
 $deptShort  = [1=>'AFSMD', 2=>'Maintenance', 3=>'CCU', 4=>'IT Dept', 5=>'HCD'];
 
-// Avatar colour palette (cycles by staff_id)
-$avatarPalette = ['#7C3AED','#059669','#DC2626','#2563EB','#D97706','#DB2777','#0891B2','#65A30D'];
+
 
 // Load staff_categories for all staff
 $scStmt = $conn->query("
@@ -432,11 +432,6 @@ include 'layout.php';
 
   /* ── Name cell with avatar ── */
   .staff-name-cell { display: flex; align-items: center; gap: 10px; }
-  .staff-avatar {
-    width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700; color: white; letter-spacing: .02em;
-  }
   .staff-fullname { font-weight: 600; color: var(--gray-900); font-size: 13.5px; line-height: 1.3; }
   .staff-code-sub { font-size: 11.5px; color: var(--gray-400); margin-top: 1px; }
 
@@ -447,6 +442,7 @@ include 'layout.php';
   }
   .role-badge.staff { background: #DBEAFE; color: #1D4ED8; }
   .role-badge.admin { background: #7C3AED; color: #ffffff; }
+  .role-badge.hod   { background: #FEF3C7; color: #92400E; }
   .role-badge svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.2; }
 
   /* ── Dept pill ── */
@@ -648,6 +644,7 @@ include 'layout.php';
     <option value="all"   <?= $filterRole === 'all'   ? 'selected' : '' ?>>All Roles</option>
     <option value="staff" <?= $filterRole === 'staff' ? 'selected' : '' ?>>Staff Only</option>
     <option value="admin" <?= $filterRole === 'admin' ? 'selected' : '' ?>>Admin Only</option>
+    <option value="hod"   <?= $filterRole === 'hod'   ? 'selected' : '' ?>>HOD Only</option>
   </select>
 
   <div class="filter-search">
@@ -700,23 +697,15 @@ include 'layout.php';
         $isAdmin  = $s['role'] === 'admin';
         $sJson    = htmlspecialchars(json_encode($s), ENT_QUOTES);
 
-        // Avatar initials & colour
-        $words    = array_filter(explode(' ', $s['full_name']));
-        $words = array_slice(explode(' ', $s['full_name']), 0, 2);
-        $initials = strtoupper(implode('', array_map(function($w){ return $w[0]; }, $words)));
-        $avatarBg = $avatarPalette[$s['staff_id'] % count($avatarPalette)];
+        
       ?>
       <tr>
-        <!-- Member: avatar + name + code -->
         <td>
-          <div class="staff-name-cell">
-            <div class="staff-avatar" style="background:<?= $avatarBg ?>;"><?= $initials ?></div>
-            <div>
-              <div class="staff-fullname"><?= htmlspecialchars($s['full_name']) ?></div>
-              <div class="staff-code-sub"><?= htmlspecialchars($s['staff_code']) ?></div>
-            </div>
-          </div>
-        </td>
+  <div>
+    <div class="staff-fullname"><?= htmlspecialchars($s['full_name']) ?></div>
+    <div class="staff-code-sub"><?= htmlspecialchars($s['staff_code']) ?></div>
+  </div>
+</td>
 
         <!-- Role -->
         <td>
@@ -724,6 +713,11 @@ include 'layout.php';
           <span class="role-badge admin">
             <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             Admin
+          </span>
+          <?php elseif ($s['role'] === 'hod'): ?>
+          <span class="role-badge hod">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            HOD
           </span>
           <?php else: ?>
           <span class="role-badge staff">
@@ -772,15 +766,14 @@ include 'layout.php';
               <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </button>
 
-            <?php if (!$isAdmin): ?>
-          
+            <?php if ($s['role'] === 'staff'): ?>
               <!-- Delete -->
               <button class="btn-icon danger" title="Delete" onclick="openDeleteModal(<?= $s['staff_id'] ?>, '<?= htmlspecialchars(addslashes($s['full_name'])) ?>')">
                 <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
               </button>
             <?php else: ?>
-              <!-- Admin: show info on delete attempt -->
-              <button class="btn-icon danger" title="Cannot delete admin here" onclick="openAdminDeleteInfoModal('<?= htmlspecialchars(addslashes($s['full_name'])) ?>')">
+              <!-- Admin/HOD: show info on delete attempt -->
+              <button class="btn-icon danger" title="Cannot delete admin/HOD here" onclick="openAdminDeleteInfoModal('<?= htmlspecialchars(addslashes($s['full_name'])) ?>')">
                 <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
               </button>
             <?php endif; ?>
@@ -1081,11 +1074,11 @@ include 'layout.php';
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
       </div>
-      <div style="font-size:17px;font-weight:700;color:var(--gray-900);margin-bottom:10px;">Cannot Delete Admin Here</div>
+      <div style="font-size:17px;font-weight:700;color:var(--gray-900);margin-bottom:10px;">Cannot Delete Admin / HOD Here</div>
       <p style="font-size:13.5px;color:var(--gray-500);line-height:1.7;margin:0 0 28px;">
         <span style="font-weight:700;color:var(--gray-900);" id="adminDeleteInfoName"></span>
-        is an <strong style="color:var(--gray-900);">Admin</strong> account.<br>
-        Admin accounts cannot be deleted from this page.
+        is an <strong style="color:var(--gray-900);">Admin / HOD</strong> account.<br>
+        Admin and HOD accounts cannot be deleted from this page.
       </p>
       <button type="button" onclick="closeModal('adminDeleteInfoModal')"
         style="width:100%;padding:11px 20px;background:var(--maroon);color:white;border:none;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">

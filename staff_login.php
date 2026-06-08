@@ -628,6 +628,31 @@ if ($loginRole === 'reports' && !in_array($staffRole, ['super_admin', 'report_vi
 
         </form>
 
+        <div style="margin-top:16px;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+    <div style="flex:1;height:1px;background:var(--border);"></div>
+    <span style="font-size:12px;color:var(--text-muted);">or</span>
+    <div style="flex:1;height:1px;background:var(--border);"></div>
+  </div>
+
+  <a href="auth/staff_sso_login.php" style="
+      display:flex; align-items:center; justify-content:center; gap:10px;
+      width:100%; padding:12px;
+      background:#fff; border:1.5px solid var(--border);
+      border-radius:7px; text-decoration:none;
+      font-family:'Source Sans 3',sans-serif;
+      font-size:14px; font-weight:600; color:var(--text);
+      transition:border-color .2s, box-shadow .2s;">
+    <svg viewBox="0 0 21 21" width="18" height="18" style="flex-shrink:0;">
+      <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+      <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+      <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+      <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+    </svg>
+    Sign in with Microsoft (UniKL SSO)
+  </a>
+</div>
+
         <div class="form-footer">
           Need help? Contact ITD Ext. <strong style="color:var(--navy);">142 / 140</strong>
         </div>

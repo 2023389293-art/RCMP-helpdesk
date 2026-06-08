@@ -68,6 +68,15 @@ $tickets = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 $cats = $conn->query("SELECT category_id, category_name FROM categories WHERE dept_id = 2 ORDER BY category_name")->fetch_all(MYSQLI_ASSOC);
 
+// ── KPI STATUS COUNTS (always unfiltered, for the cards) ──
+$kpiCounts = ['open'=>0,'in_progress'=>0,'closed'=>0];
+$kpiRes = $conn->query("SELECT status, COUNT(*) AS n FROM complaints WHERE dept_id = 2 GROUP BY status");
+while ($kpiRow = $kpiRes->fetch_assoc()) {
+    if (isset($kpiCounts[$kpiRow['status']])) {
+        $kpiCounts[$kpiRow['status']] = (int)$kpiRow['n'];
+    }
+}
+
 if (!function_exists('qstr')) {
     function qstr(array $extra = []): string {
         $p = array_merge($_GET, $extra);
@@ -95,6 +104,75 @@ if (!function_exists('pgstr')) {
   <title>Maintenance Admin — All Tickets | UniKL Help Desk</title>
   <?php include '_head_assets.php'; ?>
   <style>
+    /* ── KPI STATUS CARDS ── */
+.ticket-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) {
+  .ticket-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+button.ticket-kpi-card {
+  appearance: none; -webkit-appearance: none;
+  font-family: inherit; text-align: left; cursor: pointer;
+}
+.ticket-kpi-card {
+  background: var(--white);
+  border: 2px solid var(--gray-200);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  transition: box-shadow .2s, transform .15s, border-color .2s;
+  color: inherit;
+  position: relative;
+  overflow: hidden;
+}
+.ticket-kpi-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  opacity: 0;
+  transition: opacity .2s;
+}
+.ticket-kpi-card:hover {
+  box-shadow: 0 4px 16px rgba(107,90,158,.15);
+  transform: translateY(-2px);
+}
+.ticket-kpi-card.active {
+  box-shadow: 0 4px 16px rgba(107,90,158,.18);
+  transform: translateY(-2px);
+}
+.ticket-kpi-card.active::after { opacity: 1; }
+.ticket-kpi-icon {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.ticket-kpi-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; }
+.tkpi-all         { background: var(--blue-light); color: var(--blue); }
+.tkpi-open        { background: #FFF7ED; color: #C2410C; }
+.tkpi-in_progress { background: #EFF6FF; color: #1D4ED8; }
+.tkpi-closed      { background: #F0FDF4; color: #15803D; }
+.ticket-kpi-card.active::after { background: var(--blue); opacity: 1; }
+.ticket-kpi-card.active:has(.tkpi-open)::after        { background: #C2410C; }
+.ticket-kpi-card.active:has(.tkpi-in_progress)::after { background: #1D4ED8; }
+.ticket-kpi-card.active:has(.tkpi-closed)::after      { background: #15803D; }
+.ticket-kpi-body { display: flex; flex-direction: column; gap: 2px; }
+.ticket-kpi-val {
+  font-size: 26px; font-weight: 800;
+  color: var(--gray-900); line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.ticket-kpi-label {
+  font-size: 11px; color: var(--gray-500);
+  font-weight: 600; letter-spacing: .02em;
+}
+
     /* ── TABLE CELL FIXES ── */
     .data-table tbody td {
       vertical-align: middle;
@@ -475,6 +553,51 @@ if (!function_exists('pgstr')) {
     </div>
   </div>
 
+  <!-- ── KPI STATUS CARDS ── -->
+  <div class="ticket-kpi-grid">
+
+    <button type="button" class="ticket-kpi-card <?= $status===''?'active':'' ?>" onclick="filterByStatus('')">
+      <div class="ticket-kpi-icon tkpi-all">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <div class="ticket-kpi-body">
+        <div class="ticket-kpi-val"><?= array_sum($kpiCounts) ?></div>
+        <div class="ticket-kpi-label">All</div>
+      </div>
+    </button>
+
+    <button type="button" class="ticket-kpi-card <?= $status==='open'?'active':'' ?>" onclick="filterByStatus('open')">
+      <div class="ticket-kpi-icon tkpi-open">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div class="ticket-kpi-body">
+        <div class="ticket-kpi-val"><?= $kpiCounts['open'] ?></div>
+        <div class="ticket-kpi-label">Open</div>
+      </div>
+    </button>
+
+    <button type="button" class="ticket-kpi-card <?= $status==='in_progress'?'active':'' ?>" onclick="filterByStatus('in_progress')">
+      <div class="ticket-kpi-icon tkpi-in_progress">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="ticket-kpi-body">
+        <div class="ticket-kpi-val"><?= $kpiCounts['in_progress'] ?></div>
+        <div class="ticket-kpi-label">In Progress</div>
+      </div>
+    </button>
+
+    <button type="button" class="ticket-kpi-card <?= $status==='closed'?'active':'' ?>" onclick="filterByStatus('closed')">
+      <div class="ticket-kpi-icon tkpi-closed">
+        <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <div class="ticket-kpi-body">
+        <div class="ticket-kpi-val"><?= $kpiCounts['closed'] ?></div>
+        <div class="ticket-kpi-label">Closed</div>
+      </div>
+    </button>
+
+  </div>
+
   <form method="GET" class="filter-bar">
     <div class="search-wrap">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -736,6 +859,18 @@ if (!function_exists('pgstr')) {
 <?php include '_foot_scripts.php'; ?>
 
 <script>
+/* ── KPI CARD FILTER — reload with status filter ── */
+function filterByStatus(status) {
+  const url = new URL(window.location.href);
+  if (status === '') {
+    url.searchParams.delete('status');
+  } else {
+    url.searchParams.set('status', status);
+  }
+  url.searchParams.delete('page');
+  window.location.href = url.toString();
+}
+
 /* ── PER-PAGE CHANGE — reload with page reset ── */
 function changePerPage(value) {
   const url = new URL(window.location.href);

@@ -1,4 +1,5 @@
 <?php
+// auth/callbackExample.php
 session_start();
 require '../vendor/autoload.php';
 require 'sso_config.php';

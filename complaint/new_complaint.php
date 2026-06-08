@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_type']) && $_POS
     $req_urgency       = trim($_POST['req_urgency']       ?? 'normal');
 
     $allowedUrgency = ['normal','urgent','critical'];
-    $allowedReqCats = ['Office Furniture','Water Dispenser','Signage','Vending Machine','Office Keys','Office Equipment'];
+    $allowedReqCats = ['Office Furniture','Water Dispenser','Signage','Vending Machine','Office Keys','Office Equipment','Others'];
 
     if (empty($req_category) || !in_array($req_category, $allowedReqCats)) {
         $error = 'Please select a valid equipment category.';
@@ -1004,13 +1004,14 @@ require 'layout.php';
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;" id="reqCatPicker">
           <?php
           $equipCats = [
-            'Office Furniture'  => ['desc'=>'Chairs, desks, cabinets, shelving','icon'=>'<path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><line x1="8" y1="17" x2="8" y2="21"/><line x1="16" y1="17" x2="16" y2="21"/>'],
-            'Water Dispenser'   => ['desc'=>'Hot & cold dispensers, servicing','icon'=>'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>'],
-            'Signage'           => ['desc'=>'Room signs, notice boards, banners','icon'=>'<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>'],
-            'Vending Machine'   => ['desc'=>'Snack, beverage or combo machines','icon'=>'<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="5" y1="10" x2="19" y2="10"/><line x1="5" y1="14" x2="19" y2="14"/><circle cx="12" cy="17" r="1"/>'],
-            'Office Keys'       => ['desc'=>'Room keys, key duplicates, access cards','icon'=>'<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'],
-            'Office Equipment'  => ['desc'=>'Printers, projectors, whiteboards','icon'=>'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'],
-          ];
+  'Office Furniture'  => ['desc'=>'Chairs, desks, cabinets, shelving','icon'=>'<path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0-2-2z"/><line x1="8" y1="17" x2="8" y2="21"/><line x1="16" y1="17" x2="16" y2="21"/>'],
+  'Water Dispenser'   => ['desc'=>'Hot & cold dispensers, servicing','icon'=>'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>'],
+  'Signage'           => ['desc'=>'Room signs, notice boards, banners','icon'=>'<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>'],
+  'Vending Machine'   => ['desc'=>'Snack, beverage or combo machines','icon'=>'<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="5" y1="10" x2="19" y2="10"/><line x1="5" y1="14" x2="19" y2="14"/><circle cx="12" cy="17" r="1"/>'],
+  'Office Keys'       => ['desc'=>'Room keys, key duplicates, access cards','icon'=>'<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'],
+  'Office Equipment'  => ['desc'=>'Printers, projectors, whiteboards','icon'=>'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'],
+  'Others'            => ['desc'=>'Any other equipment not listed above','icon'=>'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'],
+];
           foreach ($equipCats as $catName => $catMeta):
             $slug = 'req-' . strtolower(preg_replace('/[^a-z0-9]/i','-',$catName));
           ?>

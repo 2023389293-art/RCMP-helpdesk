@@ -46,6 +46,15 @@ $tickets      = [];
 $requisitions = [];
 $errors       = [];
 
+// Pre-calculate base sequences once before the loop
+$dayRes      = $conn->query("SELECT COUNT(*) AS cnt FROM complaints WHERE DATE(created_at)=CURDATE()");
+$baseSeq     = ($dayRes->fetch_assoc()['cnt'] ?? 0) + 1;
+$seqOffset   = 0;
+
+$reqDayRes    = $conn->query("SELECT COUNT(*) AS cnt FROM requisitions WHERE DATE(created_at)=CURDATE()");
+$reqBaseSeq   = ($reqDayRes->fetch_assoc()['cnt'] ?? 0) + 1;
+$reqSeqOffset = 0;
+
 // Collect all items: queued ones + 'current'
 $allItems = [];
 $count    = (int)($_POST['batch_count'] ?? 1);
@@ -100,9 +109,8 @@ foreach ($allItems as $idx => $item) {
 
         // Generate ticket ID
 $dateStr  = date('dmY');
-$dayRes   = $conn->query("SELECT COUNT(*) AS cnt FROM complaints WHERE DATE(created_at)=CURDATE()");
-$seq      = ($dayRes->fetch_assoc()['cnt'] ?? 0) + 1 + count($tickets);
-$ticketId = 'RCMP-' . $dateStr . '-' . $seq;
+$ticketId = 'RCMP-' . $dateStr . '-' . ($baseSeq + $seqOffset);
+$seqOffset++;
 
         // File upload
         $attachmentPath = null;
@@ -144,16 +152,15 @@ $ticketId = 'RCMP-' . $dateStr . '-' . $seq;
         $req_urgency       = trim($item['urgency']        ?? 'normal');
         $req_item_name     = $req_category;
 
-        $allowedCats = ['Office Furniture','Water Dispenser','Signage','Vending Machine','Office Keys','Office Equipment'];
+        $allowedCats = ['Office Furniture','Water Dispenser','Signage','Vending Machine','Office Keys','Office Equipment','Others'];
         $allowedUrg  = ['normal','urgent','critical'];
         if (!in_array($req_category,$allowedCats)||!$req_quantity||!$req_my_department||!$req_location||!$req_reason||!$req_phone||!in_array($req_urgency,$allowedUrg)) {
             $errors[] = "Item ".($idx+1).": missing/invalid requisition fields"; continue;
         }
 
 $dateStr   = date('dmY');
-$seqRes    = $conn->query("SELECT COUNT(*) AS cnt FROM requisitions WHERE DATE(created_at)=CURDATE()");
-$seq       = ($seqRes->fetch_assoc()['cnt'] ?? 0) + 1 + count($requisitions);
-$refNumber = 'REQ-' . $dateStr . '-' . $seq;
+$refNumber = 'REQ-' . $dateStr . '-' . ($reqBaseSeq + $reqSeqOffset);
+$reqSeqOffset++;
 
         $attachmentPath = null;
         $fileData = $item['file'] ?? null;

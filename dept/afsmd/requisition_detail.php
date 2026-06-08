@@ -163,6 +163,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $requisition) {
                 $submitterData = $subQ->get_result()->fetch_assoc();
                 $subQ->close();
 
+                // Fallback: try the other table if not found
+                if (!$submitterData) {
+                    $altTable = $subType === 'student' ? 'staff' : 'students';
+                    $altPk    = $subType === 'student' ? 'staff_id' : 'student_id';
+                    $altQ = $conn->prepare("SELECT full_name, email FROM {$altTable} WHERE {$altPk}=? LIMIT 1");
+                    if ($altQ) { $altQ->bind_param("i", $requisition['submitter_id']); $altQ->execute(); $submitterData = $altQ->get_result()->fetch_assoc(); $altQ->close(); }
+                }
+
                 if ($submitterData && !empty($submitterData['email'])) {
                     $toName      = $submitterData['full_name'];
                     $toEmail     = $submitterData['email'];
@@ -288,6 +296,14 @@ if ($requisition) {
     $pkCol = $type === 'student' ? 'student_id' : 'staff_id';
     $s2 = $conn->prepare("SELECT full_name AS name, email FROM {$table} WHERE {$pkCol}=? LIMIT 1");
     if ($s2) { $s2->bind_param("i", $requisition['submitter_id']); $s2->execute(); $submitter = $s2->get_result()->fetch_assoc(); $s2->close(); }
+
+    // Fallback: if not found, try the other table
+    if (!$submitter) {
+        $altTable = $type === 'student' ? 'staff' : 'students';
+        $altPk    = $type === 'student' ? 'staff_id' : 'student_id';
+        $s3 = $conn->prepare("SELECT full_name AS name, email FROM {$altTable} WHERE {$altPk}=? LIMIT 1");
+        if ($s3) { $s3->bind_param("i", $requisition['submitter_id']); $s3->execute(); $submitter = $s3->get_result()->fetch_assoc(); $s3->close(); }
+    }
 }
 
 // ── Fetch assigned staff ──────────────────────────────────────────────────────

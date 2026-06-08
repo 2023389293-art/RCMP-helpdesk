@@ -60,7 +60,7 @@ $sql = "
     LEFT JOIN staff  st  ON r.submitter_type = 'staff'  AND r.submitter_id = st.staff_id
     LEFT JOIN staff  ast ON r.assigned_to = ast.staff_id
     WHERE $whereSQL
-    ORDER BY FIELD(r.status,'pending','approved','rejected'), r.urgency = 'urgent' DESC, r.created_at DESC
+    ORDER BY r.created_at DESC
     LIMIT ? OFFSET ?
 ";
 $stmt = $conn->prepare($sql);
@@ -73,6 +73,15 @@ $reqs = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 // ── DISTINCT CATEGORIES for filter dropdown ──
 $catResult = $conn->query("SELECT DISTINCT category FROM requisitions WHERE category IS NOT NULL AND category <> '' ORDER BY category");
 $categories = $catResult ? $catResult->fetch_all(MYSQLI_ASSOC) : [];
+
+// ── KPI STATUS COUNTS (always unfiltered, for the cards) ──
+$kpiCounts = ['pending'=>0,'approved'=>0,'rejected'=>0,'completed'=>0];
+$kpiRes = $conn->query("SELECT status, COUNT(*) AS n FROM requisitions GROUP BY status");
+while ($kpiRow = $kpiRes->fetch_assoc()) {
+    if (isset($kpiCounts[$kpiRow['status']])) {
+        $kpiCounts[$kpiRow['status']] = (int)$kpiRow['n'];
+    }
+}
 
 /* Build query string helper — preserves all active filters, drops page */
 if (!function_exists('qstr')) {
@@ -103,6 +112,93 @@ if (!function_exists('pgstr')) {
   <title>AFSMD Admin — Requisitions | UniKL Help Desk</title>
   <?php include '_head_assets.php'; ?>
   <style>
+    /* ── KPI STATUS CARDS ── */
+    .req-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 900px) {
+      .req-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 500px) {
+      .req-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    button.req-kpi-card {
+      appearance: none; -webkit-appearance: none;
+      font-family: inherit; text-align: left; cursor: pointer;
+    }
+    .req-kpi-card {
+      background: var(--white);
+      border: 2px solid var(--gray-200);
+      border-radius: 14px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 14px;
+      transition: box-shadow .2s, transform .15s, border-color .2s;
+      color: inherit;
+      position: relative;
+      overflow: hidden;
+    }
+    .req-kpi-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .req-kpi-card:hover {
+      box-shadow: 0 4px 16px rgba(107,90,158,.15);
+      transform: translateY(-2px);
+    }
+    .req-kpi-card.active {
+      box-shadow: 0 4px 16px rgba(107,90,158,.18);
+      transform: translateY(-2px);
+    }
+    .req-kpi-card.active::after { opacity: 1; }
+
+    .req-kpi-icon {
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .req-kpi-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+    .req-kpi-all      { background: var(--blue-light); color: var(--blue); }
+    .req-kpi-pending  { background: #FFF7ED; color: #C2410C; }
+    .req-kpi-approved { background: #F0FDF4; color: #15803D; }
+    .req-kpi-rejected { background: #FFF1F2; color: #BE123C; }
+    .req-kpi-completed{ background: #EFF6FF; color: #1D4ED8; }
+
+    
+
+    .req-kpi-card.active::after { background: var(--blue); opacity: 1; }
+    .req-kpi-card.active:has(.req-kpi-pending)::after  { background: #C2410C; }
+    .req-kpi-card.active:has(.req-kpi-approved)::after { background: #15803D; }
+    .req-kpi-card.active:has(.req-kpi-rejected)::after { background: #BE123C; }
+    .req-kpi-card.active:has(.req-kpi-completed)::after{ background: #1D4ED8; }
+
+    .req-kpi-card.active .req-kpi-all      { border-color: var(--blue); }
+    .req-kpi-card.active .req-kpi-pending  { border-color: #C2410C; }
+    .req-kpi-card.active .req-kpi-approved { border-color: #15803D; }
+    .req-kpi-card.active .req-kpi-rejected { border-color: #BE123C; }
+    .req-kpi-card.active .req-kpi-completed{ border-color: #1D4ED8; }
+
+    .req-kpi-body { display: flex; flex-direction: column; gap: 2px; }
+    .req-kpi-val {
+      font-size: 26px; font-weight: 800;
+      color: var(--gray-900); line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+    .req-kpi-label {
+      font-size: 11px; color: var(--gray-500);
+      font-weight: 600; letter-spacing: .02em;
+    }
+
     /* ── TABLE CELL FIXES ── */
     .data-table tbody td {
       vertical-align: middle;
@@ -213,6 +309,11 @@ if (!function_exists('pgstr')) {
       border: 1px solid rgba(190,18,60,.2);
       white-space: nowrap;
     }
+    .badge.status-completed {
+  background: #EFF6FF; color: #1D4ED8;
+  border: 1px solid rgba(29,78,216,.2);
+  white-space: nowrap;
+}
 
     /* ── ASSIGNED TO — avatar + name ── */
     .td-assigned {
@@ -476,6 +577,61 @@ if (!function_exists('pgstr')) {
     </div>
   </div>
 
+  <!-- ── KPI STATUS CARDS ── -->
+  <div class="req-kpi-grid">
+
+    <button type="button" class="req-kpi-card <?= $status===''?'active':'' ?>" onclick="filterByStatus('')">
+      <div class="req-kpi-icon req-kpi-all">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <div class="req-kpi-body">
+        <div class="req-kpi-val"><?= array_sum($kpiCounts) ?></div>
+        <div class="req-kpi-label">All</div>
+      </div>
+    </button>
+
+    <button type="button" class="req-kpi-card <?= $status==='pending'?'active':'' ?>" onclick="filterByStatus('pending')">
+      <div class="req-kpi-icon req-kpi-pending">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="req-kpi-body">
+        <div class="req-kpi-val"><?= $kpiCounts['pending'] ?></div>
+        <div class="req-kpi-label">Pending</div>
+      </div>
+    </button>
+
+    <button type="button" class="req-kpi-card <?= $status==='approved'?'active':'' ?>" onclick="filterByStatus('approved')">
+      <div class="req-kpi-icon req-kpi-approved">
+        <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <div class="req-kpi-body">
+        <div class="req-kpi-val"><?= $kpiCounts['approved'] ?></div>
+        <div class="req-kpi-label">Approved</div>
+      </div>
+    </button>
+
+    <button type="button" class="req-kpi-card <?= $status==='rejected'?'active':'' ?>" onclick="filterByStatus('rejected')">
+      <div class="req-kpi-icon req-kpi-rejected">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      </div>
+      <div class="req-kpi-body">
+        <div class="req-kpi-val"><?= $kpiCounts['rejected'] ?></div>
+        <div class="req-kpi-label">Rejected</div>
+      </div>
+    </button>
+
+    <button type="button" class="req-kpi-card <?= $status==='completed'?'active':'' ?>" onclick="filterByStatus('completed')">
+      <div class="req-kpi-icon req-kpi-completed">
+        <svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <div class="req-kpi-body">
+        <div class="req-kpi-val"><?= $kpiCounts['completed'] ?></div>
+        <div class="req-kpi-label">Completed</div>
+      </div>
+    </button>
+
+  </div>
+
   <!-- ── FILTER BAR ── -->
   <form method="GET" class="filter-bar">
     <div class="search-wrap">
@@ -483,21 +639,16 @@ if (!function_exists('pgstr')) {
       <input type="text" name="q" placeholder="Search ref number, item or department…" value="<?= htmlspecialchars($search) ?>"/>
     </div>
 
-    <select name="status">
-      <option value="">All Status</option>
-      <?php foreach (['pending'=>'Pending','approved'=>'Approved','rejected'=>'Rejected'] as $v=>$l): ?>
-      <option value="<?= $v ?>" <?= $status===$v?'selected':'' ?>><?= $l ?></option>
-      <?php endforeach; ?>
-    </select>
 
-    <select name="urgency">
+
+    <select name="urgency" onchange="this.form.submit()">
       <option value="">All Urgency</option>
       <?php foreach (['urgent'=>'Urgent','normal'=>'Normal'] as $v=>$l): ?>
       <option value="<?= $v ?>" <?= $urgency===$v?'selected':'' ?>><?= $l ?></option>
       <?php endforeach; ?>
     </select>
 
-    <select name="category">
+    <select name="category" onchange="this.form.submit()">
       <option value="">All Categories</option>
       <?php foreach ($categories as $c): ?>
       <option value="<?= htmlspecialchars($c['category']) ?>" <?= $category===$c['category']?'selected':'' ?>>
@@ -510,7 +661,7 @@ if (!function_exists('pgstr')) {
     <input type="hidden" name="per_page" value="<?= $perPage ?>"/>
 
     <button type="submit" class="btn-primary-sm">Filter</button>
-    <?php if ($status||$urgency||$category||$search): ?>
+    <?php if ($urgency||$category||$search): ?>
     <a href="requisitions.php" class="btn-ghost-sm">Clear</a>
     <?php endif; ?>
   </form>
@@ -607,7 +758,7 @@ if (!function_exists('pgstr')) {
           <td>
             <?php
               $s  = $r['status'];
-              $sl = ['pending'=>'Pending','approved'=>'Approved','rejected'=>'Rejected'];
+              $sl = ['pending'=>'Pending','approved'=>'Approved','rejected'=>'Rejected','completed'=>'Completed'];
               echo "<span class='badge status-{$s}'>" . ($sl[$s] ?? ucfirst($s)) . "</span>";
             ?>
           </td>
@@ -699,6 +850,18 @@ if (!function_exists('pgstr')) {
 <?php include '_foot_scripts.php'; ?>
 
 <script>
+/* ── KPI CARD FILTER — reload with status filter ── */
+function filterByStatus(status) {
+  const url = new URL(window.location.href);
+  if (status === '') {
+    url.searchParams.delete('status');
+  } else {
+    url.searchParams.set('status', status);
+  }
+  url.searchParams.delete('page');
+  window.location.href = url.toString();
+}
+
 /* ── PER-PAGE CHANGE — reload with page reset ── */
 function changePerPage(value) {
   const url = new URL(window.location.href);
