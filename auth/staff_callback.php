@@ -1,9 +1,9 @@
 <?php
 // auth/staff_callback.php
 session_start();
-require '../vendor/autoload.php';
-require 'sso_config.php';
-require '../db_connect.php';
+require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/sso_config.php';
+require __DIR__ . '/../db_connect.php';
 
 if (empty($_GET['state']) || $_GET['state'] !== $_SESSION['oauth2state']) {
     unset($_SESSION['oauth2state']);
