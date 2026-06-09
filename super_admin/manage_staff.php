@@ -106,9 +106,16 @@ $categoryId  = !empty($categoryIds) ? $categoryIds[0] : 0;
         $status     = in_array($_POST['status'] ?? '', ['active','inactive']) ? $_POST['status'] : 'active';
         $editStaffCode = trim($_POST['staff_code'] ?? '');
 
-if (!$fullName || !$email || !$deptId || !$editStaffCode) {
+// Fetch current role to know if dept is required
+$roleRow = $conn->prepare("SELECT role FROM staff WHERE staff_id=?");
+$roleRow->bind_param('i', $staffId);
+$roleRow->execute();
+$currentRole = $roleRow->get_result()->fetch_assoc()['role'] ?? 'staff';
+$deptRequired = !in_array($currentRole, ['super_admin', 'report_viewer']);
+
+if (!$fullName || !$email || !$editStaffCode || ($deptRequired && !$deptId)) {
     $errorMsg = 'Please fill in all required fields.';
-} elseif (!ctype_digit($editStaffCode)) {
+} elseif ($currentRole === 'staff' && !ctype_digit($editStaffCode)) {
     $errorMsg = 'Staff ID / Code must contain numbers only.';
 } elseif ($phone !== '' && (!ctype_digit($phone) || strlen($phone) < 10 || strlen($phone) > 11)) {
     $errorMsg = 'Phone number must contain only digits and be 10 to 11 numbers long.';
@@ -221,8 +228,8 @@ if (!$fullName || !$email || !$deptId || !$editStaffCode) {
         $roleCheck->bind_param('i', $staffId);
         $roleCheck->execute();
         $roleResult = $roleCheck->get_result()->fetch_assoc();
-        if ($roleResult && in_array($roleResult['role'], ['admin', 'hod'])) {
-            $errorMsg = 'Admin and HOD accounts cannot be deleted.';
+        if ($roleResult && in_array($roleResult['role'], ['admin', 'hod', 'super_admin', 'report_viewer'])) {
+            $errorMsg = 'Admin, HOD, Super Admin and Report Viewer accounts cannot be deleted from this page.';
         } else {
             // Block delete if staff has open or in-progress tickets
             $ticketCheck = $conn->prepare("SELECT COUNT(*) AS cnt FROM complaints WHERE assigned_to = ? AND status IN ('open','in_progress')");
@@ -247,16 +254,18 @@ $filterStatus = $_GET['status'] ?? 'all';
 $filterRole   = $_GET['role'] ?? 'all';   // ← ADD THIS
 $search       = trim($_GET['q'] ?? '');
 
-$where  = ["s.role IN ('staff','admin','hod')", "(s.dept_id IN (1,2,3,4,5) OR s.dept_id IS NULL)"];
+$where  = ["s.role IN ('staff','admin','hod','report_viewer','super_admin')", "(s.dept_id IN (1,2,3,4,5) OR s.dept_id IS NULL OR s.role IN ('report_viewer','super_admin'))"];
 $params = [];
 $types  = '';
 
 if ($filterDept > 0)              { $where[] = "s.dept_id = ?"; $params[] = $filterDept; $types .= 'i'; }
 if ($filterStatus === 'active')   { $where[] = "s.status = 'active'"; }
 if ($filterStatus === 'inactive') { $where[] = "s.status = 'inactive'"; }
-if ($filterRole === 'staff')      { $where[] = "s.role = 'staff'"; }
-if ($filterRole === 'admin')      { $where[] = "s.role = 'admin'"; }
-if ($filterRole === 'hod')        { $where[] = "s.role = 'hod'"; }
+if ($filterRole === 'staff')         { $where[] = "s.role = 'staff'"; }
+if ($filterRole === 'admin')         { $where[] = "s.role = 'admin'"; }
+if ($filterRole === 'hod')           { $where[] = "s.role = 'hod'"; }
+if ($filterRole === 'report_viewer') { $where[] = "s.role = 'report_viewer'"; }
+if ($filterRole === 'super_admin')   { $where[] = "s.role = 'super_admin'"; }
 if ($search !== '')               { $where[] = "(s.full_name LIKE ? OR s.email LIKE ? OR s.staff_code LIKE ?)"; $like = "%$search%"; $params = array_merge($params, [$like,$like,$like]); $types .= 'sss'; }
 
 $whereSQL = implode(' AND ', $where);
@@ -278,8 +287,8 @@ if ($params) {
     $staffList = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
 }
 
-$countAll      = (int)$conn->query("SELECT COUNT(*) AS n FROM staff WHERE role IN ('staff','admin','hod') AND (dept_id IN (1,2,3,4,5) OR dept_id IS NULL)")->fetch_assoc()['n'];
-$countActive   = (int)$conn->query("SELECT COUNT(*) AS n FROM staff WHERE role IN ('staff','admin','hod') AND (dept_id IN (1,2,3,4,5) OR dept_id IS NULL) AND status='active'")->fetch_assoc()['n'];
+$countAll      = (int)$conn->query("SELECT COUNT(*) AS n FROM staff WHERE role IN ('staff','admin','hod','report_viewer','super_admin')")->fetch_assoc()['n'];
+$countActive   = (int)$conn->query("SELECT COUNT(*) AS n FROM staff WHERE role IN ('staff','admin','hod','report_viewer','super_admin') AND status='active'")->fetch_assoc()['n'];
 $countInactive = $countAll - $countActive;
 
 $deptColors = [1=>'#7C3AED', 2=>'#059669', 3=>'#DC2626', 4=>'#2563EB', 5=>'#D97706'];
@@ -641,10 +650,12 @@ include 'layout.php';
   </select>
 
   <select name="role" class="filter-select" onchange="this.form.submit()">
-    <option value="all"   <?= $filterRole === 'all'   ? 'selected' : '' ?>>All Roles</option>
-    <option value="staff" <?= $filterRole === 'staff' ? 'selected' : '' ?>>Staff Only</option>
-    <option value="admin" <?= $filterRole === 'admin' ? 'selected' : '' ?>>Admin Only</option>
-    <option value="hod"   <?= $filterRole === 'hod'   ? 'selected' : '' ?>>HOD Only</option>
+    <option value="all"           <?= $filterRole === 'all'           ? 'selected' : '' ?>>All Roles</option>
+    <option value="staff"         <?= $filterRole === 'staff'         ? 'selected' : '' ?>>Staff Only</option>
+    <option value="admin"         <?= $filterRole === 'admin'         ? 'selected' : '' ?>>Admin Only</option>
+    <option value="hod"           <?= $filterRole === 'hod'           ? 'selected' : '' ?>>HOD Only</option>
+    <option value="report_viewer" <?= $filterRole === 'report_viewer' ? 'selected' : '' ?>>Report Viewer</option>
+    <option value="super_admin"   <?= $filterRole === 'super_admin'   ? 'selected' : '' ?>>Super Admin</option>
   </select>
 
   <div class="filter-search">
@@ -719,6 +730,16 @@ include 'layout.php';
             <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             HOD
           </span>
+          <?php elseif ($s['role'] === 'report_viewer'): ?>
+          <span class="role-badge" style="background:#F3F4F6;color:#374151;">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Viewer
+          </span>
+          <?php elseif ($s['role'] === 'super_admin'): ?>
+          <span class="role-badge" style="background:#1A2038;color:#ffffff;">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Super Admin
+          </span>
           <?php else: ?>
           <span class="role-badge staff">
             <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -735,10 +756,14 @@ include 'layout.php';
 
         <!-- Department -->
         <td>
+          <?php if ($dId && isset($deptShort[$dId])): ?>
           <span class="dept-pill">
             <span class="dept-dot" style="background:<?= $color ?>;"></span>
             <?= $short ?>
           </span>
+          <?php else: ?>
+          <span style="color:var(--gray-400);font-size:12px;">—</span>
+          <?php endif; ?>
         </td>
 
         <!-- Status -->
@@ -915,9 +940,7 @@ include 'layout.php';
           <div class="form-group">
             <label>Staff ID <span>*</span></label>
             <input type="text" name="staff_code" id="editStaffCode" class="form-control"
-              placeholder="e.g. 620001" required maxlength="20"
-              inputmode="numeric"
-              oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,20)">
+              placeholder="e.g. 620001" required maxlength="20">
           </div>
           <div class="form-group">
             <label>Phone Number</label>
@@ -937,7 +960,7 @@ include 'layout.php';
         <div class="section-label">Assignment</div>
         <div class="form-group">
           <label>Department <span>*</span></label>
-          <select name="dept_id" id="editDeptId" class="form-control" required onchange="filterEditCats()">
+          <select name="dept_id" id="editDeptId" class="form-control" onchange="filterEditCats()">
             <option value="">— Select Department —</option>
             <option value="1">Administration &amp; Facilities Management (AFSMD)</option>
             <option value="2">Maintenance Department</option>
@@ -1074,11 +1097,11 @@ include 'layout.php';
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
       </div>
-      <div style="font-size:17px;font-weight:700;color:var(--gray-900);margin-bottom:10px;">Cannot Delete Admin / HOD Here</div>
+      <div style="font-size:17px;font-weight:700;color:var(--gray-900);margin-bottom:10px;">Cannot Delete This Account</div>
       <p style="font-size:13.5px;color:var(--gray-500);line-height:1.7;margin:0 0 28px;">
         <span style="font-weight:700;color:var(--gray-900);" id="adminDeleteInfoName"></span>
-        is an <strong style="color:var(--gray-900);">Admin / HOD</strong> account.<br>
-        Admin and HOD accounts cannot be deleted from this page.
+        has a protected role (Admin, HOD, Super Admin or Report Viewer).<br>
+        These accounts cannot be deleted.
       </p>
       <button type="button" onclick="closeModal('adminDeleteInfoModal')"
         style="width:100%;padding:11px 20px;background:var(--maroon);color:white;border:none;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">

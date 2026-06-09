@@ -691,13 +691,13 @@ require 'layout.php';
         Submit Complaint
       </button>
 
-      <button type="button" id="subTabRequisition" onclick="switchAfsmdTab('requisition')"
+      <button type="button" id="subTabRequisition" disabled
         style="display:inline-flex;align-items:center;gap:7px;
                padding:8px 18px;border-radius:10px;border:none;
-               cursor:pointer;font-family:'DM Sans',sans-serif;
-               background:transparent;color:#64748b;
+               cursor:not-allowed;font-family:'DM Sans',sans-serif;
+               background:transparent;color:#cbd5e1;
                box-shadow:none;font-size:13px;font-weight:600;
-               transition:all .2s;">
+               transition:all .2s;opacity:0.5;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
           <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>

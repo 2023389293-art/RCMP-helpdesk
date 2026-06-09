@@ -140,75 +140,16 @@ $reqCompletedCount  = $reqCompletedCount  ?? 0;
 $reqNavOpen = in_array($nav, ['requisitions','requisitions-pending','requisitions-approved','requisitions-rejected','requisitions-completed']);
 ?>
 
-<div class="nav-group">
-  <div class="nav-group-header <?php echo $reqNavOpen ? 'has-active' : ''; ?>"
-       data-tooltip="Requisitions">
-    <a href="requisitions.php" class="nav-group-link">
+<div class="nav-group" style="opacity:0.45;pointer-events:none;cursor:not-allowed;" title="Coming soon">
+  <div class="nav-group-header"
+       data-tooltip="Requisitions (Coming Soon)">
+    <span class="nav-group-link" style="cursor:not-allowed;">
       <svg class="icon" viewBox="0 0 24 24">
         <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
         <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>
       </svg>
       <span class="link-label">Requisitions</span>
-      <?php if ($reqPendingCount > 0): ?>
-        <span class="n-badge"><?php echo $reqPendingCount; ?></span>
-      <?php endif; ?>
-    </a>
-    <button class="nav-group-chevron <?php echo $reqNavOpen ? 'open' : ''; ?>"
-            onclick="toggleReqNav(this)" type="button">
-      <svg viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
-    </button>
-  </div>
-
-  <div class="nav-sub <?php echo $reqNavOpen ? 'open' : ''; ?>" id="req-sub">
-    <a href="requisitions.php?status=pending"
-       class="nav-sub-item <?php echo $nav === 'requisitions-pending' ? 'active' : ''; ?>">
-      <svg viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/>
-        <line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      Pending
-      <?php if ($reqPendingCount > 0): ?>
-        <span class="sub-badge sub-badge-req-pending"><?php echo $reqPendingCount; ?></span>
-      <?php endif; ?>
-    </a>
-
-    <a href="requisitions.php?status=approved"
-       class="nav-sub-item <?php echo $nav === 'requisitions-approved' ? 'active' : ''; ?>">
-      <svg viewBox="0 0 24 24">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-        <polyline points="22,4 12,14.01 9,11.01"/>
-      </svg>
-      Approved
-      <?php if ($reqApprovedCount > 0): ?>
-        <span class="sub-badge sub-badge-req-approved"><?php echo $reqApprovedCount; ?></span>
-      <?php endif; ?>
-    </a>
-
-    <a href="requisitions.php?status=rejected"
-   class="nav-sub-item <?php echo $nav === 'requisitions-rejected' ? 'active' : ''; ?>">
-  <svg viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10"/>
-    <line x1="15" y1="9" x2="9" y2="15"/>
-    <line x1="9" y1="9" x2="15" y2="15"/>
-  </svg>
-  Rejected
-  <?php if ($reqRejectedCount > 0): ?>
-    <span class="sub-badge sub-badge-req-rejected"><?php echo $reqRejectedCount; ?></span>
-  <?php endif; ?>
-</a>
-
-<a href="requisitions.php?status=completed"
-   class="nav-sub-item <?php echo $nav === 'requisitions-completed' ? 'active' : ''; ?>">
-  <svg viewBox="0 0 24 24">
-    <path d="M9 11l3 3L22 4"/>
-    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-  </svg>
-  Completed
-  <?php if (($reqCompletedCount ?? 0) > 0): ?>
-    <span class="sub-badge sub-badge-req-completed"><?php echo $reqCompletedCount; ?></span>
-  <?php endif; ?>
-</a>
+    </span>
   </div>
 </div>
 

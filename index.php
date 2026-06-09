@@ -122,6 +122,13 @@
     .hero-inner { position: relative; z-index: 2; }
 
     /* top row: badge + heading + sub + CTAs */
+    .hero-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+    }
+
     .hero-top {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -245,23 +252,82 @@
     /* ── DEPT CARDS (animated) ── */
 .dept-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
 }
 .dept-card {
-  background: transparent;
-  border: 1.5px solid rgba(30,58,95,0.35);
-  border-radius: 12px;
+  background: rgba(255,255,255,0.45);
+  border: 1.5px solid rgba(30,58,95,0.18);
+  border-radius: 16px;
   padding: 14px 16px;
   display: flex; flex-direction: row; align-items: center; gap: 14px;
-  transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+  transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s, background 0.3s;
   animation: fadeUp 0.5s ease both;
-  box-shadow: 0 1px 5px rgba(30,58,95,0.05);
+  box-shadow: 0 2px 8px rgba(30,58,95,0.06);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  position: relative;
+  overflow: visible;
 }
 .dept-card:hover {
-  border-color: rgba(43,79,126,0.28);
-  box-shadow: 0 5px 24px rgba(30,58,95,0.10);
-  transform: translateY(-2px);
+  background: rgba(255,255,255,0.85);
+  border-color: var(--gold);
+  box-shadow: 0 8px 32px rgba(30,58,95,0.15), 0 0 0 3px rgba(184,134,11,0.12);
+  transform: translateY(-4px) scale(1.04);
+}
+.dept-card img {
+  transition: transform 0.3s ease, filter 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.10));
+}
+.dept-card:hover img {
+  transform: scale(1.12);
+  filter: drop-shadow(0 4px 10px rgba(30,58,95,0.22));
+}
+
+/* ── DEPT CARD LABEL (tooltip on hover) ── */
+.dept-card::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -36px;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--navy-dark);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+}
+.dept-card:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── PER-DEPT ICON ANIMATIONS ── */
+.dept-card.it img {
+  animation: float-bob 3s ease-in-out infinite;
+}
+.dept-card.af img {
+  animation: float-bob 3s ease-in-out infinite 0.4s;
+}
+.dept-card.maint img {
+  animation: spin-rock 4s ease-in-out infinite 0.8s;
+}
+
+@keyframes float-bob {
+  0%, 100% { transform: translateY(0px);   }
+  50%       { transform: translateY(-5px);  }
+}
+@keyframes spin-rock {
+  0%, 100% { transform: rotate(0deg);   }
+  25%      { transform: rotate(-12deg); }
+  75%      { transform: rotate(12deg);  }
 }
 .dept-card:nth-child(1){animation-delay:.30s}
 .dept-card:nth-child(2){animation-delay:.37s}
@@ -378,11 +444,13 @@ nav { padding: 0 14px; height: 60px; }
       }
       .hero-top { grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px; }
       .hero-top .fade-up.d2 { padding-top: 0 !important; }
+      .hero-center { gap: 16px; }
+      .rush-curved-svg { width: clamp(200px, 70vw, 300px); }
       .hero-bottom { grid-template-columns: 1fr; gap: 16px; }
 .hero-heading { font-size: clamp(26px, 7vw, 34px); }
 .hero-sub { font-size: 13px; margin-bottom: 18px; }
 .hero-badge { font-size: 10px; padding: 4px 10px; }
-      .dept-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .dept-grid { grid-template-columns: 1fr; gap: 8px; }
       .dept-card { padding: 10px 12px; gap: 10px; }
       .dept-icon { width: 38px; height: 38px; border-radius: 10px; }
       .dept-name { font-size: 12px; }
@@ -407,6 +475,10 @@ nav { padding: 0 14px; height: 60px; }
   display: flex; align-items: center; gap: 10px;
 }
 .hero-eyebrow-label::before {
+  content: ''; display: block; width: 24px; height: 1px;
+  background: var(--gold); opacity: 0.5;
+}
+.hero-eyebrow-label::after {
   content: ''; display: block; width: 24px; height: 1px;
   background: var(--gold); opacity: 0.5;
 }
@@ -464,6 +536,42 @@ nav { padding: 0 14px; height: 60px; }
   margin-bottom: 12px;
 }
 
+.rush-curved-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 0;
+}
+.rush-curved-svg {
+  width: clamp(240px, 40vw, 340px);
+  height: auto;
+  display: block;
+  margin-bottom: -80px;
+  overflow: visible;
+}
+.rush-runner-wrap {
+  display: flex;
+  justify-content: center;
+}
+.rush-runner-img {
+  height: clamp(64px, 9vw, 90px);
+  width: auto;
+  object-fit: contain;
+  filter: sepia(1) saturate(3) hue-rotate(5deg) brightness(0.7);
+  animation: runBob 0.4s ease-in-out infinite alternate,
+             runLean 0.8s ease-in-out infinite alternate;
+}
+.rush-subtitle-line {
+  font-size: clamp(11px, 1.5vw, 13px);
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  margin-top: 10px;
+  text-align: center;
+}
+
 
   </style>
 </head>
@@ -491,13 +599,10 @@ nav { padding: 0 14px; height: 60px; }
       </div>
     </a>
     <div class="nav-actions">
-      <a href="login.php" class="btn-ghost">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        Submit Ticket
-      </a>
+
       <a href="staff_login.php" class="btn-navy-solid">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Staff Login
+        Internal Login
       </a>
     </div>
   </nav>
@@ -506,135 +611,51 @@ nav { padding: 0 14px; height: 60px; }
   <div class="hero">
     <div class="hero-inner">
 
-      <!-- Top: heading/sub/CTAs  |  Quick Reference -->
-      <div class="hero-top">
-        <div class="hero-left fade-up d1">
-          
-<div class="hero-eyebrow-label">Official Helpdesk Portal</div>
+      <!-- Centered layout -->
+      <div class="hero-center fade-up d1">
 
-          <div class="hero-wordmark">
-            <div class="rush-logo-wrap">
-              <div class="rush-speed-lines">
-                <span></span><span></span><span></span>
-              </div>
-              <img src="img/Rush.png" alt="R" />
-            </div>
-            <span class="ush-text">USH</span>
+        <div class="rush-curved-wrap">
+          <svg viewBox="0 0 340 155" class="rush-curved-svg">
+            <defs>
+              <path id="rushArc" d="M 20,145 A 155,155 0 0,1 320,145"/>
+            </defs>
+            <text>
+              <textPath href="#rushArc" startOffset="50%" text-anchor="middle"
+                style="font-family:'Playfair Display',serif;font-size:76px;font-weight:700;font-style:italic;fill:#1E3A5F;letter-spacing:0.06em;">
+                RUSH
+              </textPath>
+            </text>
+          </svg>
+          <div class="rush-runner-wrap">
+            <img src="img/Rush.png" alt="RUSH mascot" class="rush-runner-img" />
           </div>
-
-          <p class="hero-sub-title">RCMP &mdash; User Helpdesk</p>
-
-          <p class="hero-sub">
-            RUSH is UniKL RCMP's official helpdesk portal. Submit, track, and manage service requests across all departments — every ticket is logged, assigned, and resolved with full transparency.
-          </p>
-          <div class="hero-cta-row">
-            <a href="login.php" class="btn-gold">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              Submit a Ticket
-            </a>
-          </div>
+          <p class="rush-subtitle-line">RCMP User Helpdesk</p>
+          <div class="hero-eyebrow-label" style="justify-content:center;margin-top:10px;">Official Helpdesk Portal</div>
         </div>
 
-        <!-- Departments panel (right side) — animated cards -->
-        <div class="fade-up d2" style="padding-top: 60px;">
-          <p style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;">Select a Department to Submit a Ticket</p>
-          <div class="dept-grid">
+        <!-- Departments panel — centered below -->
+        <div style="width:100%;max-width:680px;">
+          <p style="font-size:15px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--navy-dark);margin-bottom:12px;text-align:center;">Select a Department to Submit a Ticket:</p><br>
+          <div class="dept-grid" style="display:flex;justify-content:center;gap:16px;">
 
             <!-- IT -->
-            <a href="login.php?dept=it" class="dept-card it" style="text-decoration:none;cursor:pointer;">
-              <div class="dept-icon">
-                <svg class="ico-it" viewBox="0 0 24 24" fill="none" stroke="#2B4F7E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect class="frame" x="2" y="3" width="20" height="14" rx="2" fill="rgba(43,79,126,0.05)"/>
-                  <line class="stand" x1="8" y1="21" x2="16" y2="21"/>
-                  <line class="stand" x1="12" y1="17" x2="12" y2="21"/>
-                  <line class="screen-line"  x1="5"  y1="9"  x2="16" y2="9"/>
-                  <line class="screen-line2" x1="5"  y1="12" x2="12" y2="12"/>
-                  <line class="cursor" x1="13" y1="12" x2="14.5" y2="12" stroke-width="2.2"/>
-                </svg>
-              </div>
-              <div>
-                <div class="dept-name">Information Technology</div>
-                <div class="dept-tag">IT Support &amp; Systems</div>
-              </div>
-            </a>
+<a href="login.php?dept=it" class="dept-card it" title="Information Technology" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
+  <img src="img/it.png" alt="Information Technology" style="width:64px;height:64px;object-fit:contain;" />
+</a>
 
-            <!-- HC -->
-            <a href="login.php?dept=hc" class="dept-card hc" style="text-decoration:none;cursor:pointer;">
-              <div class="dept-icon">
-                <svg class="ico-hc" viewBox="0 0 24 24" fill="none" stroke="#1B6E49" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <circle class="head" cx="12" cy="8" r="3.5"/>
-                  <path class="body-path" d="M6 21v-2a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v2"/>
-                  <ellipse class="orbit-ring" cx="12" cy="8" rx="6.5" ry="2.5" stroke="rgba(27,110,73,0.35)" stroke-width="1" fill="none"/>
-                  <g class="orbit-dot"><circle cx="18.5" cy="8" r="1.4" fill="#1B6E49" stroke="none"/></g>
-                </svg>
-              </div>
-              <div>
-                <div class="dept-name">Human Capital</div>
-                <div class="dept-tag">HR &amp; Personnel</div>
-              </div>
-            </a>
+<!-- AF -->
+<a href="login.php?dept=af" class="dept-card af" title="Administration & Facilities" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
+  <img src="img/admin.png" alt="Administration & Facilities" style="width:64px;height:64px;object-fit:contain;" />
+</a>
 
-            <!-- AF -->
-            <a href="login.php?dept=af" class="dept-card af" style="text-decoration:none;cursor:pointer;">
-              <div class="dept-icon">
-                <svg class="ico-af" viewBox="0 0 24 24" fill="none" stroke="#B8860B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path class="walls" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="rgba(184,134,11,0.06)"/>
-                  <rect class="w1 w1-pulse" x="6.5" y="11.5" width="3.5" height="3" rx="0.4" fill="rgba(184,134,11,0.55)" stroke="none"/>
-                  <rect class="w2 w2-pulse" x="14" y="11.5" width="3.5" height="3" rx="0.4" fill="rgba(184,134,11,0.55)" stroke="none"/>
-                  <rect class="door" x="10" y="15.5" width="4" height="5.5" rx="0.4" fill="rgba(184,134,11,0.2)" stroke="none"/>
-                </svg>
-              </div>
-              <div>
-                <div class="dept-name">Administration &amp; Facilities</div>
-                <div class="dept-tag">Admin &amp; Infrastructure</div>
-              </div>
-            </a>
-
-            <!-- CC -->
-            <a href="login.php?dept=cc" class="dept-card cc" style="text-decoration:none;cursor:pointer;">
-              <div class="dept-icon">
-                <svg class="ico-cc" viewBox="0 0 24 24" fill="none" stroke="#502C78" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path class="bubble" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" fill="rgba(80,44,120,0.06)"/>
-                  <circle class="d1" cx="8.5"  cy="11" r="1.3" fill="#502C78" stroke="none"/>
-                  <circle class="d2" cx="12"   cy="11" r="1.3" fill="#502C78" stroke="none"/>
-                  <circle class="d3" cx="15.5" cy="11" r="1.3" fill="#502C78" stroke="none"/>
-                </svg>
-              </div>
-              <div>
-                <div class="dept-name">Corporate Communication</div>
-                <div class="dept-tag">Comms &amp; Media</div>
-              </div>
-            </a>
-
-            <!-- MAINT — wide -->
-            <a href="login.php?dept=maint" class="dept-card maint wide" style="text-decoration:none;cursor:pointer;">
-              <div class="dept-icon">
-                <svg class="ico-maint" viewBox="0 0 24 24" fill="none" stroke="#AF3723" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <g class="gear-group">
-                    <circle cx="16.5" cy="7.5" r="2.6" fill="rgba(175,55,35,0.07)"/>
-                    <line x1="16.5" y1="4.2"  x2="16.5" y2="5.2"  stroke-width="1.6"/>
-                    <line x1="16.5" y1="9.8"  x2="16.5" y2="10.8" stroke-width="1.6"/>
-                    <line x1="13.2" y1="7.5"  x2="14.2" y2="7.5"  stroke-width="1.6"/>
-                    <line x1="18.8" y1="7.5"  x2="19.8" y2="7.5"  stroke-width="1.6"/>
-                    <line x1="14.17" y1="5.17" x2="14.88" y2="5.88" stroke-width="1.6"/>
-                    <line x1="18.12" y1="9.12" x2="18.83" y2="9.83" stroke-width="1.6"/>
-                    <line x1="14.17" y1="9.83" x2="14.88" y2="9.12" stroke-width="1.6"/>
-                    <line x1="18.12" y1="5.88" x2="18.83" y2="5.17" stroke-width="1.6"/>
-                  </g>
-                  <g class="wrench-group">
-                    <path class="wrench-path" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                  </g>
-                </svg>
-              </div>
-              <div class="dept-text">
-                <div class="dept-name">Maintenance</div>
-                <div class="dept-tag">Building &amp; Equipment Maintenance</div>
-              </div>
-            </a>
+<!-- MAINT -->
+<a href="login.php?dept=maint" class="dept-card maint" title="Maintenance" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
+  <img src="img/maintenance.png" alt="Maintenance" style="width:64px;height:64px;object-fit:contain;" />
+</a>
 
           </div>
         </div>
-      </div><!-- /hero-top -->
+      </div><!-- /hero-center -->
 
       
 
