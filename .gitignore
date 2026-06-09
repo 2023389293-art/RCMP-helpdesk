@@ -2,6 +2,8 @@
 .auth/callback.php
 .auth/sso_config.php
 .auth/sso_login.php
+.auth/staff_callback.php
+.auth/staff_sso_login.php
 
 # composer
 vendor/
