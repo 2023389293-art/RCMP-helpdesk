@@ -1,5 +1,5 @@
 <?php 
-// staff_login.php — UniKL CMS Staff Department Login   
+// staff_login.php — UniKL CMS Staff Department Login    
 session_start();
  
 // ── Handle logout ──────────────────────────────────────────────────────────
