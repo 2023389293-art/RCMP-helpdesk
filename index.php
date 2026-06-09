@@ -438,9 +438,11 @@ nav { padding: 0 14px; height: 60px; }
 .btn-navy-solid svg { width: 12px; height: 12px; }
 .nav-actions { gap: 6px; }
       .hero {
-        padding: 28px 16px 32px;
-        min-height: auto;
-        justify-content: flex-start;
+        padding: 20px 16px 24px;
+        min-height: 0;
+        height: calc(100dvh - 60px - 52px);
+        justify-content: center;
+        overflow-y: auto;
       }
       .hero-top { grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px; }
       .hero-top .fade-up.d2 { padding-top: 0 !important; }
@@ -461,6 +463,18 @@ nav { padding: 0 14px; height: 60px; }
       footer { padding: 0 16px; height: auto; min-height: 52px; flex-direction: column; gap: 8px; padding-top: 10px; padding-bottom: 10px; }
       .footer-chips { flex-wrap: wrap; gap: 4px; }
       .footer-right { font-size: 10px; }
+
+      .rush-runner-img { height: clamp(52px, 8vw, 70px); }
+      .rush-subtitle-line { font-size: 10px; margin-top: 6px; }
+      .hero-eyebrow-label { font-size: 10px; margin-top: 6px; }
+
+      .dept-grid { gap: 10px; }
+      .dept-card { width: 78px !important; min-height: 78px !important; padding: 14px !important; }
+      .dept-card img { width: 50px !important; height: 50px !important; }
+
+      [style*="font-size:15px"] { font-size: 13px !important; }
+      .rush-curved-wrap { gap: 0; }
+      .hero-center { gap: 12px; }
     }
     @media (max-width: 480px) {
       .dept-grid { grid-template-columns: 1fr; }
@@ -544,10 +558,10 @@ nav { padding: 0 14px; height: 60px; }
   margin-bottom: 0;
 }
 .rush-curved-svg {
-  width: clamp(240px, 40vw, 340px);
+  width: clamp(200px, 60vw, 280px);
   height: auto;
   display: block;
-  margin-bottom: -80px;
+  margin-bottom: -55px;
   overflow: visible;
 }
 .rush-runner-wrap {

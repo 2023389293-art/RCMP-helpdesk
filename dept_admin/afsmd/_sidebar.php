@@ -75,3 +75,36 @@
   </div>
 
 </aside>
+
+<script>
+(function () {
+  var toggle  = document.getElementById('mobToggle');
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('mobOverlay');
+
+  function openSidebar() {
+    sidebar.classList.add('open');
+    overlay.classList.add('open');
+    toggle.setAttribute('aria-label', 'Close menu');
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+    toggle.setAttribute('aria-label', 'Open menu');
+  }
+
+  toggle.addEventListener('click', function () {
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+  });
+
+  overlay.addEventListener('click', closeSidebar);
+
+  // Close sidebar when a nav link is tapped on mobile
+  sidebar.querySelectorAll('a').forEach(function (link) {
+    link.addEventListener('click', function () {
+      if (window.innerWidth <= 900) closeSidebar();
+    });
+  });
+})();
+</script>

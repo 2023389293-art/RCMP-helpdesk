@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   dept/it/css/sidebar_layout.css — styles for sidebar + main layout, topbar, and notification bell/dropdown
+   dept/maintenance/css/sidebar_layout.css — styles for sidebar + main layout, topbar, and notification bell/dropdown
    ═══════════════════════════════════════════════════════════ */
  
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
@@ -7,20 +7,20 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --accent:         #1A56DB;
+    --accent:         #1B6CA8;
   --accent-light:   color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-border:  color-mix(in srgb, var(--accent) 28%, transparent);
-  --off:            #F7F9FC;
-  --g100:           #EEF1F7;
-  --g200:           #DDE2EE;
-  --g300:           #CDD3DF;
-  --g500:           #7A8499;
-  --g700:           #3D4560;
-  --g900:           #1A2038;
-  --text:           #111827;
-  --sidebar:        #0F1629;
-  --sidebar-hover:  rgba(255,255,255,.06);
-  --sidebar-active: rgba(26,86,219,.18);
+  --off:            #F5F7FA;
+  --g100:           #EAF0F6;
+  --g200:           #D0DCE8;
+  --g300:           #B0C2D4;
+  --g500:           #6B7E94;
+  --g700:           #2E4057;
+  --g900:           #1A2D40;
+  --text:           #1A2D40;
+  --sidebar:        #1A2D40;
+  --sidebar-hover:  rgba(255,255,255,.07);
+  --sidebar-active: rgba(27,108,168,.22);
   --sb-width-open:   260px;
   --sb-width-closed:  68px;
   --sb-transition:   0.28s cubic-bezier(0.4, 0, 0.2, 1);
@@ -238,7 +238,7 @@ body {
   overflow: hidden; max-height: 0;
   transition: max-height .25s ease, opacity var(--sb-transition);
 }
-.nav-sub.open { max-height: 200px; }
+.nav-sub.open { max-height: 280px; }
 .sidebar.collapsed .nav-sub { opacity: 0; max-height: 0 !important; }
 
 .nav-sub-item {
@@ -324,6 +324,11 @@ body.sidebar-collapsed .main { margin-left: var(--sb-width-closed); }
   overflow: visible;
   width: 100%;
 }
+@media (max-width: 768px) {
+  .topbar { padding: 0 12px 0 10px; gap: 8px; }
+  .topbar-titles h1 { font-size: 15px; }
+  .topbar-titles p  { display: none; }
+}
 
 /* ── Hamburger button ── */
 .sb-hamburger {
@@ -399,6 +404,9 @@ body.sidebar-collapsed .hbars span:nth-child(3) { width: 17px; }
 
 /* Content */
 .content { padding: 28px 28px; flex: 1; }
+@media (max-width: 768px) {
+  .content { padding: 16px 14px; }
+}
 
 /* ══════════════════════════════════════════════════════════
    NOTIFICATION BELL
@@ -601,21 +609,48 @@ body.sidebar-collapsed .hbars span:nth-child(3) { width: 17px; }
 .btn-signout:hover { background: #c01e1e; }
 
 /* ══════════════════════════════════════════════════════════
-   MOBILE
+   MOBILE — sidebar becomes a slide-over drawer
    ══════════════════════════════════════════════════════════ */
-@media (max-width: 640px) {
-  .sidebar { width: var(--sb-width-closed) !important; }
+@media (max-width: 768px) {
+
+  /* Sidebar slides off-screen by default */
+  .sidebar {
+    width: var(--sb-width-open) !important;
+    transform: translateX(-100%);
+    transition: transform var(--sb-transition);
+    z-index: 200;
+    /* restore all hidden text */
+  }
   .sidebar .brand-text,
   .sidebar .dept-badge,
   .sidebar .nav-lbl,
   .sidebar .link-label,
   .sidebar .nav-item span,
-  .sidebar .nav-sub,
   .sidebar .nav-group-chevron,
-  .sidebar .s-info { display: none !important; }
-  .main { margin-left: var(--sb-width-closed) !important; }
-  .content { padding: 20px 14px; }
+  .sidebar .s-info { display: revert !important; }
+
+  /* When open, slide in */
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Dim overlay behind drawer */
+  .sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 199;
+  }
+  .sidebar-overlay.active { display: block; }
+
+  /* Main takes full width — no margin */
+  .main { margin-left: 0 !important; }
+
   .topbar-date { display: none; }
+  .topbar { padding: 0 12px 0 10px; gap: 8px; }
+  .topbar-titles h1 { font-size: 15px; }
+  .topbar-titles p  { display: none; }
+  .content { padding: 16px 14px; }
 }
 /* ══════════════════════════════════════════════════════════
    SLA TAB DOT
@@ -626,4 +661,23 @@ body.sidebar-collapsed .hbars span:nth-child(3) { width: 17px; }
   vertical-align: middle; margin-left: 4px;
   flex-shrink: 0;
   background: #F59E0B; /* overridden to red by JS when overdue exists */
+}
+
+/* ══════════════════════════════════════════════════════════
+   DASHBOARD MOBILE
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .stats { gap: 10px !important; }
+  .stats .stat { padding: 12px 10px; }
+  .stats .stat .num { font-size: 22px; }
+
+  .tbl-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tbl-wrap table { min-width: 560px; }
+
+  .tab-nav { flex-wrap: wrap; gap: 4px; }
+  .tab-btn  { font-size: 12px; padding: 6px 10px; }
+
+  #deptPieChart { width: 120px !important; height: 120px !important; }
+
+  .sec-hdr { flex-wrap: wrap; gap: 6px; }
 }

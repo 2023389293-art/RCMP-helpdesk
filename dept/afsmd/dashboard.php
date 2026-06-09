@@ -600,7 +600,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
   .stats { grid-template-columns: repeat(2, 1fr) !important; }
 }
 @media (max-width: 600px) {
-  .stats { grid-template-columns: 1fr !important; }
+  .stats { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
     /* ── Category badge (matches tickets.php) ── */
@@ -614,6 +614,66 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+/* ══ MOBILE RESPONSIVE ══ */
+@media (max-width: 640px) {
+
+  /* KPI cards — smaller padding & numbers */
+  .stat { padding: 14px 12px; gap: 10px; }
+  .stat .num { font-size: 26px; }
+  .stat .lbl { font-size: 11px; }
+  .stat-icon { width: 34px; height: 34px; }
+  .stat-icon svg { width: 15px; height: 15px; }
+
+  /* Middle row: stack vertically */
+  div[style*="display:flex; gap:16px; margin-bottom:20px"] {
+    flex-direction: column !important;
+  }
+
+  /* Tab card full width */
+  .card-box.tab-card { width: 100% !important; }
+
+  /* Pie chart card: horizontal layout on mobile */
+  .card-box:not(.tab-card) div[style*="flex-direction:row"] {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+
+  /* Tab buttons smaller */
+  .tab-btn { font-size: 11px; padding: 12px 10px 10px; }
+  .tab-count { font-size: 10px; padding: 1px 5px; }
+
+  /* Table: hide less important columns */
+  table thead th:nth-child(4),
+  table tbody td:nth-child(4) { display: none; } /* Priority */
+  table thead th:nth-child(5),
+  table tbody td:nth-child(5) { display: none; } /* Category */
+
+  /* Table font smaller */
+  table { font-size: 12px; }
+  tbody td { padding: 10px 10px; }
+  thead th { padding: 8px 10px; font-size: 11px; }
+
+  /* Assigned cell compact */
+  .assigned-name { max-width: 80px; font-size: 12px; }
+  .assigned-code { display: none; }
+  .staff-avatar-sm { width: 26px; height: 26px; font-size: 10px; }
+
+  /* Dept cell compact */
+  .dept-cell .dept-name { max-width: 110px; font-size: 12px; }
+  .dept-cell .dept-datetime { font-size: 10px; }
+
+  /* Content padding */
+  .content { padding: 16px 12px; }
+
+  /* Section header */
+  .sec-title { font-size: 14px; }
+
+  /* My Tasks items */
+  .mytask-item { padding: 8px 9px; }
+  .mt-title { font-size: 11px; }
+  .mt-tid { font-size: 10px; }
 }
 
   </style>
@@ -672,7 +732,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
 </div>
 
   <!-- ══ MIDDLE ROW: Tabbed Card + Top Departments ══ -->
-<div style="display:flex; gap:16px; margin-bottom:20px; align-items:stretch;">
+<div style="display:flex; gap:16px; margin-bottom:20px; align-items:stretch; flex-wrap:wrap;">
 
 <!-- LEFT: Tabbed Card -->
 <div class="card-box tab-card" style="flex:1; min-width:0;">

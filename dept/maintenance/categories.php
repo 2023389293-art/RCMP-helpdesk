@@ -146,12 +146,15 @@ $pageSubtitle = 'Maintenance Department';
     .alert-error svg{stroke:#DC2626}
     @keyframes fadeSlideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 
-    .page-grid{display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start}
-    @media(max-width:900px){.page-grid{grid-template-columns:1fr}}
+.page-grid{display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start}
+@media(max-width:900px){
+  .page-grid{grid-template-columns:1fr}
+  .page-grid > div:last-child{order:-1}
+}
 
     .card{background:white;border-radius:14px;border:1px solid var(--g200);overflow:hidden;margin-bottom:20px;transition:border-color .2s,box-shadow .2s}
     .card:last-child{margin-bottom:0}
-    .card-header{padding:18px 24px;border-bottom:1px solid var(--g100);display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .card-header{padding:18px 24px;border-bottom:1px solid var(--g100);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
     .card-header-left{display:flex;align-items:center;gap:12px}
     .card-header-icon{width:40px;height:40px;border-radius:9px;background:var(--g100);display:flex;align-items:center;justify-content:center;flex-shrink:0}
     .card-header-icon svg{width:19px;height:19px;fill:none;stroke:var(--g500);stroke-width:1.8}
@@ -163,7 +166,7 @@ $pageSubtitle = 'Maintenance Department';
 
     .search-wrap{position:relative;display:flex;align-items:center}
     .search-wrap svg{position:absolute;left:10px;width:14px;height:14px;stroke:var(--g400);fill:none;stroke-width:2;pointer-events:none}
-    .search-input{padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1.5px solid var(--g200);background:white;color:var(--g900);width:200px;outline:none;transition:border-color .15s}
+    .search-input{padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1.5px solid var(--g200);background:white;color:var(--g900);width:200px;max-width:100%;outline:none;transition:border-color .15s}
     .search-input:focus{border-color:var(--accent)}
     .search-input::placeholder{color:var(--g400)}
 
@@ -240,6 +243,22 @@ $pageSubtitle = 'Maintenance Department';
     .date-text{font-size:13px;color:var(--g600);white-space:nowrap}
     .date-sub{font-size:11px;color:var(--g400);margin-top:2px}
     .form-hint{font-size:12px;color:var(--g500);margin-top:6px}
+
+@media(max-width:640px){.search-wrap{width:100%}.search-input{width:100%}}
+@media(max-width:900px){.search-wrap{width:100%}.search-input{width:100%}}
+
+.tbl-wrap{width:100%;}
+@media(max-width:640px){
+  .tbl-card{overflow:visible;}
+  .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;display:block;}
+  table{width:700px;min-width:700px;}
+}
+
+thead th:nth-child(1){width:40px;}
+thead th:nth-child(2){width:200px;}
+thead th:nth-child(3){width:110px;}
+thead th:nth-child(4){width:130px;}
+thead th:nth-child(5){width:100px;}
   </style>
 </head>
 <body>
@@ -262,7 +281,7 @@ $pageSubtitle = 'Maintenance Department';
     <div class="page-grid">
 
       <!-- ── Left: categories table ── -->
-      <div>
+      <div style="min-width:0;">
         <div class="tbl-card">
           <div class="card-header">
             <div class="card-header-left">

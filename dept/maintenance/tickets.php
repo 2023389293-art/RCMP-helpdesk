@@ -255,6 +255,45 @@ function staffInitials(string $name): string {
     col.col-assigned { width: 16%; }
     col.col-action   { width: 8%;  }
 
+    /* ── Mobile responsive ── */
+    @media (max-width: 640px) {
+      .filter-bar { gap: 4px; }
+      .filter-tab { padding: 6px 10px; font-size: 12px; }
+
+      .toolbar { flex-direction: column; align-items: flex-start; }
+      .toolbar-right { width: 100%; flex-wrap: wrap; }
+      .search-input { width: 100%; }
+
+      /* Hide less important columns on mobile */
+      .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      table { table-layout: auto; min-width: 480px; }
+
+      col.col-id       { width: auto; }
+      col.col-dept     { width: auto; }
+      col.col-status   { width: auto; }
+      col.col-priority { width: auto; }
+      col.col-category { width: auto; }
+      col.col-assigned { width: auto; }
+      col.col-action   { width: auto; }
+
+      thead th { font-size: 11px; padding: 8px 8px; white-space: nowrap; }
+      tbody td { padding: 9px 8px; font-size: 12px; }
+
+      /* Keep action button always visible */
+      .btn-view { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+      .tid-link { font-size: 12px; padding: 2px 6px; }
+
+      .assigned-name { max-width: 60px; }
+      .dept-cell .dept-name { font-size: 12px; }
+      .dept-cell .dept-datetime { font-size: 11px; }
+
+      .pagination-bar { flex-direction: column; align-items: center; }
+
+      /* Hide category and assigned columns on very small screens, show scroll hint */
+      th:nth-child(5), td:nth-child(5),
+      th:nth-child(6), td:nth-child(6) { display: none; }
+    }
+
     /* ── Ticket ID ── */
     .tid-link{font-weight:600;color:var(--accent);font-size:13px;text-decoration:none;font-family:monospace;letter-spacing:.03em;background:#EFF6FF;padding:3px 8px;border-radius:5px;white-space:nowrap;display:inline-block;max-width:100%;overflow:visible;}
     .tid-link:hover{color:#1240b0;background:#DBEAFE;}
@@ -425,7 +464,7 @@ function staffInitials(string $name): string {
     </div>
 
     <!-- ── Table ── -->
-    <div class="tbl-card"><div class="tbl-wrap">
+    <div class="tbl-card"><div class="tbl-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <table id="ticket-table">
         <colgroup>
           <col class="col-id">

@@ -5,7 +5,7 @@ $openCount   = $openCount   ?? 0;
 $closedCount = $closedCount ?? 0;
 $nav         = $activeNav   ?? 'dashboard';
 ?>
-<link rel="stylesheet" href="css/sidebarr_layout.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="css/sidebar_layout.css?v=<?php echo time(); ?>">
 
 <?php $ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress', 'tickets-closed']); ?>
 
@@ -33,6 +33,7 @@ $nav         = $activeNav   ?? 'dashboard';
 <!-- ══════════════════════════════════════════════════
      SIDEBAR
      ══════════════════════════════════════════════════ -->
+<div class="sb-overlay" id="sbOverlay" onclick="closeMobileSidebar()"></div>
 <aside class="sidebar" id="mainSidebar">
 
   <div class="sb-brand">
@@ -307,22 +308,55 @@ $nav         = $activeNav   ?? 'dashboard';
 /* ── Sidebar toggle ── */
 (function () {
   var sidebar = document.getElementById('mainSidebar');
+  var overlay = document.getElementById('sbOverlay');
   var body    = document.body;
-  if (localStorage.getItem('sidebarCollapsed') === '1') {
+
+  function isMobile() { return window.innerWidth <= 640; }
+
+  /* Restore desktop collapsed state on load */
+  if (!isMobile() && localStorage.getItem('sidebarCollapsed') === '1') {
     sidebar.classList.add('collapsed');
     body.classList.add('sidebar-collapsed');
   }
+
   window.toggleSidebar = function () {
-    var isCollapsed = sidebar.classList.toggle('collapsed');
-    body.classList.toggle('sidebar-collapsed', isCollapsed);
-    localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
-    if (isCollapsed) {
-      var subs = sidebar.querySelectorAll('.nav-sub');
-      subs.forEach(function(sub) { sub.classList.remove('open'); });
-      var chevrons = sidebar.querySelectorAll('.nav-group-chevron');
-      chevrons.forEach(function(c) { c.classList.remove('open'); });
+    if (isMobile()) {
+      /* Mobile: slide-in overlay behaviour */
+      var isOpen = sidebar.classList.toggle('mobile-open');
+      overlay.classList.toggle('active', isOpen);
+      body.style.overflow = isOpen ? 'hidden' : '';
+    } else {
+      /* Desktop: collapse/expand */
+      var isCollapsed = sidebar.classList.toggle('collapsed');
+      body.classList.toggle('sidebar-collapsed', isCollapsed);
+      localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
+      if (isCollapsed) {
+        sidebar.querySelectorAll('.nav-sub').forEach(function(sub) { sub.classList.remove('open'); });
+        sidebar.querySelectorAll('.nav-group-chevron').forEach(function(c) { c.classList.remove('open'); });
+      }
     }
   };
+
+  window.closeMobileSidebar = function () {
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('active');
+    body.style.overflow = '';
+  };
+
+  /* Close mobile sidebar on resize to desktop */
+  window.addEventListener('resize', function () {
+    if (!isMobile()) {
+      closeMobileSidebar();
+      body.style.overflow = '';
+    }
+  });
+
+  /* Close mobile sidebar when a nav link is tapped */
+  sidebar.querySelectorAll('a').forEach(function(link) {
+    link.addEventListener('click', function () {
+      if (isMobile()) closeMobileSidebar();
+    });
+  });
 })();
 
 function toggleTicketsNav(btn) {

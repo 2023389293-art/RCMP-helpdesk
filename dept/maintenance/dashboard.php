@@ -287,7 +287,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
 <?php require_once __DIR__ . '/_layout.php'; ?>
 
     <!-- ══ TOP: Open / In Progress / Closed / SLA Breached ══ -->
-<div class="stats" style="grid-template-columns: repeat(4, 1fr);">
+<div class="stats" style="grid-template-columns: repeat(2, 1fr);">
 
   <a class="stat" href="tickets.php?status=open">
     <div class="stat-icon si-open">
@@ -336,10 +336,10 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
 </div>
 
      <!-- ══ MIDDLE ROW: Tabbed Card + Top Departments ══ -->
-<div style="display:flex; gap:16px; margin-bottom:20px; align-items:stretch;">
+<div style="display:flex; gap:16px; margin-bottom:20px; align-items:stretch; flex-wrap:wrap;">
 
 <!-- LEFT: Tabbed Card -->
-<div class="card-box tab-card" style="flex:1; min-width:0;">
+<div class="card-box tab-card" style="flex:1; min-width:280px;">
 
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('tab-tasks', this)">
@@ -475,7 +475,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
 </div><!-- /.tab-card -->
 
 <!-- RIGHT: Top Departments Pie Chart -->
-<div class="card-box" style="flex:1; min-width:0; display:flex; flex-direction:column;">
+<div class="card-box" style="flex:1; min-width:280px; display:flex; flex-direction:column;">
   <div class="card-box-title">
     <svg viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
     Top Departments Filing Complaints

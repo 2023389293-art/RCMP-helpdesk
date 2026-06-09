@@ -291,6 +291,94 @@ function staffInitials(string $name): string {
     .pg-btn.active{background:var(--accent);border-color:var(--accent);color:white;}
     .pg-btn.disabled{opacity:.4;pointer-events:none;}
     #no-search-row{display:none;}
+
+/* ══════════════════════════════════════════════════
+   TICKETS — MOBILE RESPONSIVE
+   ══════════════════════════════════════════════════ */
+
+/* ── Tablet: filter bar wraps, table starts scrolling ── */
+@media (max-width: 900px) {
+  .adv-filter-bar-body { gap: 10px; }
+  .adv-filter-select,
+  .adv-filter-input    { min-width: 130px; }
+  .adv-filter-actions  { margin-left: 0; width: 100%; }
+  .btn-apply-filter,
+  .btn-reset-filter    { flex: 1; justify-content: center; }
+}
+
+/* ── Mobile: full overhaul ── */
+@media (max-width: 640px) {
+
+  /* Filter tabs — scroll horizontally instead of wrapping */
+  .filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    gap: 6px;
+  }
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .filter-tab { flex-shrink: 0; padding: 7px 12px; font-size: 13px; }
+
+  /* Advanced filter — stack each group full width */
+  .adv-filter-bar-body { padding: 12px 14px; gap: 10px; }
+  .adv-filter-group    { width: 100%; }
+  .adv-filter-select,
+  .adv-filter-input    { width: 100%; min-width: unset; }
+  .adv-filter-actions  { width: 100%; margin-left: 0; }
+  .btn-apply-filter,
+  .btn-reset-filter    { flex: 1; justify-content: center; }
+  .adv-filter-bar-header { padding: 11px 14px; }
+
+  /* Active chips */
+  .active-chips { gap: 6px; }
+  .chip         { font-size: 11px; padding: 3px 8px; }
+
+  /* Toolbar — stack vertically */
+  .toolbar       { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .toolbar-right { width: 100%; }
+  .search-wrap   { flex: 1; }
+  .search-input  { width: 100%; }
+  .perpage-select { flex-shrink: 0; }
+
+  /* Table — hide less important columns, allow horizontal scroll as fallback */
+  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table     { table-layout: auto; min-width: 420px; }
+
+  /* Hide Category and Assigned To columns on mobile */
+  thead th:nth-child(5),
+  tbody td:nth-child(5),
+  thead th:nth-child(6),
+  tbody td:nth-child(6) { display: none; }
+
+  /* Tighten remaining column padding */
+  thead th,
+  tbody td { padding: 9px 8px; }
+
+  /* Ticket ID — smaller pill */
+  .tid-link { font-size: 11px; padding: 2px 6px; }
+
+  /* Department cell — tighten */
+  .dept-cell .dept-name     { font-size: 12px; }
+  .dept-cell .dept-datetime { font-size: 10px; }
+
+  /* Status badge — smaller */
+  .bdg { font-size: 11px; padding: 2px 6px; }
+
+  /* Priority — text hidden, icon only */
+  .priority-pill { font-size: 0; gap: 0; }
+  .priority-flag-icon { width: 16px; height: 16px; top: 0; }
+
+  /* View button — icon only */
+  .btn-view { padding: 5px 8px; font-size: 0; gap: 0; }
+  .btn-view svg { width: 14px; height: 14px; }
+
+  /* Pagination */
+  .pagination-bar { flex-direction: column; align-items: center; gap: 8px; }
+  .pg-btn         { padding: 6px 10px; font-size: 12px; min-width: 32px; }
+  .pg-info        { font-size: 12px; }
+}
   </style>
 </head>
 <body>

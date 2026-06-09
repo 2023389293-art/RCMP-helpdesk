@@ -6,7 +6,7 @@ $closedCount     = $closedCount     ?? 0;
 $completedCount  = $completedCount  ?? 0;
 $nav             = $activeNav       ?? 'dashboard';
 ?>
-<link rel="stylesheet" href="css/sidebar_layout.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="css/sidebarr_layoutt.css?v=<?php echo time(); ?>">
 
 <?php $ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress', 'tickets-closed']); ?>
 
@@ -34,6 +34,7 @@ $nav             = $activeNav       ?? 'dashboard';
 <!-- ══════════════════════════════════════════════════
      SIDEBAR
      ══════════════════════════════════════════════════ -->
+<div class="sb-backdrop" id="sbBackdrop" onclick="closeMobileSidebar()"></div>
 <aside class="sidebar" id="mainSidebar">
 
   <div class="sb-brand">
@@ -324,21 +325,52 @@ $reqNavOpen = in_array($nav, ['requisitions','requisitions-pending','requisition
 <script>
 /* ── Sidebar toggle ── */
 (function () {
-  var sidebar = document.getElementById('mainSidebar');
-  var body    = document.body;
-  if (localStorage.getItem('sidebarCollapsed') === '1') {
-    sidebar.classList.add('collapsed');
-    body.classList.add('sidebar-collapsed');
+  var sidebar  = document.getElementById('mainSidebar');
+  var backdrop = document.getElementById('sbBackdrop');
+  var body     = document.body;
+
+  function isMobile() { return window.innerWidth <= 640; }
+
+  /* Desktop: restore collapsed state — never apply on mobile */
+  if (!isMobile()) {
+    if (localStorage.getItem('sidebarCollapsed') === '1') {
+      sidebar.classList.add('collapsed');
+      body.classList.add('sidebar-collapsed');
+    }
+  } else {
+    /* On mobile: strip any collapsed class that may have persisted */
+    sidebar.classList.remove('collapsed');
+    body.classList.remove('sidebar-collapsed');
   }
+
   window.toggleSidebar = function () {
-    var isCollapsed = sidebar.classList.toggle('collapsed');
-    body.classList.toggle('sidebar-collapsed', isCollapsed);
-    localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
-    if (isCollapsed) {
-  document.querySelectorAll('.nav-sub').forEach(function(s){ s.classList.remove('open'); });
-  document.querySelectorAll('.nav-group-chevron').forEach(function(c){ c.classList.remove('open'); });
-}
+    if (isMobile()) {
+      var opening = !sidebar.classList.contains('mobile-open');
+      sidebar.classList.toggle('mobile-open', opening);
+      backdrop.classList.toggle('active', opening);
+    } else {
+      var isCollapsed = sidebar.classList.toggle('collapsed');
+      body.classList.toggle('sidebar-collapsed', isCollapsed);
+      localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
+      if (isCollapsed) {
+        document.querySelectorAll('.nav-sub').forEach(function(s){ s.classList.remove('open'); });
+        document.querySelectorAll('.nav-group-chevron').forEach(function(c){ c.classList.remove('open'); });
+      }
+    }
   };
+
+  window.closeMobileSidebar = function () {
+    sidebar.classList.remove('mobile-open');
+    backdrop.classList.remove('active');
+  };
+
+  /* Close drawer if window resizes to desktop */
+  window.addEventListener('resize', function () {
+    if (!isMobile()) {
+      sidebar.classList.remove('mobile-open');
+      backdrop.classList.remove('active');
+    }
+  });
 })();
 
 function toggleTicketsNav(btn) {

@@ -149,13 +149,16 @@ $pageSubtitle = 'Information Technology Department';
     @keyframes fadeSlideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 
     /* ── Page layout ── */
-    .page-grid{display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start}
-    @media(max-width:900px){.page-grid{grid-template-columns:1fr}}
+.page-grid{display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start}
+@media(max-width:900px){.page-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.page-grid > div:last-child{order:-1}}
 
     /* ── Cards ── */
     .card{background:white;border-radius:14px;border:1px solid var(--g200);overflow:hidden;margin-bottom:20px;transition:border-color .2s,box-shadow .2s}
     .card:last-child{margin-bottom:0}
-    .card-header{padding:18px 24px;border-bottom:1px solid var(--g100);display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .card-header{padding:18px 24px;border-bottom:1px solid var(--g100);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media(max-width:640px){.card-header{padding:14px 16px;gap:10px}}
+@media(max-width:640px){.card-body{padding:16px}}
     .card-header-left{display:flex;align-items:center;gap:12px}
     .card-header-icon{width:40px;height:40px;border-radius:9px;background:var(--g100);display:flex;align-items:center;justify-content:center;flex-shrink:0}
     .card-header-icon svg{width:19px;height:19px;fill:none;stroke:var(--g500);stroke-width:1.8}
@@ -170,6 +173,7 @@ $pageSubtitle = 'Information Technology Department';
     .search-wrap{position:relative;display:flex;align-items:center}
     .search-wrap svg{position:absolute;left:10px;width:14px;height:14px;stroke:var(--g400);fill:none;stroke-width:2;pointer-events:none}
     .search-input{padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1.5px solid var(--g200);background:white;color:var(--g900);width:200px;outline:none;transition:border-color .15s}
+@media(max-width:640px){.search-input{width:130px}}
     .search-input:focus{border-color:var(--accent)}
     .search-input::placeholder{color:var(--g400)}
 
@@ -257,6 +261,10 @@ $pageSubtitle = 'Information Technology Department';
     /* ── Date cell ── */
     .date-text{font-size:13px;color:var(--g600);white-space:nowrap}
     .date-sub{font-size:11px;color:var(--g400);margin-top:2px}
+    @media(max-width:480px){
+  thead th:nth-child(4),
+  tbody td:nth-child(4){ display:none; }
+}
   </style>
 </head>
 <body>

@@ -461,8 +461,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .manual-inner { padding-top: 20px; }
 
     @media (max-width: 480px) {
-      .card { padding: 34px 24px 30px; }
-      .card-head h1 { font-size: 28px; }
+      .card { padding: 24px 18px 24px; border-radius: 16px; }
+      .card-head h1 { font-size: 24px; }
+      .card-head p { font-size: 12px; }
+      .btn-login { font-size: 13px; padding: 13px; }
+      .toggle-btn { font-size: 12px; }
+      .sso-note { font-size: 11px; }
+      .logo-badge { gap: 8px; }
+      .logo-badge > div:first-child { width: 52px !important; height: 52px !important; }
+      .logo-badge > div:last-child span:first-child { font-size: 9px !important; white-space: normal !important; }
+      .logo-badge > div:last-child span:last-child { font-size: 13px !important; }
+      .page-wrap { padding: 16px 12px; min-height: 100dvh; justify-content: center; }
     }
   </style>
 </head>
@@ -481,9 +490,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div style="width:90px; height:90px; flex-shrink:0;">
           <img src="img/RCMP.png" alt="UniKL RCMP" style="width:100%; height:100%; object-fit:contain;" />
         </div>
-        <div style="width:1px; height:36px; background:rgba(255,255,255,0.25);"></div>
-        <div style="display:flex; flex-direction:column; text-align:left; min-width:0;">
-          <span style="font-size:11px; font-weight:500; color:rgba(255,255,255,0.6); letter-spacing:0.14em; text-transform:uppercase; white-space:nowrap;">UniKL Royal College of Medicine Perak</span>
+        <div style="width:1px; height:36px; background:rgba(255,255,255,0.25); flex-shrink:0;"></div>
+        <div style="display:flex; flex-direction:column; text-align:left; min-width:0; max-width:220px;">
+          <span style="font-size:11px; font-weight:500; color:rgba(255,255,255,0.6); letter-spacing:0.14em; text-transform:uppercase; white-space:nowrap; line-height:1.4;">UniKL Royal College of Medicine Perak</span>
           <span style="font-size:17px; font-weight:600; color:#fff; line-height:1.25;">Help Desk System</span>
         </div>
       </div>

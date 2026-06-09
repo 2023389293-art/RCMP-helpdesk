@@ -293,7 +293,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
     /* ══ TOP: 3 KPI Status Cards ══ */
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
   margin-bottom: 20px;
 }
@@ -605,12 +605,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
 .tab-pane { display: none; padding: 16px 20px; }
 .tab-pane.active { display: block; }
 
-@media (max-width: 900px) {
-  .stats { grid-template-columns: repeat(2, 1fr) !important; }
-}
-@media (max-width: 600px) {
-  .stats { grid-template-columns: 1fr !important; }
-}
+
 
     /* ── Category badge (matches tickets.php) ── */
 .cat-badge {
@@ -625,6 +620,77 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
   vertical-align: middle;
 }
 
+  /* ══ TABLET ══ */
+@media (max-width: 900px) {
+  .stats { grid-template-columns: repeat(2, 1fr) !important; }
+  .middle-row { flex-direction: column !important; }
+  .stat { padding: 16px 14px; }
+  .stat .num { font-size: 30px; }
+}
+
+  /* ══ MOBILE RESPONSIVE ══ */
+@media (max-width: 600px) {
+
+  /* Content padding */
+  .content { padding: 16px 12px !important; }
+
+  /* Middle row stack */
+  .middle-row { flex-direction: column !important; }
+
+  /* Stat cards */
+  .stats { grid-template-columns: repeat(2, 1fr) !important; }
+  .stat { padding: 14px 12px; gap: 10px; }
+  .stat .num { font-size: 26px; }
+  .stat .lbl { font-size: 11px; }
+  .stat-icon { width: 34px; height: 34px; }
+  .stat-icon svg { width: 15px; height: 15px; }
+
+  /* Tab nav: shrink text */
+  .tab-nav { padding: 0 10px; overflow-x: auto; flex-wrap: nowrap; }
+  .tab-btn { font-size: 11px; padding: 12px 10px 10px; gap: 4px; }
+  .tab-count { font-size: 10px; padding: 1px 5px; }
+
+  /* Pie chart: stack legend below chart */
+  #deptPieChart { width: 130px !important; height: 130px !important; }
+
+  /* Table: shrink font + padding */
+  table { font-size: 12px; }
+  thead th { padding: 8px 10px; font-size: 10px; }
+  tbody td { padding: 10px 10px; }
+  .tid-link { font-size: 12px; }
+  .bdg { font-size: 11px; padding: 2px 8px; }
+  .dept-cell .dept-name { font-size: 12px; max-width: 120px; }
+  .dept-cell .dept-datetime { font-size: 10px; }
+  .assigned-name { font-size: 12px; max-width: 90px; }
+  .staff-avatar-sm { width: 26px; height: 26px; font-size: 9px; }
+  .priority-pill { font-size: 0.62rem; }
+
+  /* Section header */
+  .sec-title { font-size: 14px; }
+  .view-all  { font-size: 12px; }
+
+  /* My Tasks items */
+  .mytask-item { padding: 8px 9px; gap: 8px; }
+  .mt-tid   { font-size: 10px; }
+  .mt-title { font-size: 11px; }
+  .mt-dept, .mt-status-bdg, .mt-sla-badge { font-size: 9px; }
+  .mt-link  { font-size: 10px; }
+
+  /* Top departments pie legend */
+  .topdept-bar-wrap { width: 60px; }
+
+  /* Pie chart: stack chart above legend */
+  .pie-inner-row { flex-direction: column !important; align-items: center !important; }
+  #deptPieChart { width: 120px !important; height: 120px !important; }
+}
+
+@media (max-width: 400px) {
+  /* Hide less-important table columns on very small screens */
+  table thead th:nth-child(4),
+  table tbody td:nth-child(4) { display: none; } /* Priority */
+  table thead th:nth-child(5),
+  table tbody td:nth-child(5) { display: none; } /* Category */
+}
   </style>
 </head>
 <body>
@@ -632,7 +698,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
 <?php require_once __DIR__ . '/_layout.php'; ?>
 
 <!-- ══ TOP: Open / In Progress / Closed / SLA Breached ══ -->
-<div class="stats" style="grid-template-columns: repeat(4, 1fr);">
+<div class="stats">
 
   <a class="stat" href="tickets.php?status=open">
     <div class="stat-icon si-open">
@@ -681,7 +747,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
 </div>
 
   <!-- ══ MIDDLE ROW: Tabbed Card + Top Departments ══ -->
-<div style="display:flex; gap:16px; margin-bottom:20px; align-items:stretch;">
+<div style="display:flex; gap:16px; margin-bottom:20px; align-items:stretch;" class="middle-row">
 
 <!-- LEFT: Tabbed Card -->
 <div class="card-box tab-card" style="flex:1; min-width:0;">
@@ -831,7 +897,7 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
   <?php if (empty($topDepts)): ?>
     <div class="topdept-empty">No complaints data yet.</div>
   <?php else: ?>
-  <div style="flex:1; display:flex; flex-direction:row; align-items:center; justify-content:center; gap:20px;">
+  <div class="pie-inner-row" style="flex:1; display:flex; flex-direction:row; align-items:center; justify-content:center; gap:20px;">
     <canvas id="deptPieChart" width="160" height="160" style="flex-shrink:0; width:160px; height:160px;"></canvas>
     <div style="display:flex; flex-direction:column; gap:8px; flex:1; min-width:0; max-width:280px;">
       <?php

@@ -7,7 +7,7 @@ $closedCount      = $closedCount      ?? 0;
 $nav         = $activeNav   ?? 'dashboard';
 ?>
 <?php $ticketsNavOpen = in_array($nav, ['tickets', 'tickets-open', 'tickets-inprogress', 'tickets-closed']); ?>
-<link rel="stylesheet" href="css/sidebarr_layout.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="css/sidebar_layout.css?v=<?php echo time(); ?>">
 
 
 
@@ -35,6 +35,7 @@ $nav         = $activeNav   ?? 'dashboard';
 <!-- ══════════════════════════════════════════════════
      SIDEBAR
      ══════════════════════════════════════════════════ -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
 <aside class="sidebar" id="mainSidebar">
 
   <div class="sb-brand">
@@ -306,22 +307,49 @@ $nav         = $activeNav   ?? 'dashboard';
 /* ── Sidebar toggle ── */
 (function () {
   var sidebar = document.getElementById('mainSidebar');
+  var overlay = document.getElementById('sidebarOverlay');
   var body    = document.body;
-  if (localStorage.getItem('sidebarCollapsed') === '1') {
+
+  function isMobile() { return window.innerWidth <= 768; }
+
+  /* Desktop: restore collapsed state from localStorage */
+  if (!isMobile() && localStorage.getItem('sidebarCollapsed') === '1') {
     sidebar.classList.add('collapsed');
     body.classList.add('sidebar-collapsed');
   }
+
   window.toggleSidebar = function () {
-    var isCollapsed = sidebar.classList.toggle('collapsed');
-    body.classList.toggle('sidebar-collapsed', isCollapsed);
-    localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
-    if (isCollapsed) {
-      var subs = sidebar.querySelectorAll('.nav-sub');
-      subs.forEach(function(sub) { sub.classList.remove('open'); });
-      var chevrons = sidebar.querySelectorAll('.nav-group-chevron');
-      chevrons.forEach(function(c) { c.classList.remove('open'); });
+    if (isMobile()) {
+      /* Mobile: slide-over drawer */
+      var isOpen = sidebar.classList.toggle('mobile-open');
+      overlay.classList.toggle('active', isOpen);
+      body.style.overflow = isOpen ? 'hidden' : '';
+    } else {
+      /* Desktop: icon-rail collapse */
+      var isCollapsed = sidebar.classList.toggle('collapsed');
+      body.classList.toggle('sidebar-collapsed', isCollapsed);
+      localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
+      if (isCollapsed) {
+        sidebar.querySelectorAll('.nav-sub').forEach(function(s){ s.classList.remove('open'); });
+        sidebar.querySelectorAll('.nav-group-chevron').forEach(function(c){ c.classList.remove('open'); });
+      }
     }
   };
+
+  window.closeMobileSidebar = function () {
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('active');
+    body.style.overflow = '';
+  };
+
+  /* Close drawer on resize to desktop */
+  window.addEventListener('resize', function () {
+    if (window.innerWidth > 768) {
+      sidebar.classList.remove('mobile-open');
+      overlay.classList.remove('active');
+      body.style.overflow = '';
+    }
+  });
 })();
 
 function toggleTicketsNav(btn) {
