@@ -185,12 +185,12 @@ if ($loginRole === 'reports' && !in_array($staffRole, ['super_admin', 'report_vi
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Operator Portal | UniKL RCMP Help Desk</title>
+  <title>Operator Sign In | UniKL RCMP Help Desk</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Lora:ital,wght@0,600;1,600&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
+<style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
+    :root {
       --navy:        #1E3A5F;
       --navy-dark:   #142845;
       --navy-mid:    #2B4F7E;
@@ -215,27 +215,13 @@ if ($loginRole === 'reports' && !in_array($staffRole, ['super_admin', 'report_vi
       --input-focus: #EBF1F8;
     }
 
-    html, body {
-      height: 100%;
-      font-family: 'Source Sans 3', sans-serif;
-      background: var(--page-bg);
-      color: var(--text);
-    }
-
-    /* ── OUTER SHELL ── */
-    .shell {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
+    html, body { height: 100%; font-family: 'Source Sans 3', sans-serif; color: var(--text); }
 
     /* ── GOV BANNER ── */
     .gov-banner {
       background: var(--navy-dark);
       padding: 6px 48px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between;
       border-bottom: 2px solid var(--gold);
     }
     .gov-banner-left {
@@ -259,281 +245,221 @@ if ($loginRole === 'reports' && !in_array($staffRole, ['super_admin', 'report_vi
     .nav-logo img { width: 72px; height: 72px; object-fit: contain; }
     .nav-divider { width: 1px; height: 36px; background: var(--border); }
     .nav-text-group { display: flex; flex-direction: column; }
-    .nav-org { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--olive); }
-    .nav-title { font-size: 15px; font-weight: 700; color: var(--navy-dark); letter-spacing: 0.01em; }
-    .nav-actions { display: flex; align-items: center; gap: 10px; }
-    .btn-ghost {
+    .nav-org   { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--olive); }
+    .nav-title { font-size: 15px; font-weight: 700; color: var(--navy-dark); }
+    .nav-back {
       font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em;
       padding: 9px 22px; border-radius: 5px;
-      border: 1.5px solid var(--border);
-      background: transparent; color: var(--text-mid);
-      cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 7px;
+      border: 1.5px solid var(--border); background: transparent; color: var(--text-mid);
+      text-decoration: none; display: inline-flex; align-items: center; gap: 7px;
       transition: all 0.2s;
     }
-    .btn-ghost:hover { border-color: var(--navy); color: var(--navy); background: var(--navy-light); }
-    .btn-ghost svg { width: 14px; height: 14px; }
+    .nav-back:hover { border-color: var(--navy); color: var(--navy); background: var(--navy-light); }
+    .nav-back svg { width: 14px; height: 14px; }
 
-    /* ── MAIN CONTENT ── */
+    /* ── MAIN AREA ── */
     .main {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 20px;
+      min-height: calc(100vh - 38px - 76px);
+      background: var(--page-bg);
+      display: flex; align-items: center; justify-content: center;
+      padding: 48px 20px;
+      position: relative; overflow: hidden;
+    }
+    .main::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(30,58,95,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30,58,95,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
     }
 
-    /* ── LOGIN CARD (split layout) ── */
+    /* ── LOGIN CARD ── */
     .login-card {
-      display: flex;
-      width: 100%;
-      max-width: 900px;
-      min-height: 560px;
+      position: relative; z-index: 2;
+      width: 100%; max-width: 480px;
       background: var(--white);
       border: 1px solid var(--border);
       border-top: 3px solid var(--navy);
       border-radius: 10px;
       overflow: hidden;
       box-shadow: 0 4px 32px rgba(20,40,70,0.10), 0 1px 4px rgba(20,40,70,0.07);
-      animation: fadeUp 0.55s cubic-bezier(.22,1,.36,1) both;
+      animation: fadeUp 0.5s cubic-bezier(.22,1,.36,1) both;
     }
-    @keyframes fadeUp {
-      from { opacity:0; transform: translateY(20px); }
-      to   { opacity:1; transform: translateY(0); }
-    }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
 
-    /* ── LEFT PANEL ── */
-    .panel-left {
-      flex: 1;
-      background: var(--navy-dark);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 48px 40px;
-      position: relative;
-      overflow: hidden;
-    }
-    .panel-left::before {
-      content: '';
-      position: absolute; inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-      background-size: 32px 32px;
-    }
-    .panel-left::after {
-      content: '';
-      position: absolute;
-      top: 0; left: 0;
-      width: 80px; height: 3px;
-      background: var(--gold);
-    }
-.panel-illustration {
-  position: relative; z-index: 2;
-  display: flex; flex-direction: column; align-items: center; gap: 24px;
-  margin-top: -60px;
-}
+    .card-body { padding: 44px 44px 36px; }
 
-    /* Big logo ring */
-.illus-logo {
-  width: 180px; height: 180px;
-  display: flex; align-items: center; justify-content: center;
-}
-    .illus-logo img { width: 100%; height: 100%; object-fit: contain; }
+    /* ── CARD HEADER ── */
+    .card-header { text-align: center; margin-bottom: 32px; }
+    .card-logo {
+      display: inline-flex; align-items: center; gap: 14px;
+      margin-bottom: 22px;
+    }
+    .card-logo img { width: 98px; height: 98px; object-fit: contain; }
+    .card-logo-divider { width: 1px; height: 46px; background: var(--border); }
+    .card-logo-text { text-align: left; }
+    .card-logo-org  { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--olive); }
+    .card-logo-name { font-size: 17px; font-weight: 700; color: var(--navy-dark); line-height: 1.3; }
 
-    /* Process steps (Dribbble-style) */
-    .illus-steps {
-      display: flex; align-items: flex-start; gap: 0;
-      position: relative;
-    }
-    .illus-step {
-      display: flex; flex-direction: column; align-items: center;
-      gap: 10px; width: 72px;
-    }
-    .step-icon-wrap {
-      position: relative;
-      width: 48px; height: 48px; border-radius: 14px;
-      background: rgba(255,255,255,0.07);
-      border: 1.5px solid rgba(255,255,255,0.13);
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .step-icon-wrap svg { width: 22px; height: 22px; }
-    .step-num {
-      position: absolute; top: -7px; right: -7px;
-      width: 18px; height: 18px; border-radius: 50%;
-      background: var(--gold);
-      font-size: 9px; font-weight: 700; color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      border: 1.5px solid var(--navy-dark);
-    }
-    .step-label {
-      font-size: 9.5px; font-weight: 600;
-      color: rgba(255,255,255,0.50);
-      letter-spacing: 0.06em; text-transform: uppercase;
-      text-align: center; line-height: 1.3;
-    }
-    /* dashed connector between steps */
-    .step-connector {
-      width: 28px; flex-shrink: 0;
-      margin-top: 23px;
-      border-top: 1.5px dashed rgba(255,255,255,0.18);
-    }
-
-    .panel-tagline {
-      text-align: center;
-    }
-    .panel-tagline h2 {
+    .card-header h1 {
       font-family: 'Playfair Display', serif;
-      font-size: 20px; font-weight: 700;
-      color: #fff; line-height: 1.35; margin-bottom: 10px;
+      font-size: 28px; font-weight: 700;
+      color: var(--navy-dark); line-height: 1.2; margin-bottom: 8px;
     }
-    .panel-tagline h2 em { color: var(--gold-light); font-style: italic; }
-    .panel-tagline p {
-      font-size: 12.5px; color: rgba(255,255,255,0.48);
-      line-height: 1.7; font-weight: 300; max-width: 240px; margin: 0 auto;
-    }
+    .card-header h1 em { font-style: italic; color: var(--gold-light); }
+    .card-header p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
 
-    /* ── RIGHT PANEL (form) ── */
-    .panel-right {
-      width: 400px;
-      flex-shrink: 0;
-      display: flex; flex-direction: column; justify-content: center;
-      padding: 48px 44px;
-      border-left: 1px solid var(--border);
-    }
+    .card-divider { height: 1px; background: var(--border); margin-bottom: 28px; }
 
-    .form-header { margin-bottom: 32px; }
-    .form-header h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 30px; font-weight: 700;
-      color: var(--navy-dark); line-height: 1.2; margin-bottom: 6px;
+    /* ── PRIMARY SUBMIT BUTTON ── */
+    .btn-submit {
+      width: 100%; padding: 14px 20px;
+      background: var(--navy); color: #fff;
+      border: none; border-radius: 7px;
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 14.5px; font-weight: 600; letter-spacing: 0.02em;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 3px 12px rgba(30,58,95,0.25);
+      margin-bottom: 10px;
     }
-    .form-header h1 em { font-style: italic; color: var(--gold-light); }
-    .form-header p {
-      font-size: 13px; color: var(--text-muted); line-height: 1.6; font-weight: 400;
-    }
+    .btn-submit:hover { background: var(--navy-dark); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(30,58,95,0.30); }
+    .btn-submit:active { transform: translateY(0); }
+    .btn-submit svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:2.5; }
 
-    .form-divider {
-      height: 1px; background: var(--border); margin-bottom: 26px;
+    /* ── OR DIVIDER ── */
+    .or-row {
+      display: flex; align-items: center; gap: 12px;
+      margin: 16px 0;
     }
+    .or-line { flex: 1; height: 1px; background: var(--border); }
+    .or-label { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
 
-    /* Error alert */
+    /* ── SSO BUTTON (secondary) ── */
+    .btn-sso {
+      width: 100%; padding: 12px 16px;
+      background: #fff; border: 1.5px solid var(--border); border-radius: 7px;
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 14px; font-weight: 600; color: var(--text);
+      cursor: pointer; text-decoration: none;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .btn-sso:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(30,58,95,0.10); }
+    .ms-logo { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 18px; height: 18px; flex-shrink: 0; }
+    .ms-logo span { display: block; }
+
+    /* ── TOGGLE BUTTON ── */
+    .toggle-btn {
+      width: 100%; padding: 11px 16px;
+      background: transparent; border: 1.5px solid var(--border); border-radius: 7px;
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 13px; font-weight: 600; color: var(--text-mid);
+      cursor: pointer; text-align: center;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all .2s; margin-top: 10px;
+    }
+    .toggle-btn:hover { border-color: var(--navy); color: var(--navy); background: var(--navy-light); }
+    .toggle-btn svg { width: 14px; height: 14px; transition: transform .25s; }
+    .toggle-btn.open svg { transform: rotate(180deg); }
+
+    /* ── COLLAPSIBLE FORM ── */
+    .manual-panel { overflow: hidden; max-height: 0; transition: max-height .35s cubic-bezier(.4,0,.2,1); }
+    .manual-panel.open { max-height: 500px; }
+    .manual-inner { padding-top: 20px; }
+
+    /* ── ERROR ALERT ── */
     .alert {
       display: flex; align-items: flex-start; gap: 10px;
       background: var(--error-bg);
       border: 1px solid var(--error-border);
       border-left: 3px solid var(--error);
       padding: 11px 14px; border-radius: 6px;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
       animation: fadeUp 0.3s ease both;
     }
     .alert-icon { color: var(--error); flex-shrink: 0; margin-top: 1px; }
     .alert-icon svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:2; }
     .alert-text { font-size: 13px; color: var(--error); line-height: 1.5; }
 
-    /* Field */
-    .field { margin-bottom: 18px; }
+    /* ── FIELDS ── */
+    .field { margin-bottom: 16px; }
     .field label {
       display: block; font-size: 12px; font-weight: 600;
-      color: var(--text-mid); margin-bottom: 7px;
-      letter-spacing: 0.03em;
+      color: var(--text-mid); margin-bottom: 7px; letter-spacing: 0.03em;
     }
     .input-wrap { position: relative; }
     .input-icon {
       position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
       pointer-events: none; color: #B0BAC8;
     }
-    .input-icon svg { width: 16px; height: 16px; fill:none; stroke:currentColor; stroke-width:1.8; display:block; }
+    .input-icon svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:1.8; display:block; }
     .field input {
-      width: 100%;
-      padding: 12px 14px 12px 42px;
-      background: var(--input-bg);
-      border: 1.5px solid var(--border);
-      border-radius: 7px;
-      font-family: 'Source Sans 3', sans-serif;
-      font-size: 14px; color: var(--text);
-      outline: none;
-      transition: border-color .2s, background .2s, box-shadow .2s;
+      width: 100%; padding: 12px 14px 12px 40px;
+      background: var(--input-bg); border: 1.5px solid var(--border); border-radius: 7px;
+      font-family: 'Source Sans 3', sans-serif; font-size: 14px; color: var(--text);
+      outline: none; transition: border-color .2s, background .2s, box-shadow .2s;
     }
     .field input::placeholder { color: #C0C7D0; }
     .field input:focus {
-      border-color: var(--navy);
-      background: var(--input-focus);
+      border-color: var(--navy); background: var(--input-focus);
       box-shadow: 0 0 0 3px rgba(30,58,95,0.10);
     }
     .field input:-webkit-autofill {
       -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset;
       -webkit-text-fill-color: var(--text);
     }
-
-    /* Password toggle */
     .pw-toggle {
       position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
       background: none; border: none; cursor: pointer;
-      color: var(--text-muted); padding: 4px;
-      display: flex; transition: color .2s;
+      color: var(--text-muted); padding: 4px; display: flex; transition: color .2s;
     }
     .pw-toggle:hover { color: var(--navy); }
     .pw-toggle svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:1.8; }
 
-    /* Hint text */
-    .field-hint {
-      font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.5;
+    /* ── CARD FOOTER ── */
+    .card-footer {
+      border-top: 1px solid var(--border);
+      padding: 16px 44px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      font-size: 12px; color: var(--text-muted);
     }
+    .card-footer a { color: var(--navy); font-weight: 600; text-decoration: none; }
+    .card-footer a:hover { color: var(--gold); text-decoration: underline; }
 
-    /* Submit button */
-    .btn-submit {
-      width: 100%; padding: 13px;
-      background: var(--navy);
-      color: #fff;
-      border: none; border-radius: 7px;
-      font-family: 'Source Sans 3', sans-serif;
-      font-size: 14.5px; font-weight: 600;
-      cursor: pointer; letter-spacing: 0.03em;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      margin-top: 8px;
-      transition: background .2s, transform .15s, box-shadow .2s;
+    /* ── SSO PRIMARY (navy filled) ── */
+    .btn-sso-primary {
+      background: var(--navy); color: #fff;
+      border-color: var(--navy);
       box-shadow: 0 3px 12px rgba(30,58,95,0.25);
+      margin-bottom: 10px;
     }
-    .btn-submit:hover {
-      background: var(--navy-dark);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(30,58,95,0.30);
-    }
-    .btn-submit:active { transform: translateY(0); }
-    .btn-submit svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:2.5; }
+    .btn-sso-primary:hover { background: var(--navy-dark); border-color: var(--navy-dark); box-shadow: 0 6px 20px rgba(30,58,95,0.30); }
+    .btn-sso-primary .ms-logo { filter: none; }
 
-    .form-footer {
-      margin-top: 22px; text-align: center;
-      font-size: 12.5px; color: var(--text-muted);
-    }
-    .form-footer a {
-      color: var(--navy); font-weight: 600;
-      text-decoration: none; transition: color .2s;
-    }
-    .form-footer a:hover { color: var(--gold); text-decoration: underline; }
-
-    /* ── BOTTOM FOOTER (matches index.php) ── */
-    
+    /* ── SSO NOTE ── */
+    .sso-note { font-size: 11.5px; color: var(--text-muted); text-align: center; line-height: 1.55; margin-bottom: 4px; }
 
     /* ── RESPONSIVE ── */
-    @media (max-width: 860px) {
-      .gov-banner, nav, .page-footer { padding-left: 20px; padding-right: 20px; }
-    }
-    @media (max-width: 760px) {
-      .panel-left { display: none; }
-      .panel-right { width: 100%; padding: 36px 28px; }
-      .login-card { max-width: 440px; }
-    }
-    @media (max-width: 480px) {
-      .panel-right { padding: 30px 22px; }
+    @media (max-width: 640px) {
+      .gov-banner { display: none; }
+      nav { padding: 0 16px; height: 60px; }
+      .nav-logo img { width: 44px; height: 44px; }
+      .nav-org { font-size: 10px; }
+      .nav-title { font-size: 12px; }
+      .nav-divider { display: none; }
+      .main { padding: 24px 12px; }
+      .card-body { padding: 30px 24px 24px; }
+      .card-footer { padding: 14px 24px; }
     }
   </style>
 </head>
 <body>
 
-<div class="shell">
+<div class="shell" style="background:var(--page-bg);min-height:100vh;">
 
   <!-- GOV BANNER -->
   <div class="gov-banner">
@@ -546,125 +472,130 @@ if ($loginRole === 'reports' && !in_array($staffRole, ['super_admin', 'report_vi
     <div class="gov-banner-right">Doc Ref: UniKL/RCMP/CD/ITD-01-01</div>
   </div>
 
-  <!-- MAIN -->
+  <!-- NAV -->
+  <nav>
+    <a class="nav-brand" href="index.php">
+      <div class="nav-logo"><img src="img/RCMP.png" alt="UniKL RCMP Logo" /></div>
+      <div class="nav-divider"></div>
+      <div class="nav-text-group">
+        <span class="nav-org">UniKL RCMP</span>
+        <span class="nav-title">Help Desk Portal</span>
+      </div>
+    </a>
+    <a href="index.php" class="nav-back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 5l-7 7 7 7"/></svg>
+      Back to Home
+    </a>
+  </nav>
+
+ <!-- MAIN -->
   <div class="main">
     <div class="login-card">
 
-      <!-- LEFT PANEL -->
-      <div class="panel-left">
-        <div class="panel-illustration">
+      <div class="card-body">
 
-          <div class="illus-logo">
+        <!-- Header -->
+        <div class="card-header">
+          <div class="card-logo">
             <img src="img/RCMP.png" alt="UniKL RCMP" />
+            <div class="card-logo-divider"></div>
+            <div class="card-logo-text">
+              <div class="card-logo-org">UniKL RCMP</div>
+              <div class="card-logo-name">Operator Portal</div>
+            </div>
           </div>
-
-          <div class="panel-tagline">
-            <h2>Help Desk<br><em>Management Portal</em></h2>
-            <p>Sign in with your UniKL credentials to manage tickets, departments and operations.</p>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- RIGHT PANEL: FORM -->
-      <div class="panel-right">
-
-        <div class="form-header">
           <h1>Operator <em>Sign In</em></h1>
-          <p>Not an operator? <a href="index.php">Go to user portal →</a></p>
+          <p>Not an operator? <a href="index.php" style="color:var(--navy);font-weight:600;">Go to user portal →</a></p>
         </div>
 
-        <div class="form-divider"></div>
+        <div class="card-divider"></div>
 
-        <?php if ($error): ?>
-        <div class="alert">
-          <div class="alert-icon">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <!-- PRIMARY: Microsoft SSO -->
+        <a href="auth/staff_sso_login.php" class="btn-sso btn-sso-primary">
+          <div class="ms-logo" aria-hidden="true">
+            <span style="background:#f25022;"></span>
+            <span style="background:#7fba00;"></span>
+            <span style="background:#00a4ef;"></span>
+            <span style="background:#ffb900;"></span>
           </div>
-          <div class="alert-text"><?php echo htmlspecialchars($error); ?></div>
+          Continue with Microsoft (UniKL SSO)
+        </a>
+        <p class="sso-note">Use your UniKL Microsoft account — recommended for all staff and operators.</p>
+
+        <!-- OR divider -->
+        <div class="or-row">
+          <div class="or-line"></div>
+          <span class="or-label">or sign in with email</span>
+          <div class="or-line"></div>
         </div>
-        <?php endif; ?>
 
-        <form method="POST" action="staff_login.php">
+        <!-- SECONDARY: Toggle manual login -->
+        <button type="button" class="toggle-btn" id="toggleBtn" aria-expanded="false" aria-controls="manualPanel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="toggleChevron"><polyline points="6 9 12 15 18 9"/></svg>
+          Other login options
+        </button>
 
-          <input type="hidden" name="login_role" id="loginRoleField" value="auto"/>
+        <div class="manual-panel" id="manualPanel">
+          <div class="manual-inner">
 
-          <div class="field">
-            <label for="email">Staff Email</label>
-            <div class="input-wrap">
-              <div class="input-icon">
-                <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <?php if ($error): ?>
+            <div class="alert">
+              <div class="alert-icon">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               </div>
-              <input type="email" id="email" name="email"
-                placeholder="yourname@unikl.edu.my"
-                value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
-                required autocomplete="email"/>
+              <div class="alert-text"><?php echo htmlspecialchars($error); ?></div>
             </div>
-            <div class="field-hint">Use your UniKL staff email address.</div>
-          </div>
+            <?php endif; ?>
 
-          <div class="field">
-            <label for="password">Password</label>
-            <div class="input-wrap">
-              <div class="input-icon">
-                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <form method="POST" action="staff_login.php">
+              <input type="hidden" name="login_role" id="loginRoleField" value="auto"/>
+
+              <div class="field">
+                <label for="email">Staff Email</label>
+                <div class="input-wrap">
+                  <div class="input-icon">
+                    <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  </div>
+                  <input type="email" id="email" name="email"
+                    placeholder="yourname@unikl.edu.my"
+                    value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
+                    required autocomplete="email"/>
+                </div>
               </div>
-              <input type="password" id="password" name="password"
-                placeholder="Enter your password"
-                required autocomplete="current-password"/>
-              <button type="button" class="pw-toggle" id="pwToggle" aria-label="Show or hide password">
-                <svg id="eyeIcon" viewBox="0 0 24 24">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
+
+              <div class="field">
+                <label for="password">Password</label>
+                <div class="input-wrap">
+                  <div class="input-icon">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  </div>
+                  <input type="password" id="password" name="password"
+                    placeholder="Enter your password"
+                    required autocomplete="current-password"/>
+                  <button type="button" class="pw-toggle" id="pwToggle" aria-label="Show or hide password">
+                    <svg id="eyeIcon" viewBox="0 0 24 24">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" class="btn-submit">
+                Sign In to Operator Portal
+                <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
               </button>
-            </div>
+            </form>
+
           </div>
+        </div><!-- /manual-panel -->
 
-          <button type="submit" class="btn-submit">
-            Sign In to Operator Portal
-            <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-          </button>
+      </div><!-- /card-body -->
 
-        </form>
-
-        <div style="margin-top:16px;">
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-    <div style="flex:1;height:1px;background:var(--border);"></div>
-    <span style="font-size:12px;color:var(--text-muted);">or</span>
-    <div style="flex:1;height:1px;background:var(--border);"></div>
-  </div>
-
-  <a href="auth/staff_sso_login.php" style="
-      display:flex; align-items:center; justify-content:center; gap:10px;
-      width:100%; padding:12px;
-      background:#fff; border:1.5px solid var(--border);
-      border-radius:7px; text-decoration:none;
-      font-family:'Source Sans 3',sans-serif;
-      font-size:14px; font-weight:600; color:var(--text);
-      transition:border-color .2s, box-shadow .2s;">
-    <svg viewBox="0 0 21 21" width="18" height="18" style="flex-shrink:0;">
-      <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-      <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-      <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-      <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-    </svg>
-    Sign in with Microsoft (UniKL SSO)
-  </a>
-</div>
-
-        <div class="form-footer">
-          Need help? Contact ITD Ext. <strong style="color:var(--navy);">142 / 140</strong>
-        </div>
-
-        <div style="margin-top:14px;text-align:center;">
-          <a href="index.php" style="display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:transparent;color:var(--text-mid);font-size:13px;font-weight:600;text-decoration:none;border:1.5px solid var(--border);border-radius:7px;transition:all .2s;" onmouseover="this.style.borderColor='var(--navy)';this.style.color='var(--navy)';this.style.background='var(--navy-light)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-mid)';this.style.background='transparent'">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 5l-7 7 7 7"/></svg>
-            Back to Home
-          </a>
-        </div>
-
-      </div><!-- /panel-right -->
+      <div class="card-footer">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Need help? Contact ITD Ext.&nbsp;<a href="#"><strong>142</strong></a>&nbsp;/&nbsp;<a href="#"><strong>140</strong></a>
+      </div>
 
     </div><!-- /login-card -->
   </div><!-- /main -->
@@ -672,6 +603,29 @@ if ($loginRole === 'reports' && !in_array($staffRole, ['super_admin', 'report_vi
 </div><!-- /shell -->
 
 <script>
+  /* ── Toggle manual login panel ── */
+  const toggleBtn   = document.getElementById('toggleBtn');
+  const manualPanel = document.getElementById('manualPanel');
+  const autoOpen    = <?php echo !empty($error) ? 'true' : 'false'; ?>;
+
+  function openPanel() {
+    manualPanel.classList.add('open');
+    toggleBtn.classList.add('open');
+    toggleBtn.setAttribute('aria-expanded', 'true');
+  }
+  function closePanel() {
+    manualPanel.classList.remove('open');
+    toggleBtn.classList.remove('open');
+    toggleBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  if (autoOpen) openPanel();
+
+  toggleBtn.addEventListener('click', () => {
+    manualPanel.classList.contains('open') ? closePanel() : openPanel();
+  });
+
+  /* ── Password show/hide ── */
   const pw  = document.getElementById('password');
   const eye = document.getElementById('eyeIcon');
   const openEye = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;

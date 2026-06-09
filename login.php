@@ -219,6 +219,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .bg {
       position: fixed; inset: 0; z-index: 0;
       background: url('img/bg.jpg') center/cover no-repeat;
+      filter: blur(1px);
+      transform: scale(1.01);
     }
     .bg::before {
       content: '';
@@ -236,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .page-wrap {
       position: relative; z-index: 2;
       display: flex; flex-direction: column; align-items: center;
-      width: 100%; padding: 32px 16px;
+      width: 100%; padding: 12px 16px;
     }
 
     .logo-wrap {
@@ -261,14 +263,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     .card {
       position: relative;
-      width: 100%; max-width: 430px;
+      width: 100%; max-width: 480px;
       background: rgba(0, 55, 140, 0.75);
       backdrop-filter: blur(32px) saturate(1.6) brightness(1.05);
       -webkit-backdrop-filter: blur(32px) saturate(1.6) brightness(1.05);
-      border: 1px solid rgba(255,255,255,0.16);
-      border-top: 1px solid rgba(233,196,106,0.55);
+      border: 1.5px solid rgba(255,255,255,0.40);
+      border-top: 3px solid rgba(255,255,255,0.80);
       border-radius: 22px;
-      padding: 44px 40px 38px;
+      padding: 32px 48px 32px;
       box-shadow:
         0 0 0 1px rgba(0,0,0,0.4),
         0 2px 4px rgba(0,0,0,0.3),
@@ -290,10 +292,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     @keyframes fadeDown { from { opacity:0; transform: translateY(-20px); } to { opacity:1; transform: translateY(0); } }
     @keyframes fadeUp   { from { opacity:0; transform: translateY(26px);  } to { opacity:1; transform: translateY(0); } }
 
-    .card-head { margin-bottom: 30px; text-align: center; }
+    .card-head { margin-bottom: 16px; text-align: center; }
     .card-head h1 {
       font-family: 'DM Serif Display', serif;
-      font-size: 34px; font-weight: 400;
+      font-size: 30px; font-weight: 400;
       color: var(--white); line-height: 1.12; margin-bottom: 10px;
       text-shadow: 0 2px 12px rgba(0,0,0,0.4);
     }
@@ -305,7 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .card-divider {
       height: 1px;
       background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
-      margin-bottom: 26px;
+      margin-bottom: 16px;
     }
 
     .alert {
@@ -376,7 +378,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .btn-login {
       width: 100%; padding: 15px;
       border: none; border-radius: 11px;
-      background: linear-gradient(135deg, var(--gold-dark) 0%, var(--gold-light) 100%);
+      background: #ffffff;
       color: #0a1a3a;
       font-family: 'DM Sans', sans-serif;
       font-size: 14.5px; font-weight: 700;
@@ -384,7 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       display: flex; align-items: center; justify-content: center; gap: 8px;
       letter-spacing: 0.03em;
       transition: transform .18s, box-shadow .2s, opacity .2s;
-      box-shadow: 0 4px 16px rgba(201,162,39,0.45), 0 1px 0 rgba(255,255,255,0.3) inset;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.20), 0 1px 0 rgba(255,255,255,0.3) inset;
       position: relative; overflow: hidden;
     }
     .btn-login::before {
@@ -396,6 +398,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .btn-login:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(201,162,39,0.55), 0 1px 0 rgba(255,255,255,0.3) inset; }
     .btn-login:active { transform: translateY(0); box-shadow: 0 3px 10px rgba(201,162,39,0.35); }
     .btn-login svg { width: 16px; height: 16px; fill: none; stroke: #0a1a3a; stroke-width: 2.5; }
+    .btn-login.btn-gold {
+      background: #ffffff;
+      color: #0a1a3a;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.20), 0 1px 0 rgba(255,255,255,0.3) inset;
+    }
+    .btn-login.btn-gold svg { stroke: #0a1a3a; }
+    .btn-login.btn-gold:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.30), 0 1px 0 rgba(255,255,255,0.3) inset; }
 
     .bottom-link {
       text-align: center; margin-top: 22px;
@@ -411,6 +420,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       letter-spacing: 0.04em;
       animation: fadeUp 0.7s cubic-bezier(.22,1,.36,1) 0.2s both;
     }
+
+    /* ── SSO note ── */
+    .sso-note {
+      font-size: 12px; color: var(--white-60); text-align: center;
+      line-height: 1.55; margin-bottom: 10px; margin-top: 6px;
+    }
+
+    /* ── OR divider ── */
+    .or-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px;
+    }
+    .or-line { flex: 1; height: 1px; background: rgba(255,255,255,0.12); }
+    .or-label { font-size: 11.5px; color: var(--white-60); white-space: nowrap; }
+
+    /* ── Toggle button ── */
+    .toggle-btn {
+      width: 100%; padding: 11px 16px;
+      background: rgba(255,255,255,0.07);
+      border: 1.5px solid rgba(255,255,255,0.18);
+      border-radius: 11px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 600; color: var(--white-80);
+      cursor: pointer; text-align: center;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all .2s;
+    }
+    .toggle-btn:hover { border-color: rgba(233,196,106,0.5); color: var(--white); background: rgba(255,255,255,0.10); }
+    .toggle-btn svg { width: 14px; height: 14px; transition: transform .25s; fill:none; stroke:currentColor; stroke-width:2; }
+    .toggle-btn.open svg { transform: rotate(180deg); }
+
+    /* ── Collapsible panel ── */
+    .manual-panel {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height .35s cubic-bezier(.4,0,.2,1);
+    }
+    .manual-panel.open { max-height: 700px; }
+    .manual-inner { padding-top: 20px; }
 
     @media (max-width: 480px) {
       .card { padding: 34px 24px 30px; }
@@ -429,14 +477,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="card">
 
    <div class="card-head">
-      <div class="logo-badge" style="justify-content:center; margin-bottom:20px;">
-        <div style="width:82px; height:82px; flex-shrink:0;">
+      <div class="logo-badge" style="justify-content:center; margin-bottom:12px;">
+        <div style="width:90px; height:90px; flex-shrink:0;">
           <img src="img/RCMP.png" alt="UniKL RCMP" style="width:100%; height:100%; object-fit:contain;" />
         </div>
         <div style="width:1px; height:36px; background:rgba(255,255,255,0.25);"></div>
-        <div style="display:flex; flex-direction:column; text-align:left;">
-          <span style="font-size:9px; font-weight:500; color:rgba(255,255,255,0.6); letter-spacing:0.14em; text-transform:uppercase;">UniKL Royal College of Medicine Perak</span>
-          <span style="font-size:14px; font-weight:600; color:#fff; line-height:1.25;">Help Desk System</span>
+        <div style="display:flex; flex-direction:column; text-align:left; min-width:0;">
+          <span style="font-size:11px; font-weight:500; color:rgba(255,255,255,0.6); letter-spacing:0.14em; text-transform:uppercase; white-space:nowrap;">UniKL Royal College of Medicine Perak</span>
+          <span style="font-size:17px; font-weight:600; color:#fff; line-height:1.25;">Help Desk System</span>
         </div>
       </div>
       <h1>Welcome <em>Back</em></h1>
@@ -445,81 +493,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="card-divider"></div>
 
-    <?php if ($error): ?>
-    <div class="alert">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      <?php echo htmlspecialchars($error); ?>
+    <!-- SSO Button (primary) -->
+    <a href="auth/sso_login.php" class="btn-login" style="text-decoration:none; margin-bottom:6px;">
+      <span style="display:grid; grid-template-columns:1fr 1fr; gap:2px; width:18px; height:18px; flex-shrink:0;">
+        <span style="background:#f25022; display:block;"></span>
+        <span style="background:#7fba00; display:block;"></span>
+        <span style="background:#00a4ef; display:block;"></span>
+        <span style="background:#ffb900; display:block;"></span>
+      </span>
+      Continue with Microsoft (UniKL SSO)
+    </a>
+    <p class="sso-note">Use your UniKL Microsoft account.</p>
+
+    <!-- OR divider -->
+    <div class="or-row">
+      <div class="or-line"></div>
+      <span class="or-label">or sign in with email</span>
+      <div class="or-line"></div>
     </div>
-    <?php endif; ?>
 
-    <form method="POST" action="login.php?dept=<?php echo htmlspecialchars($deptParam); ?>" id="loginForm">
-      <input type="hidden" name="dept_param" value="<?php echo htmlspecialchars($deptParam); ?>"/>
+    <!-- Toggle button -->
+    <button type="button" class="toggle-btn" id="toggleBtn" aria-expanded="false" aria-controls="manualPanel">
+      <svg viewBox="0 0 24 24" id="toggleChevron"><polyline points="6 9 12 15 18 9"/></svg>
+      Other login options
+    </button>
 
-      <div class="field">
-        <label for="email">Email Address</label>
-        <div class="input-wrap">
-          <div class="field-icon">
-            <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-          </div>
-          <input type="email" id="email" name="email"
-            placeholder="yourname@s.unikl.edu.my"
-            value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
-            required autocomplete="email"/>
+    <!-- Collapsible manual login panel -->
+    <div class="manual-panel" id="manualPanel">
+      <div class="manual-inner">
+
+        <?php if ($error): ?>
+        <div class="alert">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <?php echo htmlspecialchars($error); ?>
         </div>
-      </div>
+        <?php endif; ?>
 
-      <div class="field">
-        <label for="password">Password</label>
-        <div class="input-wrap">
-          <div class="field-icon">
-            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <form method="POST" action="login.php?dept=<?php echo htmlspecialchars($deptParam); ?>">
+          <input type="hidden" name="dept_param" value="<?php echo htmlspecialchars($deptParam); ?>"/>
+
+          <div class="field">
+            <label for="email">Email Address</label>
+            <div class="input-wrap">
+              <div class="field-icon">
+                <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              </div>
+              <input type="email" id="email" name="email"
+                placeholder="yourname@s.unikl.edu.my"
+                value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
+                required autocomplete="email"/>
+            </div>
           </div>
-          <input type="password" id="password" name="password"
-            placeholder="Enter your password"
-            required autocomplete="current-password"/>
-          <button type="button" class="pw-btn" id="pwToggle" aria-label="Toggle password visibility">
-            <svg id="eyeIcon" viewBox="0 0 24 24">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <div class="input-wrap">
+              <div class="field-icon">
+                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <input type="password" id="password" name="password"
+                placeholder="Enter your password"
+                required autocomplete="current-password"/>
+              <button type="button" class="pw-btn" id="pwToggle" aria-label="Toggle password visibility">
+                <svg id="eyeIcon" viewBox="0 0 24 24">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-login btn-gold" style="margin-top:8px;">
+            Log In
+            <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
           </button>
-        </div>
+
+        </form>
       </div>
+    </div><!-- /manual-panel -->
 
-<br>
-      <button type="submit" class="btn-login">
-        Log In
-        <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-      </button>
-
-    </form>
-
-    <!-- Divider -->
-    <div style="display:flex; align-items:center; gap:10px; margin:20px 0;">
-      <div style="flex:1; height:1px; background:rgba(255,255,255,0.12);"></div>
-      <span style="color:rgba(255,255,255,0.35); font-size:12px;">or</span>
-      <div style="flex:1; height:1px; background:rgba(255,255,255,0.12);"></div>
-    </div>
-
-    <!-- SSO Button -->
-    <a href="auth/sso_login.php" class="btn-login" style="
-    text-decoration:none;
-    background: rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.90);
-    border: 1.5px solid rgba(255,255,255,0.20);
-    box-shadow: none;
-    margin-bottom: 4px;">
-  <svg viewBox="0 0 21 21" width="16" height="16" style="flex-shrink:0;">
-    <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-    <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-    <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-    <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-  </svg>
-  Log in with Microsoft (UniKL SSO)
-</a>
-
-    <!-- Back link (only once) -->
-    <div class="bottom-link">
+    <!-- Back link -->
+    <div class="bottom-link" style="margin-top:18px;">
       <a href="index.php">&larr; Back to Homepage</a>
     </div>
 
@@ -530,14 +584,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-  const pw = document.getElementById('password');
+  /* ── Toggle manual panel ── */
+  const toggleBtn   = document.getElementById('toggleBtn');
+  const manualPanel = document.getElementById('manualPanel');
+  const autoOpen    = <?php echo !empty($error) ? 'true' : 'false'; ?>;
+
+  function openPanel()  { manualPanel.classList.add('open');    toggleBtn.classList.add('open');    toggleBtn.setAttribute('aria-expanded','true');  }
+  function closePanel() { manualPanel.classList.remove('open'); toggleBtn.classList.remove('open'); toggleBtn.setAttribute('aria-expanded','false'); }
+
+  if (autoOpen) openPanel();
+  toggleBtn.addEventListener('click', () => manualPanel.classList.contains('open') ? closePanel() : openPanel());
+
+  /* ── Password show/hide ── */
+  const pw  = document.getElementById('password');
   const eye = document.getElementById('eyeIcon');
-  const open = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
-  const shut = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/>`;
+  const openEye = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+  const shutEye = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/>`;
   document.getElementById('pwToggle').addEventListener('click', () => {
-    const isPw = pw.type === 'password';
-    pw.type = isPw ? 'text' : 'password';
-    eye.innerHTML = isPw ? shut : open;
+    const show = pw.type === 'password';
+    pw.type = show ? 'text' : 'password';
+    eye.innerHTML = show ? shutEye : openEye;
   });
 </script>
 
