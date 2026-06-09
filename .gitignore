@@ -1,11 +1,31 @@
-# credentials
-.auth/callback.php
-.auth/sso_config.php
-.auth/sso_login.php
-.auth/staff_callback.php
-.auth/staff_sso_login.php
+# SSO credentials
+auth/sso_config.php
 
-# composer
+# Dependencies
 vendor/
-PHPMailer-master
+PHPMailer-master/
 composer.lock
+
+# Environment
+.env
+.env.local
+.env.production
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+logs/
+
+# Cache
+*.cache
+cache/
