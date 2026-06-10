@@ -1,5 +1,4 @@
 <?php
-// auth/sso_login.php
 session_start();
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/sso_config.php';
@@ -16,5 +15,6 @@ $authUrl = $provider->getAuthorizationUrl([
 ]);
 
 $_SESSION['oauth2state'] = $provider->getState();
+$_SESSION['sso_flow']    = 'student';
 header('Location: ' . $authUrl);
 exit;

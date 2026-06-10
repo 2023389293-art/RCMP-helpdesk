@@ -29,7 +29,7 @@ $deptNames = [
 $provider = new TheNetworg\OAuth2\Client\Provider\Azure([
     'clientId'     => AZURE_CLIENT_ID,
     'clientSecret' => AZURE_CLIENT_SECRET,
-    'redirectUri' => 'https://rush.rcmp.edu.my/complaint/auth/staff_callback.php',
+    'redirectUri'  => AZURE_REDIRECT_URI,
     'tenant'       => AZURE_TENANT_ID,
 ]);
 
