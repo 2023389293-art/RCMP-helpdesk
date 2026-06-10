@@ -19,7 +19,7 @@ require_once __DIR__ . '/../db_connect.php';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function sso_error(string $msg): never {
+function sso_error(string $msg): void {
     // Redirect back to the relevant login page with an error flag.
     // You can style this however you like — for now a simple redirect with ?sso_error=1
     $loginPage = ($_SESSION['sso_login_mode'] ?? 'student') === 'staff'
@@ -30,7 +30,7 @@ function sso_error(string $msg): never {
 }
 
 /** Make an HTTP POST using cURL */
-function http_post(string $url, array $fields): string|false {
+function http_post(string $url, array $fields) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -46,7 +46,7 @@ function http_post(string $url, array $fields): string|false {
 }
 
 /** Make an HTTP GET using cURL with a Bearer token */
-function http_get_bearer(string $url, string $token): string|false {
+function http_get_bearer(string $url, string $token) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
