@@ -1,4 +1,5 @@
 <?php
+// auth/staff_sso_login.php
 session_start();
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/sso_config.php';

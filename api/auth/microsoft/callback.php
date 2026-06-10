@@ -1,4 +1,5 @@
 <?php
+// api/auth/microsoft/callback.php
 session_start();
 $flow = $_SESSION['sso_flow'] ?? 'student';
 if ($flow === 'staff') {
