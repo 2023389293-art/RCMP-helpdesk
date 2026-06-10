@@ -141,7 +141,7 @@ function navIcon(string $name): string {
     .logout-btn:hover { background: rgba(255,255,255,.12); color: white; }
 
     /* ── MAIN CONTENT ── */
-    .main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+    .main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
 
     /* ── TOP BAR — font sizes increased to match tickets.php ── */
     .topbar {
@@ -166,14 +166,38 @@ function navIcon(string $name): string {
     .topbar-date svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
 
     /* Page area */
-    .page-body { padding: 32px; flex: 1; }
+    .page-body { padding: 32px; flex: 1; overflow-x: hidden; }
 
     /* ── Mobile ── */
+    .sidebar-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 49;
+    }
+    .sidebar-overlay.active { display: block; }
+
+    .hamburger-btn {
+      display: none;
+      background: none; border: none; cursor: pointer;
+      color: var(--gray-700); padding: 6px; border-radius: 8px;
+      align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .hamburger-btn:hover { background: var(--gray-100); }
+
     @media (max-width: 768px) {
-      .sidebar { transform: translateX(-100%); transition: transform .3s; }
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform .3s ease;
+        z-index: 50;
+      }
       .sidebar.open { transform: translateX(0); }
       .main-content { margin-left: 0; }
-      .page-body { padding: 20px 16px; }
+      .page-body { padding: 20px 16px; overflow-x: hidden; }
+      .hamburger-btn { display: flex; }
+      .topbar { padding: 0 16px; }
+      .topbar-breadcrumb { gap: 6px; }
     }
   </style>
 </head>
@@ -243,11 +267,17 @@ function navIcon(string $name): string {
   </div>
 </aside>
 
+<!-- Overlay for mobile sidebar -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
 <div class="main-content">
 
   <?php if ($activePage !== 'dashboard' && $activePage !== 'reports' && $activePage !== 'staff' && $activePage !== 'admins'): ?>
 <div class="topbar">
     <div class="topbar-breadcrumb">
+      <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Toggle menu">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <span class="sep">›</span>
       <span class="current"><?php echo isset($pageTitle) ? htmlspecialchars($pageTitle) : 'Dashboard'; ?></span>
     </div>
@@ -259,5 +289,16 @@ function navIcon(string $name): string {
     </div>
   </div>
   <?php endif; ?>
+
+  <script>
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('sidebarOverlay').classList.toggle('active');
+    }
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('active');
+    }
+  </script>
 
   <div class="page-body">

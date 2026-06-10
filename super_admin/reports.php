@@ -165,17 +165,40 @@ if ($export === 'csv') {
 
 include 'layout.php';
 ?>
-<!-- ── Inlined Topbar (same pattern as dashboard.php) ── --> 
-<div class="dash-topbar" style="height:65px;background:white;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between;padding:0 32px;margin:-32px -32px 32px -32px;">
+<!-- ── Topbar (matches dashboard.php pattern with hamburger) ── -->
+<div class="dash-topbar" style="
+  height:65px; background:white; border-bottom:1px solid var(--gray-200);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 32px; margin:-32px -32px 32px -32px;
+  width:calc(100% + 64px); box-sizing:border-box;
+">
   <div style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--gray-500);">
+    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle menu"
+      style="display:none;background:none;border:none;cursor:pointer;color:var(--gray-700);padding:6px;border-radius:8px;align-items:center;justify-content:center;" id="rpt-hamburger">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
     <span style="color:var(--gray-300);">›</span>
     <span style="font-weight:600;color:var(--gray-900);font-size:15px;">Reports</span>
   </div>
   <div style="font-size:14px;color:var(--gray-500);display:flex;align-items:center;gap:6px;">
-    <svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;">
+      <rect x="3" y="4" width="18" height="18" rx="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
     <?= date('D, j M Y') ?>
   </div>
 </div>
+<script>
+// Show hamburger only on mobile
+(function(){
+  var btn = document.getElementById('rpt-hamburger');
+  function checkW(){ if(btn) btn.style.display = window.innerWidth <= 768 ? 'flex' : 'none'; }
+  checkW();
+  window.addEventListener('resize', checkW);
+})();
+</script>
 <style>
   /* ── Page heading ── */
   .page-heading { margin-bottom: 26px; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
@@ -334,6 +357,36 @@ include 'layout.php';
   .rate-pct      { font-size:12.5px; font-weight:700; color:var(--gray-900); min-width:36px; text-align:right; }
 
   
+
+  /* ── Mobile responsive ── */
+  @media (max-width: 768px) {
+    .dash-topbar {
+      margin: -20px -16px 20px -16px !important;
+      padding: 0 16px !important;
+      width: calc(100% + 32px) !important;
+    }
+    .page-heading { flex-direction: column; gap: 10px; }
+    .page-heading-left h1 { font-size: 22px; }
+    .filter-row { flex-direction: column; align-items: stretch; }
+    .filter-select, .filter-input { min-width: unset; width: 100%; }
+    .filter-btn, .filter-reset { width: 100%; justify-content: center; text-align: center; }
+    .kpi-grid { grid-template-columns: repeat(2,1fr); }
+    .card-header { flex-direction: column; align-items: flex-start; }
+    .export-group { width: 100%; }
+    .btn-export { flex: 1; justify-content: center; }
+    /* Table horizontal scroll */
+    .table-card { overflow-x: auto; }
+    .report-table { min-width: 560px; }
+    .report-table th, .report-table td { padding: 10px 12px; font-size: 12px; }
+    .totals-row td { padding: 11px 12px; font-size: 12px; }
+    .rate-bar-wrap { width: 40px; }
+    .chart-wrap { height: 220px; }
+    .chart-legend { gap: 8px; }
+  }
+  @media (max-width: 480px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .kpi-val { font-size: 26px; }
+  }
 
   /* Active filter pills */
   .active-filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }

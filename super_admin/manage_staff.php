@@ -313,7 +313,7 @@ foreach ($scRows as $scRow) {
 include 'layout.php';
 ?>
 
-<div style="
+<div id="staffTopbar" style="
   height: 65px; background: white;
   border-bottom: 1px solid #DDE1ED;
   display: flex; align-items: center; justify-content: space-between;
@@ -321,6 +321,13 @@ include 'layout.php';
   margin: -32px -32px 32px -32px;
 ">
   <div style="display:flex; align-items:center; gap:8px; font-size:15px; color:#7A8399;">
+    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
     <span style="color:#BDC3D4;">›</span>
     <span style="font-weight:600; color:#1A2038;">Manage Users</span>
   </div>
@@ -581,6 +588,9 @@ include 'layout.php';
     display: flex; align-items: flex-start; gap: 9px; line-height: 1.6;
   }
   .promote-notice svg { width: 16px; height: 16px; fill: none; stroke: #059669; stroke-width: 2; flex-shrink: 0; margin-top: 2px; }
+  @media (max-width: 768px) {
+  #staffTopbar { padding: 0 16px !important; }
+}
 </style>
 
 <?php if ($successMsg): ?>

@@ -97,7 +97,16 @@ include 'layout.php';
     border-bottom: 1px solid var(--gray-200);
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 32px;
-    margin: -32px -32px 32px -32px; /* bleed to page-body edges */
+    margin: -32px -32px 32px -32px;
+    width: calc(100% + 64px);
+    box-sizing: border-box;
+  }
+  @media (max-width: 768px) {
+    .dash-topbar {
+      margin: -20px -16px 20px -16px;
+      padding: 0 16px;
+      width: calc(100% + 32px);
+    }
   }
   .dash-topbar-breadcrumb {
     display: flex; align-items: center; gap: 8px;
@@ -115,11 +124,17 @@ include 'layout.php';
   .dash-heading { margin-bottom: 28px; }
   .dash-heading h1 { font-family: 'DM Serif Display', serif; font-size: 30px; color: var(--gray-900); margin-bottom: 4px; }
   .dash-heading p  { font-size: 14px; color: var(--gray-500); font-weight: 300; }
+  @media (max-width: 600px) {
+    .dash-heading { margin-bottom: 20px; }
+    .dash-heading h1 { font-size: 22px; }
+    .dash-heading p  { font-size: 13px; }
+  }
 
   /* ── Stat cards — bigger ── */
   .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 32px; }
   @media (max-width: 1100px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 600px)  { .stat-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 600px)  { .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
+  @media (max-width: 380px)  { .stat-grid { grid-template-columns: 1fr; } }
 
   .stat-card {
     background: white; border-radius: 14px; padding: 22px 24px;
@@ -128,6 +143,13 @@ include 'layout.php';
     transition: box-shadow .2s;
     display: flex; align-items: center; gap: 18px;
     min-height: 100px;
+  }
+  @media (max-width: 600px) {
+    .stat-card { padding: 16px; gap: 12px; min-height: 80px; }
+    .stat-icon { width: 42px; height: 42px; border-radius: 10px; }
+    .stat-icon svg { width: 18px; height: 18px; }
+    .stat-value { font-size: 26px; }
+    .stat-label { font-size: 11px; }
   }
   .stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
 
@@ -165,6 +187,7 @@ include 'layout.php';
     margin-bottom: 28px;
   }
   @media (max-width: 960px) { .bottom-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 600px) { .bottom-grid { gap: 14px; } }
 
   /* ── Pie chart card ── */
   .pie-card {
@@ -174,6 +197,10 @@ include 'layout.php';
     padding: 20px; box-sizing: border-box; height: 100%;
   }
   .pie-wrap { width: 260px; height: 260px; margin: 0 auto 20px; }
+  @media (max-width: 600px) {
+    .pie-wrap { width: 220px; height: 220px; }
+    .pie-card { padding: 16px; }
+  }
   .pie-wrap canvas { display: block; cursor: pointer; }
 
   /* Pie tooltip */
@@ -210,6 +237,11 @@ include 'layout.php';
     box-shadow: 0 1px 4px rgba(0,0,0,.04);
     overflow: hidden; box-sizing: border-box; height: 100%;
   }
+  @media (max-width: 600px) {
+    .dept-card { overflow-x: auto; }
+    .dept-table { min-width: 480px; }
+    .dept-table th, .dept-table td { padding: 10px 12px; font-size: 12px; }
+  }
   .dept-card-header { padding: 16px 20px 0; }
   .dept-table { width: 100%; border-collapse: collapse; }
   .dept-table th {
@@ -238,11 +270,16 @@ include 'layout.php';
 .dash-rate-bar-wrap { width:60px; height:6px; background:var(--gray-200); border-radius:3px; overflow:hidden; }
 .dash-rate-bar { height:100%; border-radius:3px; background:#059669; }
 .dash-rate-pct { font-size:12px; font-weight:700; color:var(--gray-900); min-width:32px; }
+
+
 </style>
 
 <!-- ── Inlined Topbar ── -->
 <div class="dash-topbar">
   <div class="dash-topbar-breadcrumb">
+    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <span class="sep">›</span>
     <span class="current">Dashboard</span>
   </div>

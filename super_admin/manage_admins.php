@@ -572,17 +572,63 @@ include 'layout.php';
   }
   .add-mode-btn:hover { background: var(--gray-100); color: var(--gray-700); }
   .add-mode-btn.active { background: var(--maroon); color: white; border-color: var(--maroon); }
+
+  
+
+  /* ── Mobile responsive ── */
+  @media (max-width: 768px) {
+    .page-heading { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .page-heading-text h1 { font-size: 22px; }
+    .btn-add { width: auto; justify-content: flex-start; }
+
+    /* Fix inlined topbar on mobile */
+    #adminsTopbar {
+      margin: -20px -16px 20px -16px !important;
+      padding: 0 16px !important;
+      width: calc(100% + 32px) !important;
+    }
+
+    .table-card { border-radius: 10px; }
+    .table-card-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .table-search { width: 100%; }
+    .table-search input { width: 100%; }
+
+    /* Make table scroll horizontally */
+    .admins-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .admins-table { min-width: 600px; }
+    .admins-table th, .admins-table td { padding: 10px 12px; font-size: 12.5px; }
+
+    /* Stack action buttons */
+    .action-group { flex-wrap: wrap; gap: 5px; }
+    .btn-action-toggle { font-size: 11.5px; padding: 5px 9px; }
+
+    /* Modals full-width on mobile */
+    .modal { max-width: calc(100vw - 32px) !important; margin: 16px; }
+    .modal-body, .modal-footer { padding: 16px; }
+    .modal-header { padding: 16px 16px 12px; }
+  }
+
+  @media (max-width: 480px) {
+    .admins-table th:nth-child(3),
+    .admins-table td:nth-child(3) { display: none; } /* hide Phone on very small screens */
+    .admins-table th:nth-child(6),
+    .admins-table td:nth-child(6) { display: none; } /* hide Added date on very small screens */
+  }
 </style>
 
 <!-- ── Inlined Topbar ── -->
-<div style="
+<div id="adminsTopbar" style="
   height: 65px; background: white;
   border-bottom: 1px solid #DDE1ED;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 32px;
   margin: -32px -32px 32px -32px;
+  width: calc(100% + 64px); box-sizing: border-box;
 ">
   <div style="display:flex; align-items:center; gap:8px; font-size:15px; color:#7A8399;">
+    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <span style="color:#BDC3D4;">›</span>
     <span style="font-weight:600; color:#1A2038;">Manage Admins</span>
   </div>
@@ -616,7 +662,7 @@ include 'layout.php';
     <h1>Manage Admins</h1>
     <p>Create and manage department administrator accounts.</p>
   </div>
-  <button class="btn-add" onclick="openModal('addModal')">
+  <button class="btn-add" onclick="openModal('addModal')" style="font-family:'DM Sans',sans-serif;">
     <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Admin
   </button>
@@ -634,6 +680,7 @@ include 'layout.php';
     </div>
   </div>
 
+  <div class="admins-table-wrap">
   <table class="admins-table" id="adminTable">
     <thead>
       <tr>
@@ -753,6 +800,7 @@ $initials = strtoupper(implode('', array_map(function($w){ return $w[0]; }, $wor
       <?php endif; ?>
     </tbody>
   </table>
+  </div><!-- /.admins-table-wrap -->
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
