@@ -1,5 +1,5 @@
 <?php
-// auth/sso_callback.php
+// auth/callback.php
 // ─────────────────────────────────────────────────────────────────────────────
 // Handles the redirect back from Microsoft after the user authenticates.
 // Works for BOTH student (sso_login.php) and staff (staff_sso_login.php) flows,
