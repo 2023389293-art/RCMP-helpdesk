@@ -590,6 +590,12 @@ ob_start();
   .dept-page-title{max-width:100%;}
 }
 
+.dept-tab-disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
 </style>
 <?php
 $extraHead = ob_get_clean();
@@ -647,8 +653,7 @@ require 'layout.php';
       <span class="dept-tab-label">Admin &amp; Facilities</span>
     </button>
 
-    <button class="dept-tab" data-dept="Corporate Communication Unit" type="button">
-      <span class="dept-tab-icon">
+    <button class="dept-tab dept-tab-disabled" data-dept="Corporate Communication Unit" type="button" disabled onclick="return false;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
@@ -656,8 +661,7 @@ require 'layout.php';
       <span class="dept-tab-label">Corporate Communication</span>
     </button>
 
-    <button class="dept-tab" data-dept="Human Capital Department" type="button">
-      <span class="dept-tab-icon">
+    <button class="dept-tab dept-tab-disabled" data-dept="Human Capital Department" type="button" disabled onclick="return false;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
           <circle cx="9" cy="7" r="4"/>
