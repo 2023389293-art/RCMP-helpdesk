@@ -1,3 +1,2 @@
 RewriteEngine On
-# If someone visits /api/auth/microsoft/callback, internally route it to callback.php
-RewriteRule ^api/auth/microsoft/callback$ api/auth/microsoft/callback.php [L,QSA]
+RewriteRule ^callback$ callback.php [L,QSA]
