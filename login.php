@@ -503,17 +503,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="card-divider"></div>
 
     <!-- SSO Button (primary) -->
-<a href="auth/sso_login.php<?php echo $deptParam ? '?dept=' . htmlspecialchars(urlencode($deptParam)) : ''; ?>"
-   class="btn-login"
-   style="text-decoration:none; margin-bottom:6px;">
-  <span style="display:grid; grid-template-columns:1fr 1fr; gap:2px; width:18px; height:18px; flex-shrink:0;">
-    <span style="background:#f25022; display:block;"></span>
-    <span style="background:#7fba00; display:block;"></span>
-    <span style="background:#00a4ef; display:block;"></span>
-    <span style="background:#ffb900; display:block;"></span>
-  </span>
-  Continue with Microsoft (UniKL SSO)
-</a>
+    <a href="auth/sso_login.php" class="btn-login" style="text-decoration:none; margin-bottom:6px;">
+      <span style="display:grid; grid-template-columns:1fr 1fr; gap:2px; width:18px; height:18px; flex-shrink:0;">
+        <span style="background:#f25022; display:block;"></span>
+        <span style="background:#7fba00; display:block;"></span>
+        <span style="background:#00a4ef; display:block;"></span>
+        <span style="background:#ffb900; display:block;"></span>
+      </span>
+      Continue with Microsoft (UniKL SSO)
+    </a>
     <p class="sso-note">Use your UniKL Microsoft account.</p>
 
     <!-- OR divider -->
