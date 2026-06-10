@@ -183,8 +183,21 @@ if ($loginMode === 'student') {
             sso_error('account_not_found');
         }
 
-        // Found in staff — treat as staff login
-        $loginMode = 'staff';
+        // Found in staff — but came from student portal, send to complaint homepage
+        session_regenerate_id(true);
+        $_SESSION['staff_id']    = $user['staff_id'];
+        $_SESSION['user_id']     = $user['staff_id'];
+        $_SESSION['staff_code']  = $user['staff_code'];
+        $_SESSION['staff_name']  = $user['full_name'];
+        $_SESSION['user_name']   = $user['full_name'];
+        $_SESSION['staff_email'] = $user['email'];
+        $_SESSION['user_email']  = $user['email'];
+        $_SESSION['staff_role']  = $user['role'];
+        $_SESSION['user_role']   = $user['role'];
+        $_SESSION['user_dept']   = $user['dept_id'] ?? null;
+        unset($_SESSION['fb_popup_shown']);
+        header('Location: ' . SSO_APP_BASE_URL . '/complaint/homepage.php');
+        exit;
     }
 
     if ($loginMode === 'student') {
