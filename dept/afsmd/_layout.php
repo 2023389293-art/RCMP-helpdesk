@@ -268,6 +268,15 @@ $reqNavOpen = in_array($nav, ['requisitions','requisitions-pending','requisition
   from { opacity:1; transform:translateY(0) scale(1); }
   to   { opacity:0; transform:translateY(16px) scale(.96); }
 }
+
+.ntt-remarks {
+  font-size:11px; color:#5B21B6;
+  background:#EDE9FE; border-left:2px solid #7C3AED;
+  padding:5px 10px; border-radius:0 5px 5px 0;
+  margin-bottom:10px; line-height:1.5;
+  word-break:break-word;
+}
+
 .ntt-header {
   background: linear-gradient(135deg,#0F1629 0%,#1A2F5E 55%,#1e3a7a 100%);
   padding: 14px 16px 13px;
@@ -485,7 +494,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeLogo
 (function () {
   'use strict';
 
-  var POPUP_API  = window.location.origin + '/uniKL/complaint/new_ticket_popup_api.php';
+  var POPUP_API  = '../../new_ticket_popup_api.php';
   var DETAIL_URL = 'ticket_detail.php';
   var DURATION   = 10000;
   var MAX_TOASTS = 5;
