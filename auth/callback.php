@@ -20,11 +20,9 @@ require_once __DIR__ . '/../db_connect.php';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sso_error(string $msg): void {
-    // Redirect back to the relevant login page with an error flag.
-    // You can style this however you like — for now a simple redirect with ?sso_error=1
     $loginPage = ($_SESSION['sso_login_mode'] ?? 'student') === 'staff'
-        ? '../staff_login.php'
-        : '../login.php';
+        ? SSO_APP_BASE_URL . '/staff_login.php'
+        : SSO_APP_BASE_URL . '/login.php';
     header('Location: ' . $loginPage . '?sso_error=' . urlencode($msg));
     exit;
 }
@@ -79,23 +77,23 @@ $deptNames = [
 
 function buildStaffRedirect(string $role, string $folder): string {
     if ($role === 'super_admin' || $role === 'report_viewer') {
-        return '../super_admin/dashboard.php';
+        return SSO_APP_BASE_URL . '/super_admin/dashboard.php';
     }
-    $base = in_array($role, ['admin', 'hod'], true) ? 'dept_admin' : 'dept';
-    return '../' . $base . '/' . $folder . '/dashboard.php';
+    $dir = in_array($role, ['admin', 'hod'], true) ? 'dept_admin' : 'dept';
+    return SSO_APP_BASE_URL . '/' . $dir . '/' . $folder . '/dashboard.php';
 }
 
 // ── Dept param redirect (mirrors login.php / complaint flow) ─────────────────
 
 function buildStudentRedirect(string $dept): string {
     $map = [
-        'it'    => '../complaint/new_complaint.php?dept_tab=Information+Technology+Department',
-        'hc'    => '../complaint/new_complaint.php?dept_tab=Human+Capital+Department',
-        'af'    => '../complaint/new_complaint.php?dept_tab=Administration+%26+Facilities+Management+Department',
-        'cc'    => '../complaint/new_complaint.php?dept_tab=Corporate+Communication+Unit',
-        'maint' => '../complaint/new_complaint.php?dept_tab=Maintenance+Department',
+        'it'    => SSO_APP_BASE_URL . '/complaint/new_complaint.php?dept_tab=Information+Technology+Department',
+        'hc'    => SSO_APP_BASE_URL . '/complaint/new_complaint.php?dept_tab=Human+Capital+Department',
+        'af'    => SSO_APP_BASE_URL . '/complaint/new_complaint.php?dept_tab=Administration+%26+Facilities+Management+Department',
+        'cc'    => SSO_APP_BASE_URL . '/complaint/new_complaint.php?dept_tab=Corporate+Communication+Unit',
+        'maint' => SSO_APP_BASE_URL . '/complaint/new_complaint.php?dept_tab=Maintenance+Department',
     ];
-    return $map[$dept] ?? '../complaint/homepage.php';
+    return $map[$dept] ?? SSO_APP_BASE_URL . '/complaint/homepage.php';
 }
 
 // ── Step 1: Validate state ─────────────────────────────────────────────────────
@@ -235,7 +233,7 @@ if ($loginMode === 'staff') {
         $_SESSION['dept_name']   = $staffRole === 'super_admin' ? 'Super Admin' : 'Report Viewer';
         $_SESSION['dept_folder'] = '';
         $_SESSION['user_dept']   = null;
-        header('Location: ../super_admin/dashboard.php');
+        header('Location: ' . SSO_APP_BASE_URL . '/super_admin/dashboard.php');
         exit;
     }
 
