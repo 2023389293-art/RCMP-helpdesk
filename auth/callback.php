@@ -196,7 +196,7 @@ if ($loginMode === 'student') {
         $_SESSION['user_role']   = $user['role'];
         $_SESSION['user_dept']   = $user['dept_id'] ?? null;
         unset($_SESSION['fb_popup_shown']);
-        header('Location: ' . SSO_APP_BASE_URL . '/complaint/homepage.php');
+        header('Location: ' . buildStudentRedirect($deptParam));
         exit;
     }
 
