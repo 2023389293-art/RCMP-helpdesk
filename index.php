@@ -653,17 +653,17 @@ nav { padding: 0 14px; height: 60px; }
           <div class="dept-grid" style="display:flex;justify-content:center;gap:16px;">
 
             <!-- IT -->
-<a href="auth/sso_login.php?dept=it" class="dept-card it" title="Information Technology" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
+<a href="login.php?dept=it" class="dept-card it" title="Information Technology" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
   <img src="img/it.png" alt="Information Technology" style="width:64px;height:64px;object-fit:contain;" />
 </a>
 
 <!-- AF -->
-<a href="auth/sso_login.php?dept=af" class="dept-card af" title="Administration & Facilities" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
+<a href="login.php?dept=af" class="dept-card af" title="Administration & Facilities" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
   <img src="img/admin.png" alt="Administration & Facilities" style="width:64px;height:64px;object-fit:contain;" />
 </a>
 
 <!-- MAINT -->
-<a href="auth/sso_login.php?dept=maint" class="dept-card maint" title="Maintenance" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
+<a href="login.php?dept=maint" class="dept-card maint" title="Maintenance" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
   <img src="img/maintenance.png" alt="Maintenance" style="width:64px;height:64px;object-fit:contain;" />
 </a>
 

@@ -518,7 +518,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="card-divider"></div>
 
     <!-- SSO Button (primary) -->
-    <a href="auth/sso_login.php" class="btn-login" style="text-decoration:none; margin-bottom:6px;">
+    <a href="auth/sso_login.php?dept=<?php echo htmlspecialchars($deptParam); ?>" class="btn-login" style="text-decoration:none; margin-bottom:6px;">
       <span style="display:grid; grid-template-columns:1fr 1fr; gap:2px; width:18px; height:18px; flex-shrink:0;">
         <span style="background:#f25022; display:block;"></span>
         <span style="background:#7fba00; display:block;"></span>
