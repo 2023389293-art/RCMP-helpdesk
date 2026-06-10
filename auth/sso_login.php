@@ -4,6 +4,11 @@ session_start();
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/sso_config.php';
 
+// Preserve the dept param through the OAuth round-trip via session
+$dept = $_GET['dept'] ?? '';
+$allowedDepts = ['it', 'hc', 'af', 'cc', 'maint'];
+$_SESSION['sso_dept_redirect'] = in_array($dept, $allowedDepts) ? $dept : '';
+
 $provider = new TheNetworg\OAuth2\Client\Provider\Azure([
     'clientId'     => AZURE_CLIENT_ID,
     'clientSecret' => AZURE_CLIENT_SECRET,
@@ -16,6 +21,5 @@ $authUrl = $provider->getAuthorizationUrl([
 ]);
 
 $_SESSION['oauth2state'] = $provider->getState();
-$_SESSION['sso_flow']    = 'student';
 header('Location: ' . $authUrl);
 exit;
