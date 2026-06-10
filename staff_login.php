@@ -70,6 +70,21 @@ if ($staffRole === 'report_viewer') {
 }
 
 $error = '';
+// Catch errors bounced back from SSO callback
+if (!empty($_GET['sso_error'])) {
+    $ssoMessages = [
+        'invalid_state'        => 'Login session expired. Please try again.',
+        'no_code'              => 'Microsoft did not return an authorisation code.',
+        'token_request_failed' => 'Could not contact Microsoft. Please try again.',
+        'no_access_token'      => 'Microsoft login failed. Please try again.',
+        'graph_request_failed' => 'Could not retrieve your profile from Microsoft.',
+        'no_email'             => 'Your Microsoft account has no email address on record.',
+        'account_not_found'    => 'No active account found for your Microsoft email. Please contact ITD.',
+        'no_department'        => 'Your staff account has no department assigned. Please contact ITD.',
+    ];
+    $raw   = htmlspecialchars($_GET['sso_error']);
+    $error = $ssoMessages[$raw] ?? 'SSO error: ' . $raw;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email     = trim($_POST['email']      ?? '');
