@@ -13,7 +13,7 @@ if (!empty($_GET['sso_error'])) {
         'no_access_token'      => 'Microsoft login failed. Please try again.',
         'graph_request_failed' => 'Could not retrieve your profile from Microsoft.',
         'no_email'             => 'Your Microsoft account has no email address on record.',
-        'account_not_found'    => 'Your Microsoft account is not authorised. Please use your UniKL email (@s.unikl.edu.my or @unikl.edu.my).',
+        'account_not_found'    => 'No active account found for your Microsoft email. Please contact ITD.',
         'no_department'        => 'Your staff account has no department assigned. Please contact ITD.',
     ];
     $raw   = htmlspecialchars($_GET['sso_error']);

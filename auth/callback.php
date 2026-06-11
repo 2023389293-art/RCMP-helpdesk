@@ -164,64 +164,54 @@ if (empty($email)) {
 // ── Step 4 & 5: Look up DB and create session ────────────────────────────────
 
 if ($loginMode === 'student') {
-    // ── STUDENT / FRONT-END USER FLOW ────────────────────────────────────────
-    // 1. Check if this Microsoft email belongs to a backend staff account.
-    //    If yes, redirect them to the staff portal instead.
-    $stmt = $conn->prepare("SELECT * FROM staff WHERE email = ? AND status = 'active' LIMIT 1");
+    // ── STUDENT FLOW ──────────────────────────────────────────────────────────
+    $stmt = $conn->prepare("SELECT * FROM students WHERE email = ? AND status = 'active' LIMIT 1");
     $stmt->bind_param('s', $email);
     $stmt->execute();
-    $staffUser = $stmt->get_result()->fetch_assoc();
+    $user = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if ($staffUser) {
-        // This is a staff/admin account — redirect to staff portal
+    if (!$user) {
+        // Not in students table — try staff table as fallback (same as manual login)
+        $stmt = $conn->prepare("SELECT * FROM staff WHERE email = ? AND status = 'active' LIMIT 1");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$user) {
+            sso_error('account_not_found');
+        }
+
+        // Found in staff — but came from student portal, send to complaint homepage
         session_regenerate_id(true);
-        $_SESSION['staff_id']    = $staffUser['staff_id'];
-        $_SESSION['user_id']     = $staffUser['staff_id'];
-        $_SESSION['staff_code']  = $staffUser['staff_code'];
-        $_SESSION['staff_name']  = $staffUser['full_name'];
-        $_SESSION['user_name']   = $staffUser['full_name'];
-        $_SESSION['staff_email'] = $staffUser['email'];
-        $_SESSION['user_email']  = $staffUser['email'];
-        $_SESSION['staff_role']  = $staffUser['role'];
-        $_SESSION['user_role']   = $staffUser['role'];
-        $_SESSION['user_dept']   = $staffUser['dept_id'] ?? null;
+        $_SESSION['staff_id']    = $user['staff_id'];
+        $_SESSION['user_id']     = $user['staff_id'];
+        $_SESSION['staff_code']  = $user['staff_code'];
+        $_SESSION['staff_name']  = $user['full_name'];
+        $_SESSION['user_name']   = $user['full_name'];
+        $_SESSION['staff_email'] = $user['email'];
+        $_SESSION['user_email']  = $user['email'];
+        $_SESSION['staff_role']  = $user['role'];
+        $_SESSION['user_role']   = $user['role'];
+        $_SESSION['user_dept']   = $user['dept_id'] ?? null;
         unset($_SESSION['fb_popup_shown']);
         header('Location: ' . buildStudentRedirect($deptParam));
         exit;
     }
 
-    // 2. Validate the email domain — only allow UniKL Microsoft accounts.
-    //    Real UniKL users won't be in your local DB, so we trust Microsoft
-    //    to have already authenticated them. Just validate their domain.
-    $emailDomain = strtolower(substr(strrchr($email, '@'), 1));
-    $allowedDomains = ['s.unikl.edu.my', 'unikl.edu.my', 'student.uitm.edu.my'];
-
-    if (!in_array($emailDomain, $allowedDomains, true)) {
-        // External Microsoft account not from UniKL — block it
-        sso_error('account_not_found');
+    if ($loginMode === 'student') {
+        session_regenerate_id(true);
+        $_SESSION['user_id']    = $user['student_id'];
+        $_SESSION['user_name']  = $user['full_name'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_role']  = 'student';
+        $_SESSION['user_dept']  = null;
+        unset($_SESSION['staff_id'], $_SESSION['fb_popup_shown']);
+        header('Location: ' . buildStudentRedirect($deptParam));
+        exit;
     }
-
-    // 3. Determine role from domain
-    $userRole = ($emailDomain === 's.unikl.edu.my' || $emailDomain === 'student.uitm.edu.my')
-        ? 'student'
-        : 'staff_user'; // unikl.edu.my non-backend users treated as general users
-
-    // 4. Optionally look up extra info from your users/students table if it exists
-    //    but DO NOT block login if not found — Microsoft already verified them.
-    $displayName = $profile['displayName'] ?? $profile['givenName'] ?? explode('@', $email)[0];
-
-    // 5. Create session — trusted via Microsoft SSO + domain validation
-    session_regenerate_id(true);
-    $_SESSION['user_id']    = 'sso_' . md5($email); // no local ID, use derived key
-    $_SESSION['user_name']  = $displayName;
-    $_SESSION['user_email'] = $email;
-    $_SESSION['user_role']  = $userRole;
-    $_SESSION['user_dept']  = null;
-    $_SESSION['sso_verified'] = true; // flag so you know this is an SSO-only session
-    unset($_SESSION['staff_id'], $_SESSION['fb_popup_shown']);
-    header('Location: ' . buildStudentRedirect($deptParam));
-    exit;
+    // Fall through to staff handling below if loginMode was switched to 'staff'
 }
 
 if ($loginMode === 'staff') {
