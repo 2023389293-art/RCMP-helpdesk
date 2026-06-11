@@ -165,53 +165,86 @@ if (empty($email)) {
 
 if ($loginMode === 'student') {
     // ── STUDENT FLOW ──────────────────────────────────────────────────────────
-    $stmt = $conn->prepare("SELECT * FROM students WHERE email = ? AND status = 'active' LIMIT 1");
+
+    // Validate: only allow UniKL Microsoft-authenticated domains
+    $emailDomain = strtolower(substr(strrchr($email, '@'), 1));
+    $allowedDomains = ['unikl.edu.my', 's.unikl.edu.my', 'rcmp.edu.my'];
+    if (!in_array($emailDomain, $allowedDomains, true)) {
+        sso_error('account_not_found');
+    }
+
+    // Check staff table first (staff who use login.php to submit complaints)
+    $stmt = $conn->prepare("SELECT * FROM staff WHERE email = ? AND status = 'active' LIMIT 1");
     $stmt->bind_param('s', $email);
     $stmt->execute();
-    $user = $stmt->get_result()->fetch_assoc();
+    $staffUser = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if (!$user) {
-        // Not in students table — try staff table as fallback (same as manual login)
-        $stmt = $conn->prepare("SELECT * FROM staff WHERE email = ? AND status = 'active' LIMIT 1");
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$user) {
-            sso_error('account_not_found');
-        }
-
-        // Found in staff — but came from student portal, send to complaint homepage
+    if ($staffUser) {
+        // Known staff — log in with their actual role
         session_regenerate_id(true);
-        $_SESSION['staff_id']    = $user['staff_id'];
-        $_SESSION['user_id']     = $user['staff_id'];
-        $_SESSION['staff_code']  = $user['staff_code'];
-        $_SESSION['staff_name']  = $user['full_name'];
-        $_SESSION['user_name']   = $user['full_name'];
-        $_SESSION['staff_email'] = $user['email'];
-        $_SESSION['user_email']  = $user['email'];
-        $_SESSION['staff_role']  = $user['role'];
-        $_SESSION['user_role']   = $user['role'];
-        $_SESSION['user_dept']   = $user['dept_id'] ?? null;
+        $_SESSION['staff_id']   = $staffUser['staff_id'];
+        $_SESSION['user_id']    = $staffUser['staff_id'];
+        $_SESSION['staff_code'] = $staffUser['staff_code'];
+        $_SESSION['staff_name'] = $staffUser['full_name'];
+        $_SESSION['user_name']  = $staffUser['full_name'];
+        $_SESSION['staff_email']= $staffUser['email'];
+        $_SESSION['user_email'] = $staffUser['email'];
+        $_SESSION['staff_role'] = $staffUser['role'];
+        $_SESSION['user_role']  = $staffUser['role'];
+        $_SESSION['user_dept']  = $staffUser['dept_id'] ?? null;
         unset($_SESSION['fb_popup_shown']);
         header('Location: ' . buildStudentRedirect($deptParam));
         exit;
     }
 
-    if ($loginMode === 'student') {
+    // Check students table
+    $stmt = $conn->prepare("SELECT * FROM students WHERE email = ? AND status = 'active' LIMIT 1");
+    $stmt->bind_param('s', $email);
+    $stmt->execute();
+    $studentUser = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($studentUser) {
+        // Known student
         session_regenerate_id(true);
-        $_SESSION['user_id']    = $user['student_id'];
-        $_SESSION['user_name']  = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_id']    = $studentUser['student_id'];
+        $_SESSION['user_name']  = $studentUser['full_name'];
+        $_SESSION['user_email'] = $studentUser['email'];
         $_SESSION['user_role']  = 'student';
         $_SESSION['user_dept']  = null;
         unset($_SESSION['staff_id'], $_SESSION['fb_popup_shown']);
         header('Location: ' . buildStudentRedirect($deptParam));
         exit;
     }
-    // Fall through to staff handling below if loginMode was switched to 'staff'
+
+    // ── Not in either table BUT valid UniKL domain via Microsoft SSO ──────
+    // Auto-provision as complaint submitter (student role, no backend access)
+    $displayName = trim($profile['displayName'] ?? $profile['givenName'] ?? '');
+    if (empty($displayName)) {
+        $displayName = ucwords(str_replace(['.', '_', '-'], ' ', explode('@', $email)[0]));
+    }
+
+    $defaultFaculty = '';
+    $defaultPhone   = '';
+    $stmt = $conn->prepare("
+        INSERT INTO students (full_name, email, password_hash, faculty, phone, status, created_at)
+        VALUES (?, ?, '', ?, ?, 'active', NOW())
+    ");
+    $stmt->bind_param('ssss', $displayName, $email, $defaultFaculty, $defaultPhone);
+    $stmt->execute();
+    $newStudentId = $conn->insert_id;
+    $stmt->close();
+
+    session_regenerate_id(true);
+    $_SESSION['user_id']    = $newStudentId;
+    $_SESSION['user_name']  = $displayName;
+    $_SESSION['user_email'] = $email;
+    $_SESSION['user_role']  = 'student';
+    $_SESSION['user_dept']  = null;
+    unset($_SESSION['staff_id'], $_SESSION['fb_popup_shown']);
+    header('Location: ' . buildStudentRedirect($deptParam));
+    exit;
 }
 
 if ($loginMode === 'staff') {
