@@ -691,10 +691,7 @@ nav { padding: 0 14px; height: 60px; }
         <svg viewBox="0 0 24 24" fill="none" stroke="rgba(212,160,23,0.8)" stroke-width="2" width="11" height="11"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Real-time ticket tracking
       </div>
-      <div class="fchip" style="color:rgba(212,160,23,0.75);">
-        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(212,160,23,0.75)" stroke-width="2" width="11" height="11"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        Room booking → <a href="#" style="color:rgba(212,160,23,0.9);text-decoration:underline;text-underline-offset:2px;margin-left:3px;">Vequip</a>
-      </div>
+      
     </div>
     <div class="footer-right">© <?php echo date('Y'); ?> UniKL RCMP · RUSH — RCMP User Helpdesk</div>
   </footer>

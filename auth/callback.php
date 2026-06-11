@@ -164,54 +164,34 @@ if (empty($email)) {
 // ── Step 4 & 5: Look up DB and create session ────────────────────────────────
 
 if ($loginMode === 'student') {
-    // ── STUDENT FLOW ──────────────────────────────────────────────────────────
-    $stmt = $conn->prepare("SELECT * FROM students WHERE email = ? AND status = 'active' LIMIT 1");
-    $stmt->bind_param('s', $email);
-    $stmt->execute();
-    $user = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    // ── FRONT-END USER FLOW ───────────────────────────────────────────────────
+    // Trust Microsoft SSO — any valid UniKL Microsoft account is allowed.
+    // No local DB lookup needed. Role is determined by email domain:
+    //   s.unikl.edu.my  → student (submitting complaints)
+    //   unikl.edu.my    → staff   (front-end complaint submitter, NOT backend)
+    //   anything else   → staff   (other trusted UniKL domains e.g. uitm)
 
-    if (!$user) {
-        // Not in students table — try staff table as fallback (same as manual login)
-        $stmt = $conn->prepare("SELECT * FROM staff WHERE email = ? AND status = 'active' LIMIT 1");
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$user) {
-            sso_error('account_not_found');
-        }
-
-        // Found in staff — but came from student portal, send to complaint homepage
-        session_regenerate_id(true);
-        $_SESSION['staff_id']    = $user['staff_id'];
-        $_SESSION['user_id']     = $user['staff_id'];
-        $_SESSION['staff_code']  = $user['staff_code'];
-        $_SESSION['staff_name']  = $user['full_name'];
-        $_SESSION['user_name']   = $user['full_name'];
-        $_SESSION['staff_email'] = $user['email'];
-        $_SESSION['user_email']  = $user['email'];
-        $_SESSION['staff_role']  = $user['role'];
-        $_SESSION['user_role']   = $user['role'];
-        $_SESSION['user_dept']   = $user['dept_id'] ?? null;
-        unset($_SESSION['fb_popup_shown']);
-        header('Location: ' . buildStudentRedirect($deptParam));
-        exit;
+    $displayName = trim($profile['displayName'] ?? '');
+    if (empty($displayName)) {
+        $displayName = strstr($email, '@', true); // fallback: part before @
     }
 
-    if ($loginMode === 'student') {
-        session_regenerate_id(true);
-        $_SESSION['user_id']    = $user['student_id'];
-        $_SESSION['user_name']  = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_role']  = 'student';
-        $_SESSION['user_dept']  = null;
-        unset($_SESSION['staff_id'], $_SESSION['fb_popup_shown']);
-        header('Location: ' . buildStudentRedirect($deptParam));
-        exit;
+    $domain = strtolower(substr(strrchr($email, '@'), 1));
+    if ($domain === 's.unikl.edu.my') {
+        $role = 'student';
+    } else {
+        $role = 'staff';
     }
-    // Fall through to staff handling below if loginMode was switched to 'staff'
+
+    session_regenerate_id(true);
+    $_SESSION['user_id']    = $email;        // email as unique identifier (no local DB id)
+    $_SESSION['user_name']  = $displayName;
+    $_SESSION['user_email'] = $email;
+    $_SESSION['user_role']  = $role;
+    $_SESSION['user_dept']  = null;
+    unset($_SESSION['staff_id'], $_SESSION['fb_popup_shown']);
+    header('Location: ' . buildStudentRedirect($deptParam));
+    exit;
 }
 
 if ($loginMode === 'staff') {
