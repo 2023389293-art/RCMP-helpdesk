@@ -2,7 +2,7 @@
 // complaint/my_ticket_detail.php 
 session_start();
 
-$allowedRoles = ['student', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
+$allowedRoles = ['user', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
 if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowedRoles)) {
     header('Location: ../login.php');
     exit;
@@ -14,7 +14,7 @@ $userName      = htmlspecialchars($_SESSION['user_name']  ?? 'User');
 $userEmail     = htmlspecialchars($_SESSION['user_email'] ?? '');
 $userRole      = $_SESSION['user_role'];
 $userId = (int)(isset($_SESSION['user_id']) ? $_SESSION['user_id'] : (isset($_SESSION['staff_id']) ? $_SESSION['staff_id'] : 0));
-$submitterType = ($userRole === 'student') ? 'student' : 'staff';
+$submitterType = ($userRole === 'user') ? 'user' : 'staff';
 
 $ticketId = trim($_GET['id'] ?? '');
 $ticket   = null;
@@ -22,12 +22,12 @@ $ticket   = null;
 if ($ticketId !== '') {
     $stmt = $conn->prepare("
         SELECT c.*, cat.category_name, d.dept_name, d.dept_id,
-               s.full_name AS submitter_full_name, s.email AS submitter_email, s.phone AS submitter_phone,
+               u.email AS submitter_email,
                st.full_name AS submitter_staff_name, st.email AS submitter_staff_email, st.phone AS submitter_staff_phone
         FROM complaints c
         LEFT JOIN categories cat ON cat.category_id = c.category_id
         LEFT JOIN departments d ON d.dept_id = c.dept_id
-        LEFT JOIN students s ON c.submitter_type = 'student' AND s.student_id = c.submitter_id
+        LEFT JOIN users u ON c.submitter_type = 'user' AND u.user_id = c.submitter_id
         LEFT JOIN staff st ON c.submitter_type = 'staff' AND st.staff_id = c.submitter_id
         WHERE c.ticket_id = ? AND c.submitter_id = ? AND c.submitter_type = ?
         LIMIT 1
@@ -164,10 +164,14 @@ $priorityMap = [
 $curStatus   = $statusMap[($ticket['status']   ?? 'open')]   ?? $statusMap['open'];
 $curPriority = $priorityMap[($ticket['priority'] ?? 'medium')] ?? $priorityMap['medium'];
 
-$submitterName  = ($ticket['submitter_full_name']  ?? $ticket['submitter_staff_name']  ?? '—');
-$submitterEmail = ($ticket['submitter_email']       ?? $ticket['submitter_staff_email'] ?? '—');
-$submitterPhone = ($ticket['phone'] ?? '—');
-$submitterType2 = ucfirst($submitterType);
+// Name and phone are no longer stored in DB — use session for current user,
+// or show anonymised label for others viewing the ticket.
+$submitterName  = ($submitterType === 'user')
+    ? ($_SESSION['user_name'] ?? 'User')        // name from Graph session
+    : ($ticket['submitter_staff_name'] ?? '—');
+$submitterEmail = ($ticket['submitter_email'] ?? $ticket['submitter_staff_email'] ?? '—');
+$submitterPhone = '—';   // removed from DB (PDPA)
+$submitterType2 = ($submitterType === 'user') ? 'User' : 'Staff';
 
 $pageTitle    = 'My Ticket';
 $pageSubtitle = date('l, d F Y');

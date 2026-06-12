@@ -2,7 +2,7 @@
 // complaint/new_complaint.php (new) 
 session_start();
 
-$allowedRoles = ['student', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
+$allowedRoles = ['user', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
 if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowedRoles)) {
     header('Location: ../login.php');
     exit;
@@ -17,7 +17,7 @@ $userName      = htmlspecialchars($_SESSION['user_name']  ?? 'User');
 $userEmail     = htmlspecialchars($_SESSION['user_email'] ?? '');
 $userRole      = $_SESSION['user_role'];
 $userId        = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
-$submitterType = ($userRole === 'student') ? 'student' : 'staff';
+$submitterType = ($userRole === 'user') ? 'user' : 'staff';
 
 // ── WORKING HOURS CHECK ───────────────────────────────────────────────────────
 $myt          = new DateTimeZone('Asia/Kuala_Lumpur');

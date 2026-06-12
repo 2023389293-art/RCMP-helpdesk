@@ -3,7 +3,7 @@
 session_start();
 header('Content-Type: application/json');
 
-$allowedRoles = ['student', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
+$allowedRoles = ['user', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
 if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowedRoles)) {
     echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit;
 }
@@ -24,7 +24,7 @@ $userRole      = $_SESSION['user_role'];
 $userId        = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
 $userName      = $_SESSION['user_name'] ?? 'User';
 $userEmail     = $_SESSION['user_email'] ?? '';
-$submitterType = ($userRole === 'student') ? 'student' : 'staff';
+$submitterType = ($userRole === 'user') ? 'user' : 'staff';
 
 function calcSlaStart(DateTime $from): DateTime {
     $sla = clone $from;

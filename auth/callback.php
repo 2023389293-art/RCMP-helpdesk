@@ -1,18 +1,5 @@
 <?php
 // auth/callback.php
-// ─────────────────────────────────────────────────────────────────────────────
-// Handles the redirect back from Microsoft after the user authenticates.
-// Works for BOTH student (sso_login.php) and staff (staff_sso_login.php) flows,
-// distinguished by $_SESSION['sso_login_mode'].
-//
-// Flow:
-//  1. Validate state (CSRF protection)
-//  2. Exchange authorization code for access token
-//  3. Call MS Graph /me to get user's email
-//  4. Look up the email in DB (students or staff table depending on mode)
-//  5. Create the same session variables as the manual login pages
-//  6. Redirect to the appropriate dashboard
-// ─────────────────────────────────────────────────────────────────────────────
 session_start();
 require_once __DIR__ . '/sso_config.php';
 require_once __DIR__ . '/../db_connect.php';
@@ -20,14 +7,14 @@ require_once __DIR__ . '/../db_connect.php';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sso_error(string $msg): void {
-    $loginPage = ($_SESSION['sso_login_mode'] ?? 'student') === 'staff'
+    // ── UPDATED: mode is now 'user' instead of 'student' ──────────────────────
+    $loginPage = ($_SESSION['sso_login_mode'] ?? 'user') === 'staff'
         ? SSO_APP_BASE_URL . '/staff_login.php'
         : SSO_APP_BASE_URL . '/login.php';
     header('Location: ' . $loginPage . '?sso_error=' . urlencode($msg));
     exit;
 }
 
-/** Make an HTTP POST using cURL */
 function http_post(string $url, array $fields) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -43,7 +30,6 @@ function http_post(string $url, array $fields) {
     return $result;
 }
 
-/** Make an HTTP GET using cURL with a Bearer token */
 function http_get_bearer(string $url, string $token) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -57,7 +43,7 @@ function http_get_bearer(string $url, string $token) {
     return $result;
 }
 
-// ── Department routing (mirrors staff_login.php) ──────────────────────────────
+// ── Department routing (unchanged — staff only) ───────────────────────────────
 
 $deptFolders = [
     1 => 'afsmd',
@@ -83,9 +69,8 @@ function buildStaffRedirect(string $role, string $folder): string {
     return SSO_APP_BASE_URL . '/' . $dir . '/' . $folder . '/dashboard.php';
 }
 
-// ── Dept param redirect (mirrors login.php / complaint flow) ─────────────────
-
-function buildStudentRedirect(string $dept): string {
+// ── UPDATED: kept the same redirect logic ────────────────────────────────────
+function buildUserRedirect(string $dept): string {
     $map = [
         'it'    => SSO_APP_BASE_URL . '/complaint/new_complaint.php?dept_tab=Information+Technology+Department',
         'hc'    => SSO_APP_BASE_URL . '/complaint/new_complaint.php?dept_tab=Human+Capital+Department',
@@ -96,7 +81,7 @@ function buildStudentRedirect(string $dept): string {
     return $map[$dept] ?? SSO_APP_BASE_URL . '/complaint/homepage.php';
 }
 
-// ── Step 1: Validate state ─────────────────────────────────────────────────────
+// ── Step 1: Validate state ────────────────────────────────────────────────────
 
 $returnedState = $_GET['state'] ?? '';
 $savedState    = $_SESSION['sso_state'] ?? '';
@@ -104,15 +89,14 @@ $savedState    = $_SESSION['sso_state'] ?? '';
 if (empty($returnedState) || !hash_equals($savedState, $returnedState)) {
     sso_error('invalid_state');
 }
-unset($_SESSION['sso_state']); // one-time use
+unset($_SESSION['sso_state']);
 
-// Check for error from Microsoft
 if (!empty($_GET['error'])) {
     sso_error(htmlspecialchars($_GET['error_description'] ?? $_GET['error']));
 }
 
 $code      = $_GET['code']      ?? '';
-$loginMode = $_SESSION['sso_login_mode'] ?? 'student';
+$loginMode = $_SESSION['sso_login_mode'] ?? 'user';   // ← default is now 'user'
 $deptParam = $_SESSION['sso_dept_param'] ?? '';
 unset($_SESSION['sso_login_mode'], $_SESSION['sso_dept_param']);
 
@@ -131,49 +115,50 @@ $tokenResponse = http_post(SSO_TOKEN_URL, [
     'scope'         => SSO_SCOPES,
 ]);
 
-if ($tokenResponse === false) {
-    sso_error('token_request_failed');
-}
+if ($tokenResponse === false) { sso_error('token_request_failed'); }
 
 $tokenData = json_decode($tokenResponse, true);
-
-if (empty($tokenData['access_token'])) {
-    sso_error('no_access_token');
-}
+if (empty($tokenData['access_token'])) { sso_error('no_access_token'); }
 
 $accessToken = $tokenData['access_token'];
 
 // ── Step 3: Get user profile from MS Graph ────────────────────────────────────
+// SSO_GRAPH_URL now includes ?$select=id,displayName,mail,userPrincipalName,...
+// 'id' here is the Entra Object ID (oid) — unique per user per tenant
 
 $graphResponse = http_get_bearer(SSO_GRAPH_URL, $accessToken);
-
-if ($graphResponse === false) {
-    sso_error('graph_request_failed');
-}
+if ($graphResponse === false) { sso_error('graph_request_failed'); }
 
 $profile = json_decode($graphResponse, true);
 
-// Graph returns 'mail' (Exchange mailbox) or 'userPrincipalName' (UPN).
-// UPN is always present; mail may be null for some accounts.
-$email = strtolower(trim($profile['mail'] ?? $profile['userPrincipalName'] ?? ''));
+// entra_oid: the Graph 'id' field = same as 'oid' claim in the JWT token
+$entraOid    = trim($profile['id'] ?? '');
+$email       = strtolower(trim($profile['mail'] ?? $profile['userPrincipalName'] ?? ''));
+// Display name: comes from Graph, stored in SESSION only — not in DB
+$displayName = trim($profile['displayName'] ?? '');
 
-if (empty($email)) {
-    sso_error('no_email');
+if (empty($entraOid)) { sso_error('no_oid'); }
+if (empty($email))    { sso_error('no_email'); }
+
+if (empty($displayName)) {
+    // Fallback: derive a readable name from the email prefix
+    $displayName = ucwords(str_replace(['.', '_', '-'], ' ', explode('@', $email)[0]));
 }
 
 // ── Step 4 & 5: Look up DB and create session ────────────────────────────────
 
-if ($loginMode === 'student') {
-    // ── STUDENT FLOW ──────────────────────────────────────────────────────────
+if ($loginMode === 'user') {
+    // ── USER FLOW (formerly 'student') ───────────────────────────────────────
 
     // Validate: only allow UniKL Microsoft-authenticated domains
-    $emailDomain = strtolower(substr(strrchr($email, '@'), 1));
+    $emailDomain    = strtolower(substr(strrchr($email, '@'), 1));
     $allowedDomains = ['unikl.edu.my', 's.unikl.edu.my', 'rcmp.edu.my'];
+
     if (!in_array($emailDomain, $allowedDomains, true)) {
         sso_error('account_not_found');
     }
 
-    // Check staff table first (staff who use login.php to submit complaints)
+    // ── Check staff table first (staff submitting complaints via login.php) ───
     $stmt = $conn->prepare("SELECT * FROM staff WHERE email = ? AND status = 'active' LIMIT 1");
     $stmt->bind_param('s', $email);
     $stmt->execute();
@@ -181,83 +166,97 @@ if ($loginMode === 'student') {
     $stmt->close();
 
     if ($staffUser) {
-        // Known staff — log in with their actual role
         session_regenerate_id(true);
-        $_SESSION['staff_id']   = $staffUser['staff_id'];
-        $_SESSION['user_id']    = $staffUser['staff_id'];
-        $_SESSION['staff_code'] = $staffUser['staff_code'];
-        $_SESSION['staff_name'] = $staffUser['full_name'];
-        $_SESSION['user_name']  = $staffUser['full_name'];
-        $_SESSION['staff_email']= $staffUser['email'];
-        $_SESSION['user_email'] = $staffUser['email'];
-        $_SESSION['staff_role'] = $staffUser['role'];
-        $_SESSION['user_role']  = $staffUser['role'];
-        $_SESSION['user_dept']  = $staffUser['dept_id'] ?? null;
+        $_SESSION['staff_id']    = $staffUser['staff_id'];
+        $_SESSION['user_id']     = $staffUser['staff_id'];
+        $_SESSION['staff_code']  = $staffUser['staff_code'];
+        // ── Name comes from Graph (session only), NOT from staff table ─────────
+        // But staff table still has full_name for backend display — keep using it
+        // for staff since they are not PDPA-sensitive submitters in this context.
+        // If your boss also wants to strip staff names, handle separately.
+        $_SESSION['staff_name']  = $staffUser['full_name'];
+        $_SESSION['user_name']   = $displayName;           // Graph name in session
+        $_SESSION['staff_email'] = $staffUser['email'];
+        $_SESSION['user_email']  = $email;
+        $_SESSION['staff_role']  = $staffUser['role'];
+        $_SESSION['user_role']   = $staffUser['role'];
+        $_SESSION['user_dept']   = $staffUser['dept_id'] ?? null;
+        $_SESSION['entra_oid']   = $entraOid;              // ← NEW: store oid
         unset($_SESSION['fb_popup_shown']);
-        header('Location: ' . buildStudentRedirect($deptParam));
+        header('Location: ' . buildUserRedirect($deptParam));
         exit;
     }
 
-    // Check students table
-    $stmt = $conn->prepare("SELECT * FROM students WHERE email = ? AND status = 'active' LIMIT 1");
-    $stmt->bind_param('s', $email);
+    // ── Check users table by entra_oid (primary) or email (fallback) ─────────
+    $stmt = $conn->prepare("SELECT * FROM users WHERE entra_oid = ? AND status = 'active' LIMIT 1");
+    $stmt->bind_param('s', $entraOid);
     $stmt->execute();
-    $studentUser = $stmt->get_result()->fetch_assoc();
+    $existingUser = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if ($studentUser) {
-        // Known student
+    // Fallback: look up by email in case entra_oid was not stored before
+    if (!$existingUser) {
+        $stmt = $conn->prepare("SELECT * FROM users WHERE email = ? AND status = 'active' LIMIT 1");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $existingUser = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        // If found by email but oid is missing/different, update it
+        if ($existingUser && $existingUser['entra_oid'] !== $entraOid) {
+            $upd = $conn->prepare("UPDATE users SET entra_oid = ? WHERE user_id = ?");
+            $upd->bind_param('si', $entraOid, $existingUser['user_id']);
+            $upd->execute();
+            $upd->close();
+        }
+    }
+
+    if ($existingUser) {
+        // Known user — log in
         session_regenerate_id(true);
-        $_SESSION['user_id']    = $studentUser['student_id'];
-        $_SESSION['user_name']  = $studentUser['full_name'];
-        $_SESSION['user_email'] = $studentUser['email'];
-        $_SESSION['user_role']  = 'student';
+        $_SESSION['user_id']    = $existingUser['user_id'];
+        $_SESSION['user_name']  = $displayName;    // from Graph, NOT from DB
+        $_SESSION['user_email'] = $email;          // from Graph, NOT from DB
+        $_SESSION['user_role']  = 'user';          // ← CHANGED: was 'student'
         $_SESSION['user_dept']  = null;
+        $_SESSION['entra_oid']  = $entraOid;
         unset($_SESSION['staff_id'], $_SESSION['fb_popup_shown']);
-        header('Location: ' . buildStudentRedirect($deptParam));
+        header('Location: ' . buildUserRedirect($deptParam));
         exit;
     }
 
-    // ── Not in either table BUT valid UniKL domain via Microsoft SSO ──────
-    // Auto-provision as complaint submitter (student role, no backend access)
-    $displayName = trim($profile['displayName'] ?? $profile['givenName'] ?? '');
-    if (empty($displayName)) {
-        $displayName = ucwords(str_replace(['.', '_', '-'], ' ', explode('@', $email)[0]));
-    }
-
-    $defaultFaculty = '';
-    $defaultPhone   = '';
+    // ── Auto-provision: valid UniKL domain, not yet in users table ───────────
+    // Store ONLY entra_oid + email — no name, no phone, no faculty (PDPA clean)
     $stmt = $conn->prepare("
-        INSERT INTO students (full_name, email, password_hash, faculty, phone, status, created_at)
-        VALUES (?, ?, '', ?, ?, 'active', NOW())
+        INSERT INTO users (entra_oid, email, status, created_at)
+        VALUES (?, ?, 'active', NOW())
     ");
-    $stmt->bind_param('ssss', $displayName, $email, $defaultFaculty, $defaultPhone);
+    $stmt->bind_param('ss', $entraOid, $email);
     $stmt->execute();
-    $newStudentId = $conn->insert_id;
+    $newUserId = $conn->insert_id;
     $stmt->close();
 
     session_regenerate_id(true);
-    $_SESSION['user_id']    = $newStudentId;
-    $_SESSION['user_name']  = $displayName;
-    $_SESSION['user_email'] = $email;
-    $_SESSION['user_role']  = 'student';
+    $_SESSION['user_id']    = $newUserId;
+    $_SESSION['user_name']  = $displayName;    // from Graph, session only
+    $_SESSION['user_email'] = $email;          // from Graph, session only
+    $_SESSION['user_role']  = 'user';          // ← CHANGED: was 'student'
     $_SESSION['user_dept']  = null;
+    $_SESSION['entra_oid']  = $entraOid;
     unset($_SESSION['staff_id'], $_SESSION['fb_popup_shown']);
-    header('Location: ' . buildStudentRedirect($deptParam));
+    header('Location: ' . buildUserRedirect($deptParam));
     exit;
 }
 
 if ($loginMode === 'staff') {
-    // ── STAFF FLOW ────────────────────────────────────────────────────────────
+    // ── STAFF FLOW (unchanged) ────────────────────────────────────────────────
     $stmt = $conn->prepare("SELECT * FROM staff WHERE email = ? AND status = 'active' LIMIT 1");
     $stmt->bind_param('s', $email);
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if (!$user) {
-        sso_error('account_not_found');
-    }
+    if (!$user) { sso_error('account_not_found'); }
 
     $staffRole = $user['role'];
     $deptId    = !empty($user['dept_id']) ? (int)$user['dept_id'] : null;
@@ -272,6 +271,7 @@ if ($loginMode === 'staff') {
     $_SESSION['user_email']  = $user['email'];
     $_SESSION['staff_role']  = $staffRole;
     $_SESSION['user_role']   = $staffRole;
+    $_SESSION['entra_oid']   = $entraOid;    // ← NEW: store for reference
     unset($_SESSION['fb_popup_shown']);
 
     if ($staffRole === 'super_admin' || $staffRole === 'report_viewer') {
@@ -292,7 +292,6 @@ if ($loginMode === 'staff') {
     $_SESSION['dept_folder'] = $deptFolders[$deptId];
     $_SESSION['user_dept']   = $deptId;
 
-    // Also set user_dept as dept_id integer (mirrors manual login in login.php)
     $dstmt = $conn->prepare("SELECT dept_id FROM departments WHERE dept_name = ? LIMIT 1");
     $dstmt->bind_param('s', $user['department']);
     $dstmt->execute();
@@ -304,5 +303,4 @@ if ($loginMode === 'staff') {
     exit;
 }
 
-// Should never reach here
 sso_error('unknown_flow');

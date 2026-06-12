@@ -189,10 +189,12 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
 
             // ── Always notify submitter on status change ───────────────────────
             if ($statChanged && empty(trim($_POST['message'] ?? ''))) {
-                $subType  = $ticket['submitter_type'] ?? 'student';
-                $subTable = $subType === 'student' ? 'students' : 'staff';
-                $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
-                $subQ = $conn->prepare("SELECT full_name, email FROM {$subTable} WHERE {$subPk}=? LIMIT 1");
+                $subType = $ticket['submitter_type'] ?? 'user';
+if ($subType === 'user') {
+    $subQ = $conn->prepare("SELECT email, email AS full_name FROM users WHERE user_id = ? LIMIT 1");
+} else {
+    $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
+}
                 if ($subQ) {
                     $subQ->bind_param("i", $ticket['submitter_id']);
                     $subQ->execute();
@@ -310,10 +312,12 @@ HTML;
                 $ins->execute(); $ins->close();
 
                 // Email to submitter
-                $subType  = $ticket['submitter_type'] ?? 'student';
-                $subTable = $subType === 'student' ? 'students' : 'staff';
-                $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
-                $subQ = $conn->prepare("SELECT full_name, email FROM {$subTable} WHERE {$subPk}=? LIMIT 1");
+                $subType = $ticket['submitter_type'] ?? 'user';
+                if ($subType === 'user') {
+                    $subQ = $conn->prepare("SELECT email, email AS full_name FROM users WHERE user_id = ? LIMIT 1");
+                } else {
+                    $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
+                }
                 if ($subQ) {
                     $subQ->bind_param("i", $ticket['submitter_id']);
                     $subQ->execute();
@@ -482,11 +486,20 @@ if ($ticketId !== '') {
 
 $submitter = null;
 if ($ticket) {
-    $type  = $ticket['submitter_type'] ?? 'student';
-    $table = $type==='student' ? 'students' : 'staff';
-    $pkCol = $type==='student' ? 'student_id' : 'staff_id';
-    $s2 = $conn->prepare("SELECT full_name AS name, email FROM {$table} WHERE {$pkCol}=? LIMIT 1");
-    if ($s2) { $s2->bind_param("i",$ticket['submitter_id']); $s2->execute(); $submitter=$s2->get_result()->fetch_assoc(); $s2->close(); }
+$type  = $ticket['submitter_type'] ?? 'user';
+if ($type === 'user') {
+    // users table has no name — show email only, name is not stored (PDPA)
+    $s2 = $conn->prepare("SELECT email, email AS name FROM users WHERE user_id = ? LIMIT 1");
+} else {
+    $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
+}
+if ($s2) {
+    $s2->bind_param("i", $ticket['submitter_id']);
+    $s2->execute();
+    $submitter = $s2->get_result()->fetch_assoc();
+    $s2->close();
+}
+    
 }
 
 $changeLogs = [];
@@ -881,7 +894,11 @@ $pageSubtitle = 'Information Technology Department';
             <div class="ti-submitter-grid">
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Name</div>
-                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['name']??'—'); ?></div>
+                <div class="ti-submitter-val">
+    <?php echo ($ticket['submitter_type'] === 'user')
+        ? '<em style="color:#9CA3AF;font-size:12px;">Name not stored (PDPA)</em>'
+        : htmlspecialchars($submitter['name'] ?? '—'); ?>
+</div>
               </div>
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Email</div>

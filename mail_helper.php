@@ -24,6 +24,19 @@ $deptStmt->close();
 $deptName       = $deptRow['dept_name']  ?? 'Your Department';
 $deptGroupEmail = 'farahwdi33@gmail.com';
 
+// Fetch assigned staff name for this ticket
+$assignedStmt = $conn->prepare("
+    SELECT s.full_name FROM complaints c
+    LEFT JOIN staff s ON s.staff_id = c.assigned_to
+    WHERE c.ticket_id = ? LIMIT 1
+");
+$assignedStmt->bind_param("s", $ticketId);
+$assignedStmt->execute();
+$assignedRow  = $assignedStmt->get_result()->fetch_assoc();
+$assignedStmt->close();
+$assignedName = $assignedRow['full_name'] ?? null;
+$escapedAssigned = $assignedName ? htmlspecialchars($assignedName) : 'Unassigned';
+
     $staffStmt = $conn->prepare(
         "SELECT full_name, email FROM staff WHERE dept_id = ? AND status = 'active'"
     );
@@ -117,10 +130,14 @@ $deptGroupEmail = 'farahwdi33@gmail.com';
               <td style="padding:12px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedDeptName}</td>
             </tr>
             <tr>
-              <td style="width:40%;padding:12px 18px;background-color:#f7f8fa;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Status</td>
-              <td style="padding:12px 18px;background-color:#ffffff;">
+              <td style="width:40%;padding:12px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Status</td>
+              <td style="padding:12px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;">
                 <span style="display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:#FEF3C7;color:#D97706;">Open — Awaiting Action</span>
               </td>
+            </tr>
+            <tr>
+              <td style="width:40%;padding:12px 18px;background-color:#f7f8fa;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Handled By</td>
+              <td style="padding:12px 18px;background-color:#ffffff;font-size:13px;color:#111827;">{$escapedAssigned}</td>
             </tr>
           </table>
 
@@ -157,13 +174,14 @@ $deptGroupEmail = 'farahwdi33@gmail.com';
 </html>
 HTML;
 
-        $plainBody =
+$plainBody =
             "UNIKL RCMP HELP DESK — NEW COMPLAINT\n" .
             "=====================================\n\n" .
             "Reference No.        : {$ticketId}\n" .
             "Assigned Department  : {$deptName}\n" .
             "Date                 : {$currentDate}\n" .
-            "Status               : Open — Awaiting Action\n\n" .
+            "Status               : Open — Awaiting Action\n" .
+            "Handled By           : " . ($assignedName ?? 'Unassigned') . "\n\n" .
             "Dear {$staff['full_name']},\n\n" .
             "A new complaint has been submitted and routed to your department.\n" .
             "Please log in to https://rush.rcmp.edu.my/ to review and respond.\n\n" .
