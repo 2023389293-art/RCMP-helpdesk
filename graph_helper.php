@@ -31,7 +31,7 @@ function getGraphUserByOid(string $entraOid): ?array {
     if (session_status() === PHP_SESSION_NONE) session_start();
     $cacheKey = 'graph_user_' . $entraOid;
     if (array_key_exists($cacheKey, $_SESSION)) {
-        // null means cached failure, array means cached success
+        // Only successes are cached — return the cached data
         return is_array($_SESSION[$cacheKey]) ? $_SESSION[$cacheKey] : null;
     }
 
@@ -56,7 +56,7 @@ function getGraphUserByOid(string $entraOid): ?array {
 
     if ($httpCode !== 200) {
         error_log("[Graph] HTTP {$httpCode} for OID {$entraOid}: {$result}");
-        $_SESSION[$cacheKey] = null; // cache the failure
+        // Do NOT cache failures — let it retry on next page load
         return null;
     }
 
@@ -66,7 +66,6 @@ function getGraphUserByOid(string $entraOid): ?array {
 
     if (empty($email)) {
         error_log("[Graph] No email returned for OID: {$entraOid}");
-        $_SESSION[$cacheKey] = null;
         return null;
     }
     if (empty($name)) {

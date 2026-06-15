@@ -500,7 +500,7 @@ $submitter = null;
 if ($ticket) {
 $type  = $ticket['submitter_type'] ?? 'user';
 if ($type === 'user') {
-    $s2 = $conn->prepare("SELECT entra_oid FROM users WHERE user_id = ? LIMIT 1");
+    $s2 = $conn->prepare("SELECT user_id, entra_oid FROM users WHERE user_id = ? LIMIT 1");
 } else {
     $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
 }
@@ -520,9 +520,9 @@ if ($type === 'user') {
             $submitter['name']  = $graphData['name'];
             $submitter['email'] = $graphData['email'];
         } else {
-            // Graph failed — show partial info so page isn't blank
-            $submitter['name']  = 'User (OID: ' . substr($oid, 0, 8) . '…)';
-            $submitter['email'] = '— (Graph lookup failed)';
+            // Graph failed — keep oid accessible, show safe fallback
+            $submitter['name']  = '— (Fetching from Microsoft…)';
+            $submitter['email'] = '— (Try refreshing the page)';
         }
     } else {
         $submitter['name']  = '— (No OID on record)';
@@ -1510,11 +1510,8 @@ $pageSubtitle = 'Administration & Facilities Management Department';
     <?php
     if ($hasFeedback) {
         if ($feedback['submitter_type'] === 'user') {
-            $fbName = 'User';
-            if (!empty($submitter['entra_oid'])) {
-                $fbGraph = getGraphUserByOid($submitter['entra_oid']);
-                if ($fbGraph) $fbName = $fbGraph['name'];
-            }
+            // $submitter['name'] already resolved from Graph above — reuse it
+            $fbName = $submitter['name'] ?? 'User';
             echo 'Submitted by ' . htmlspecialchars($fbName);
         } else {
             echo 'Submitted by ' . htmlspecialchars($feedback['submitter_name'] ?? 'Staff');
