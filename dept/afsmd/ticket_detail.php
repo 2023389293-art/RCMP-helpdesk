@@ -739,6 +739,83 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <style>
+/* ══ Flash Toast ══ */
+.flash-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 99999;
+  min-width: 320px;
+  max-width: 440px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 16px 20px;
+  border-left: 4px solid #22C55E;
+  animation: toastSlideIn .35s cubic-bezier(.34,1.56,.64,1);
+  overflow: hidden;
+}
+.flash-toast.toast-error   { border-left-color: #EF4444; }
+.flash-toast.toast-warning { border-left-color: #F59E0B; }
+.flash-toast.toast-success { border-left-color: #22C55E; }
+
+.flash-toast-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.toast-success .flash-toast-icon { background: #D1FAE5; color: #059669; }
+.toast-error   .flash-toast-icon { background: #FEE2E2; color: #DC2626; }
+.toast-warning .flash-toast-icon { background: #FEF3C7; color: #D97706; }
+.flash-toast-icon svg { width: 18px; height: 18px; }
+
+.flash-toast-body   { flex: 1; min-width: 0; }
+.flash-toast-title  { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 3px; }
+.flash-toast-msg    { font-size: 12.5px; color: #6B7280; line-height: 1.55; }
+
+.flash-toast-close {
+  background: none; border: none; cursor: pointer;
+  color: #9CA3AF; font-size: 18px; line-height: 1;
+  padding: 0; flex-shrink: 0; margin-top: -2px;
+}
+.flash-toast-close:hover { color: #374151; }
+
+/* Progress bar at bottom */
+.flash-toast-bar {
+  position: absolute; bottom: 0; left: 0;
+  height: 3px; border-radius: 0 0 12px 12px;
+  animation: toastBarDrain 5s linear forwards;
+}
+.toast-success .flash-toast-bar { background: #22C55E; }
+.toast-error   .flash-toast-bar { background: #EF4444; }
+.toast-warning .flash-toast-bar { background: #F59E0B; }
+
+@keyframes toastSlideIn {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes toastBarDrain {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+/* Warning inline alert */
+.td-alert-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+}
+    </style>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Ticket Detail | UniKL Help Desk – AFSMD</title>
@@ -771,20 +848,57 @@ $pageSubtitle = 'Administration & Facilities Management Department';
   </div>
   <?php else: ?>
 
-  <!-- Flash messages -->
-  <?php if ($updateMsg): ?>
-  <div class="td-alert td-alert-success"><svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg><span><?php echo $updateMsg; ?></span></div>
-  <?php endif; ?>
-  <?php if ($updateError): ?>
-  <div class="td-alert td-alert-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span><?php echo htmlspecialchars($updateError); ?></span></div>
-  <?php endif; ?>
+  
 
-  <?php if ($updateWarning): ?>
-  <div class="td-alert" style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13.5px;">
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#D97706" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-    <span><?php echo htmlspecialchars($updateWarning); ?></span>
+  <?php if ($updateMsg): ?>
+<div class="td-alert td-alert-success"><svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg><span><?php echo $updateMsg; ?></span></div>
+<?php endif; ?>
+<?php if ($updateError): ?>
+<div class="td-alert td-alert-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span><?php echo htmlspecialchars($updateError); ?></span></div>
+<?php endif; ?>
+<?php if ($updateWarning): ?>
+<div class="td-alert td-alert-warning" id="flashWarningInline">
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#D97706" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  <span><?php echo htmlspecialchars($updateWarning); ?></span>
+</div>
+<?php endif; ?>
+
+<!-- ══ Toast Popup (success / error / warning) ══ -->
+<?php if ($updateMsg || $updateError || $updateWarning): ?>
+<div id="flashToast" class="flash-toast <?php
+  if ($updateMsg)      echo 'toast-success';
+  elseif ($updateError) echo 'toast-error';
+  else                  echo 'toast-warning';
+?>">
+  <div class="flash-toast-icon">
+    <?php if ($updateMsg): ?>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+    <?php elseif ($updateError): ?>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    <?php else: ?>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <?php endif; ?>
   </div>
-  <?php endif; ?>
+  <div class="flash-toast-body">
+    <div class="flash-toast-title">
+      <?php
+        if ($updateMsg)       echo 'Update Successful';
+        elseif ($updateError) echo 'Error';
+        else                  echo 'Email Not Sent';
+      ?>
+    </div>
+    <div class="flash-toast-msg">
+      <?php
+        if ($updateMsg)       echo $updateMsg;
+        elseif ($updateError) echo htmlspecialchars($updateError);
+        else                  echo htmlspecialchars($updateWarning);
+      ?>
+    </div>
+  </div>
+  <button class="flash-toast-close" onclick="dismissToast()">&#215;</button>
+  <div class="flash-toast-bar" id="flashToastBar"></div>
+</div>
+<?php endif; ?>
 
   <!-- Ticket header strip (always visible above tabs) -->
 <div class="ticket-header-strip">
@@ -1753,7 +1867,23 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeLightb
   showPage(1);
 })();
 
+// ── Flash Toast ──────────────────────────────────────────────────────────────
+(function () {
+  var toast = document.getElementById('flashToast');
+  if (!toast) return;
+  var timer = setTimeout(dismissToast, 5000);
+  toast.addEventListener('mouseenter', function () { clearTimeout(timer); });
+  toast.addEventListener('mouseleave', function () { timer = setTimeout(dismissToast, 2000); });
+})();
 
+function dismissToast() {
+  var toast = document.getElementById('flashToast');
+  if (!toast) return;
+  toast.style.transition = 'transform .3s ease, opacity .3s ease';
+  toast.style.transform  = 'translateX(110%)';
+  toast.style.opacity    = '0';
+  setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 320);
+}
 
 </script>
 </body>

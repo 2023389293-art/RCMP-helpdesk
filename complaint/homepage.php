@@ -13,9 +13,15 @@ require '../db_connect.php';
 $userName  = htmlspecialchars($_SESSION['user_name']  ?? 'User');
 $userEmail = htmlspecialchars($_SESSION['user_email'] ?? '');
 $userRole  = $_SESSION['user_role'];
-$userId = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
+// Staff who login via user portal SSO land here with staff_id set
+// Pure users (students/external) land here with user_id only (no staff_id)
+$isStaffSession = isset($_SESSION['staff_id']) && (int)$_SESSION['staff_id'] > 0;
 
-$submitterType = ($userRole === 'user') ? 'user' : 'staff';
+$userId        = $isStaffSession
+    ? (int)$_SESSION['staff_id']
+    : (int)($_SESSION['user_id'] ?? 0);
+
+$submitterType = $isStaffSession ? 'staff' : 'user';
 
 $stmt = $conn->prepare("
     SELECT
@@ -24,9 +30,9 @@ $stmt = $conn->prepare("
         SUM(status = 'in_progress') AS in_progress,
         SUM(status = 'closed')      AS closed
     FROM complaints
-    WHERE submitter_id = ? AND submitter_type IN ('user','student')
+    WHERE submitter_id = ? AND (submitter_type = ? OR submitter_type IN ('user','student'))
 ");
-$stmt->bind_param("i", $userId);
+$stmt->bind_param("is", $userId, $submitterType);
 $stmt->execute();
 $stats = $stmt->get_result()->fetch_assoc();
 $stmt->close();
@@ -35,9 +41,9 @@ $stmt->close();
 $stmtReq = $conn->prepare("
     SELECT COUNT(*) AS req_total
     FROM requisitions
-    WHERE submitter_id = ? AND submitter_type IN ('user','student')
+    WHERE submitter_id = ? AND (submitter_type = ? OR submitter_type IN ('user','student'))
 ");
-$stmtReq->bind_param("i", $userId);
+$stmtReq->bind_param("is", $userId, $submitterType);
 $stmtReq->execute();
 $reqStats = $stmtReq->get_result()->fetch_assoc();
 $stmtReq->close();
@@ -59,11 +65,11 @@ $stmt2 = $conn->prepare("
         'complaint'  AS row_type
     FROM complaints c
     LEFT JOIN categories cat ON c.category_id = cat.category_id
-    WHERE c.submitter_id = ? AND c.submitter_type IN ('user','student')
+    WHERE c.submitter_id = ? AND (c.submitter_type = ? OR c.submitter_type IN ('user','student'))
     ORDER BY c.created_at DESC
     LIMIT 5
 ");
-$stmt2->bind_param("i", $userId);
+$stmt2->bind_param("is", $userId, $submitterType);
 $stmt2->execute();
 $recentComplaints = $stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt2->close();
@@ -78,11 +84,11 @@ $stmt3 = $conn->prepare("
         r.category   AS category_name,
         'requisition' AS row_type
     FROM requisitions r
-    WHERE r.submitter_id = ? AND r.submitter_type IN ('user','student')
+    WHERE r.submitter_id = ? AND (r.submitter_type = ? OR r.submitter_type IN ('user','student'))
     ORDER BY r.created_at DESC
     LIMIT 5
 ");
-$stmt3->bind_param("i", $userId);
+$stmt3->bind_param("is", $userId, $submitterType);
 $stmt3->execute();
 $recentRequisitions = $stmt3->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt3->close();
