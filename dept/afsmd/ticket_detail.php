@@ -5,6 +5,7 @@ if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
 require_once __DIR__ . '/../../assign_helper.php';
 require_once __DIR__ . '/../../sla_helper.php';
+require_once __DIR__ . '/../../graph_helper.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -74,8 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
 
             $asnLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,remarks) VALUES (?,?,?,'assigned',?,?,?)");
             if ($asnLog) {
-                $alId   = (int)$staffId;
-                $alName = $staffName;
+                $alId   = (int)$_SESSION['staff_id'];
+                $alName = $_SESSION['staff_name'];
                 $asnLog->bind_param("sissss", $ticketId, $alId, $alName, $oldName, $newName, $assignRemarks);
                 $asnLog->execute(); $asnLog->close();
             }
@@ -171,7 +172,7 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
             if ($priChanged || $statChanged) {
                 $fc           = ($priChanged && $statChanged) ? 'both' : ($priChanged ? 'priority' : 'status');
                 $logStaffId   = (int)$staffId;
-$logStaffName = $staffName;
+                $logStaffName = $staffName;
                 $logStmt = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,old_status,new_status) VALUES (?,?,?,?,?,?,?,?)");
                 if ($logStmt) {
                     $logStmt->bind_param("sissssss", $ticketId, $logStaffId, $logStaffName, $fc, $oldPriority, $newPriority, $oldStatus, $newStatus);
@@ -188,17 +189,46 @@ $logStaffName = $staffName;
             $statusLabel = ucfirst(str_replace('_', ' ', $newStatus));
 
             // ── Always notify submitter on status change ───────────────────────
+            // Build feedback section once — used by both email branches
+            $feedbackSection = '';
+            if ($newStatus === 'closed') {
+                $feedbackSection = <<<FBHTML
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr><td style="border-left:3px solid #22C55E;background:#F0FDF4;padding:16px 20px;border-radius:0 4px 4px 0;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#166534;">Your Feedback Matters</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
+        <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#16A34A;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
+      </td></tr>
+    </table>
+FBHTML;
+            }
+
+            // Fetch submitter data once for both email branches
+            $subType = $ticket['submitter_type'] ?? 'user';
+            $submitterData = null;
+            if ($subType === 'user') {
+                $subQ = $conn->prepare("SELECT entra_oid FROM users WHERE user_id = ? LIMIT 1");
+                $subQ->bind_param("i", $ticket['submitter_id']);
+                $subQ->execute();
+                $oidRow = $subQ->get_result()->fetch_assoc();
+                $subQ->close();
+                if ($oidRow && !empty($oidRow['entra_oid'])) {
+                    $graphData = getGraphUserByOid($oidRow['entra_oid']);
+                    if ($graphData) {
+                        $submitterData = ['email' => $graphData['email'], 'full_name' => $graphData['name']];
+                    }
+                }
+            } else {
+                $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
+                $subQ->bind_param("i", $ticket['submitter_id']);
+                $subQ->execute();
+                $submitterData = $subQ->get_result()->fetch_assoc();
+                $subQ->close();
+            }
+
+            // ── Status-only email (no message typed) ─────────────────────────
             if ($statChanged && empty(trim($_POST['message'] ?? ''))) {
-                $subType  = $ticket['submitter_type'] ?? 'student';
-                $subTable = $subType === 'student' ? 'students' : 'staff';
-                $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
-                $subQ = $conn->prepare("SELECT full_name, email FROM {$subTable} WHERE {$subPk}=? LIMIT 1");
-                if ($subQ) {
-                    $subQ->bind_param("i", $ticket['submitter_id']);
-                    $subQ->execute();
-                    $submitterData = $subQ->get_result()->fetch_assoc();
-                    $subQ->close();
-                    if ($submitterData && !empty($submitterData['email'])) {
+                if ($submitterData && !empty($submitterData['email'])) {
                         $toName      = $submitterData['full_name'];
                         $toEmail     = $submitterData['email'];
                         $currentYear = date('Y');
@@ -209,19 +239,6 @@ $logStaffName = $staffName;
                         $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
                         $statFg  = $newStatus==='closed' ? '#059669' : ($newStatus==='in_progress' ? '#1D4ED8' : '#D97706');
 
-                        // Build feedback section only when closing
-$feedbackSection = '';
-if ($newStatus === 'closed') {
-    $feedbackSection = <<<FBHTML
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-      <tr><td style="border-left:3px solid #22C55E;background:#F0FDF4;padding:16px 20px;border-radius:0 4px 4px 0;">
-        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#166534;">Your Feedback Matters</p>
-        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
-        <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#16A34A;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
-      </td></tr>
-    </table>
-FBHTML;
-}
                         $statusOnlyHtml = <<<HTML
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background-color:#ffffff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
@@ -294,31 +311,20 @@ HTML;
                         } catch (Exception $e) {
                             error_log("[UniKL Mail] Status-only email failed for {$ticketId}: ".$mail->ErrorInfo);
                         }
-                    }
                 }
-            } // end status-change notification
+            } // end status-only email
 
             // ── Send message if provided ──────────────────────────────────────
             $inlineMessage = trim($_POST['message'] ?? '');
             if (!empty($inlineMessage)) {
-                $senderName = $staffName;
+                $senderName = $_SESSION['staff_name'] ?? 'Staff';
                 $senderRole = 'staff';
-                $senderId   = (int)$staffId;
+                $senderId   = (int)($_SESSION['staff_id'] ?? 0);
                 $ins = $conn->prepare("INSERT INTO ticket_replies (ticket_id,sender_id,sender_name,sender_role,message) VALUES (?,?,?,?,?)");
                 $ins->bind_param("sisss", $ticketId, $senderId, $senderName, $senderRole, $inlineMessage);
                 $ins->execute(); $ins->close();
 
-                // Email to submitter
-                $subType  = $ticket['submitter_type'] ?? 'student';
-                $subTable = $subType === 'student' ? 'students' : 'staff';
-                $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
-                $subQ = $conn->prepare("SELECT full_name, email FROM {$subTable} WHERE {$subPk}=? LIMIT 1");
-                if ($subQ) {
-                    $subQ->bind_param("i", $ticket['submitter_id']);
-                    $subQ->execute();
-                    $submitterData = $subQ->get_result()->fetch_assoc();
-                    $subQ->close();
-                    if ($submitterData && !empty($submitterData['email'])) {
+                if ($submitterData && !empty($submitterData['email'])) {
                         $toName      = $submitterData['full_name'];
                         $toEmail     = $submitterData['email'];
                         $currentYear = date('Y');
@@ -407,7 +413,6 @@ HTML;
                         } catch (Exception $e) {
                             error_log("[UniKL Mail] Merged message send failed for {$ticketId}: ".$mail->ErrorInfo);
                         }
-                    }
                 }
             } // end if(!empty($inlineMessage))
 
@@ -481,11 +486,19 @@ if ($ticketId !== '') {
 
 $submitter = null;
 if ($ticket) {
-    $type  = $ticket['submitter_type'] ?? 'student';
-    $table = $type==='student' ? 'students' : 'staff';
-    $pkCol = $type==='student' ? 'student_id' : 'staff_id';
-    $s2 = $conn->prepare("SELECT full_name AS name, email FROM {$table} WHERE {$pkCol}=? LIMIT 1");
-    if ($s2) { $s2->bind_param("i",$ticket['submitter_id']); $s2->execute(); $submitter=$s2->get_result()->fetch_assoc(); $s2->close(); }
+$type  = $ticket['submitter_type'] ?? 'user';
+if ($type === 'user') {
+    $s2 = $conn->prepare("SELECT entra_oid, NULL AS name, NULL AS email FROM users WHERE user_id = ? LIMIT 1");
+} else {
+    $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
+}
+if ($s2) {
+    $s2->bind_param("i", $ticket['submitter_id']);
+    $s2->execute();
+    $submitter = $s2->get_result()->fetch_assoc();
+    $s2->close();
+}
+    
 }
 
 $changeLogs = [];
@@ -549,16 +562,17 @@ if ($ticket) {
 $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq = $conn->prepare("
-    SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at,
-           COALESCE(s.full_name, st.full_name) AS student_name
-    FROM ticket_feedback tf
-    LEFT JOIN students s  ON s.student_id = tf.submitter_id
-    LEFT JOIN staff    st ON st.staff_id  = tf.submitter_id
-    WHERE tf.ticket_id = ?
+    SELECT rating, comment, is_auto_submitted, created_at, submitter_name
+    FROM v_ticket_feedback_summary
+    WHERE ticket_id = ?
     LIMIT 1
 ");
-    $fq->bind_param("s", $ticketId); $fq->execute();
-    $feedback = $fq->get_result()->fetch_assoc(); $fq->close();
+    if ($fq) {
+        $fq->bind_param("s", $ticketId);
+        $fq->execute();
+        $feedback = $fq->get_result()->fetch_assoc();
+        $fq->close();
+    }
 }
 
 $slaData = null;
@@ -870,11 +884,21 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             <div class="ti-submitter-grid">
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Name</div>
-                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['name']??'—'); ?></div>
+                <div class="ti-submitter-val">
+    <?php echo ($ticket['submitter_type'] === 'user')
+        ? '<em style="color:#9CA3AF;font-size:12px;">Name not stored (PDPA)</em>'
+        : htmlspecialchars($submitter['name'] ?? '—'); ?>
+</div>
               </div>
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Email</div>
-                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['email']??'—'); ?></div>
+                <div class="ti-submitter-val">
+    <?php if ($ticket['submitter_type'] === 'user'): ?>
+        <em style="color:#9CA3AF;font-size:12px;">Email not stored (PDPA)</em>
+    <?php else: ?>
+        <?php echo htmlspecialchars($submitter['email'] ?? '—'); ?>
+    <?php endif; ?>
+</div>
               </div>
               <div class="ti-submitter-cell" style="border-right:none">
   <div class="ti-submitter-lbl">Phone</div>
@@ -1337,8 +1361,23 @@ $pageSubtitle = 'Administration & Facilities Management Department';
         <div>
           <div class="feedback-card-header-title">Customer Feedback</div>
           <div class="feedback-card-header-sub">
-            <?php echo $hasFeedback ? 'Submitted by '.htmlspecialchars($feedback['student_name'] ?? 'student') : 'Awaiting student feedback'; ?>
-          </div>
+    <?php
+    if ($hasFeedback) {
+        if ($feedback['submitter_type'] === 'user') {
+            $fbName = 'User';
+            if (!empty($submitter['entra_oid'])) {
+                $fbGraph = getGraphUserByOid($submitter['entra_oid']);
+                if ($fbGraph) $fbName = $fbGraph['name'];
+            }
+            echo 'Submitted by ' . htmlspecialchars($fbName);
+        } else {
+            echo 'Submitted by ' . htmlspecialchars($feedback['submitter_name'] ?? 'Staff');
+        }
+    } else {
+        echo 'Awaiting feedback';
+    }
+    ?>
+</div>
         </div>
         <?php if ($hasFeedback): ?>
         <div class="feedback-card-header-score"><?php echo (int)$feedback['rating']; ?> / 5</div>
@@ -1354,7 +1393,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             <div style="flex:1;min-width:0">
               <div class="fb-compact-label" style="color:<?php echo $chipFg; ?>"><?php echo ratingLabel($r); ?></div>
               <div class="fb-compact-meta">
-                <?php echo htmlspecialchars($feedback['student_name'] ?? '—'); ?> &nbsp;·&nbsp;
+                <?php echo htmlspecialchars($feedback['submitter_name'] ?? '—'); ?> &nbsp;·&nbsp;
                 <?php echo date('d M Y, H:i',strtotime($feedback['created_at'])); ?>
                 <?php if($feedback['is_auto_submitted']): ?>&nbsp;<span class="fb-auto-chip">Auto</span><?php endif; ?>
               </div>
@@ -1389,7 +1428,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             </div>
             <div>
               <div class="fb-no-feedback-title">No feedback yet</div>
-              <div class="fb-no-feedback-sub">The student hasn't submitted feedback for this ticket.</div>
+              <div class="fb-no-feedback-sub">The submitter hasn't submitted feedback for this ticket.</div>
             </div>
           </div>
         <?php endif; ?>

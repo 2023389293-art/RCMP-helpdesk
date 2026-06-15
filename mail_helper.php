@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// FILE LOCATION: www/uniKL/complaint/mail_helper.php
+// FILE LOCATION: www/uniKL/complaint/mail_helper.php (testing)
 // ============================================================
 
 use PHPMailer\PHPMailer\PHPMailer;

@@ -12,6 +12,8 @@ if ($studentId <= 0) {
     exit;
 }
 
+$submitterType = !empty($_SESSION['staff_id']) ? 'staff' : 'user';
+
 require_once __DIR__ . '/db_connect.php';
 
 // We track two "last seen" IDs — one for replies, one for status log entries
@@ -48,12 +50,13 @@ $stmt = $conn->prepare("
     FROM ticket_replies tr
     INNER JOIN complaints c ON c.ticket_id = tr.ticket_id
     WHERE c.submitter_id   = ?
+      AND c.submitter_type = ?
       AND tr.sender_id != ?
       AND tr.reply_id      > ?
     ORDER BY tr.reply_id DESC
     LIMIT 1
 ");
-$stmt->bind_param("iii", $studentId, $studentId, $lastReplyId);
+$stmt->bind_param("isii", $studentId, $submitterType, $studentId, $lastReplyId);
 $stmt->execute();
 $reply = $stmt->get_result()->fetch_assoc();
 $stmt->close();
@@ -71,6 +74,7 @@ $stmt = $conn->prepare("
     FROM ticket_logs tl
     INNER JOIN complaints c ON c.ticket_id = tl.ticket_id
     WHERE c.submitter_id   = ?
+      AND c.submitter_type = ?
       AND tl.field_changed = 'status'
       AND tl.new_status   != tl.old_status
       AND tl.new_status   IS NOT NULL
@@ -80,7 +84,7 @@ $stmt = $conn->prepare("
     ORDER BY tl.log_id DESC
     LIMIT 1
 ");
-$stmt->bind_param("ii", $studentId, $lastLogId);
+$stmt->bind_param("isi", $studentId, $submitterType, $lastLogId);
 $stmt->execute();
 $statusChange = $stmt->get_result()->fetch_assoc();
 $stmt->close();

@@ -9,9 +9,16 @@ header('Content-Type: application/json');
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
 // Support both student (user_id) and staff (staff_id) sessions
-$submitterId = (int)($_SESSION['staff_id'] ?? $_SESSION['user_id'] ?? 0);
-$submitterType = ($_SESSION['user_role'] ?? '') === 'student' ? 'student' : 'staff';
-$submitterType = (string)$submitterType;
+$submitterId   = 0;
+$submitterType = '';
+
+if (!empty($_SESSION['staff_id'])) {
+    $submitterType = 'staff';
+    $submitterId   = (int)$_SESSION['staff_id'];
+} elseif (!empty($_SESSION['user_id'])) {
+    $submitterType = 'user';
+    $submitterId   = (int)$_SESSION['user_id'];
+}
 
 if ($submitterId <= 0) {
     echo json_encode(['error' => 'unauthenticated']);
@@ -27,11 +34,7 @@ $action = $_GET['action'] ?? ($_POST['action'] ?? '');
 // ══════════════════════════════════════════════════════════════════════════════
 if ($action === 'check') {
 
-    // If user dismissed popup this session, don't show again until re-login
-    if (!empty($_SESSION['fb_popup_dismissed_' . $submitterId])) {
-        echo json_encode(['pending' => false, 'pending_count' => 0]);
-        exit;
-    }
+    
 
     $tz          = new DateTimeZone('Asia/Kuala_Lumpur');
     $now         = new DateTime('now', $tz);
@@ -47,16 +50,17 @@ if ($action === 'check') {
         SELECT c.ticket_id, c.title,
                COALESCE(c.resolved_at, c.updated_at, c.created_at) AS closed_at
         FROM complaints c
-        LEFT JOIN ticket_feedback tf
-               ON tf.ticket_id  = c.ticket_id
-              AND tf.submitter_id = ?
+LEFT JOIN ticket_feedback tf
+       ON tf.ticket_id     = c.ticket_id
+      AND tf.submitter_id  = ?
+      AND tf.submitter_type = ?
         WHERE c.submitter_id   = ?
           AND c.submitter_type = ?
           AND c.status         = 'closed'
           AND tf.feedback_id   IS NULL
         ORDER BY closed_at ASC
     ");
-    $stmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
+    $stmt->bind_param("isis", $submitterId, $submitterType, $submitterId, $submitterType);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
@@ -101,15 +105,15 @@ if ($action === 'check') {
         }
     }
 
-    // Auto-submit 5/5 for expired tickets (student_id column)
+    // Auto-submit 5/5 for expired tickets
     if (!empty($expiredTickets)) {
         $ins = $conn->prepare("
             INSERT IGNORE INTO ticket_feedback
-                (ticket_id, submitter_id, rating, comment, is_auto_submitted, created_at)
-            VALUES (?, ?, 5, '', 1, NOW())
+                (ticket_id, submitter_id, submitter_type, rating, comment, is_auto_submitted, created_at)
+            VALUES (?, ?, ?, 5, '', 1, NOW())
         ");
         foreach ($expiredTickets as $expired) {
-            $ins->bind_param("si", $expired['ticket_id'], $submitterId);
+            $ins->bind_param("sis", $expired['ticket_id'], $submitterId, $submitterType);
             $ins->execute();
         }
         $ins->close();
@@ -175,12 +179,12 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Prevent duplicate (student_id column)
-    $dup = $conn->prepare("
-        SELECT feedback_id FROM ticket_feedback
-        WHERE ticket_id = ? AND submitter_id = ?
-        LIMIT 1
-    ");
-    $dup->bind_param("si", $ticketId, $submitterId);
+$dup = $conn->prepare("
+    SELECT feedback_id FROM ticket_feedback
+    WHERE ticket_id = ? AND submitter_id = ? AND submitter_type = ?
+    LIMIT 1
+");
+$dup->bind_param("sis", $ticketId, $submitterId, $submitterType);
     $dup->execute();
     $existing = $dup->get_result()->fetch_assoc();
     $dup->close();
@@ -190,16 +194,17 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Insert feedback (student_id column)
+    // Insert feedback
+    $comment = (string)trim($_POST['comment'] ?? '');
+    $rating  = (int)($_POST['rating'] ?? 0);
+    $autoInt = $isAuto ? 1 : 0;
+
     $ins = $conn->prepare("
         INSERT INTO ticket_feedback
-            (ticket_id, submitter_id, rating, comment, is_auto_submitted, created_at)
-        VALUES (?, ?, ?, ?, ?, NOW())
+            (ticket_id, submitter_id, submitter_type, rating, comment, is_auto_submitted, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, NOW())
     ");
-    $comment = (string)$comment;
-    $rating  = (int)$rating;
-    $autoInt = $isAuto ? 1 : 0;
-    $ins->bind_param("siisi", $ticketId, $submitterId, $rating, $comment, $autoInt);
+    $ins->bind_param("sisssi", $ticketId, $submitterId, $submitterType, $rating, $comment, $autoInt);
 
     if ($ins->execute()) {
         $ins->close();
@@ -216,14 +221,15 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                    COALESCE(c.resolved_at, c.updated_at, c.created_at) AS closed_at
             FROM complaints c
             LEFT JOIN ticket_feedback tf
-                   ON tf.ticket_id  = c.ticket_id
-                  AND tf.submitter_id = ?
+                   ON tf.ticket_id      = c.ticket_id
+                  AND tf.submitter_id   = ?
+                  AND tf.submitter_type = ?
             WHERE c.submitter_id   = ?
               AND c.submitter_type = ?
               AND c.status         = 'closed'
               AND tf.feedback_id   IS NULL
         ");
-        $remainStmt->bind_param("iis", $submitterId, $submitterId, $submitterType);
+        $remainStmt->bind_param("isis", $submitterId, $submitterType, $submitterId, $submitterType);
         $remainStmt->execute();
         $remainRows = $remainStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $remainStmt->close();

@@ -1,7 +1,8 @@
 <?php
-// uniKL/complaint/feedback_mark_shown.php 
-// Called via POST after the student submits OR skips the feedback popup.
-// Sets a server-side session flag as a secondary guard (primary is sessionStorage in JS).
+// uniKL/complaint/feedback_mark_shown.php
+// Dismissal is tracked client-side via sessionStorage per ticket.
+// This file intentionally does NOT set a server session block
+// so new closed tickets can still trigger the popup later.
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -9,7 +10,6 @@ if (session_status() === PHP_SESSION_NONE) {
 
 header('Content-Type: application/json');
 
-// Only accept POST from authenticated students
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['error' => 'method_not_allowed']);
@@ -22,7 +22,7 @@ if ($submitterId <= 0) {
     exit;
 }
 
-$_SESSION['fb_popup_dismissed_' . $submitterId] = true;
-
+// No session flag — popup re-checks every 30s via JS poll
+// and will show again if a new ticket gets closed
 echo json_encode(['success' => true]);
 exit;

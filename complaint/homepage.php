@@ -2,7 +2,7 @@
 // uniKL/complaint/complaint/homepage.php
 session_start();
 
-$allowedRoles = ['student', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
+$allowedRoles = ['user', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
 if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowedRoles)) {
     header('Location: ../login.php');
     exit;
@@ -15,14 +15,14 @@ $userEmail = htmlspecialchars($_SESSION['user_email'] ?? '');
 $userRole  = $_SESSION['user_role'];
 $userId = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
 
-$submitterType = ($userRole === 'student') ? 'student' : 'staff';
+$submitterType = ($userRole === 'user') ? 'user' : 'staff';
 
 $stmt = $conn->prepare("
     SELECT
         COUNT(*) AS total,
         SUM(status = 'open')        AS pending,
         SUM(status = 'in_progress') AS in_progress,
-        SUM(status = 'resolved')    AS resolved
+        SUM(status = 'closed')      AS closed
     FROM complaints
     WHERE submitter_id = ? AND submitter_type = ?
 ");
@@ -45,7 +45,7 @@ $stats['total'] = ($stats['total'] ?? 0) + ($reqStats['req_total'] ?? 0);
 
 $stats['pending']     = $stats['pending']     ?? 0;
 $stats['in_progress'] = $stats['in_progress'] ?? 0;
-$stats['resolved']    = $stats['resolved']    ?? 0;
+$stats['closed']      = $stats['closed']      ?? 0;
 $stats['total']       = $stats['total']       ?? 0;
 
 // Recent complaints

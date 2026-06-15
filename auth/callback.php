@@ -195,21 +195,7 @@ if ($loginMode === 'user') {
     $stmt->close();
 
     // Fallback: look up by email in case entra_oid was not stored before
-    if (!$existingUser) {
-        $stmt = $conn->prepare("SELECT * FROM users WHERE email = ? AND status = 'active' LIMIT 1");
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        $existingUser = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        // If found by email but oid is missing/different, update it
-        if ($existingUser && $existingUser['entra_oid'] !== $entraOid) {
-            $upd = $conn->prepare("UPDATE users SET entra_oid = ? WHERE user_id = ?");
-            $upd->bind_param('si', $entraOid, $existingUser['user_id']);
-            $upd->execute();
-            $upd->close();
-        }
-    }
+   // No email fallback — entra_oid is the sole identifier
 
     if ($existingUser) {
         // Known user — log in
@@ -228,10 +214,10 @@ if ($loginMode === 'user') {
     // ── Auto-provision: valid UniKL domain, not yet in users table ───────────
     // Store ONLY entra_oid + email — no name, no phone, no faculty (PDPA clean)
     $stmt = $conn->prepare("
-        INSERT INTO users (entra_oid, email, status, created_at)
-        VALUES (?, ?, 'active', NOW())
-    ");
-    $stmt->bind_param('ss', $entraOid, $email);
+    INSERT INTO users (entra_oid, status, created_at)
+    VALUES (?, 'active', NOW())
+");
+$stmt->bind_param('s', $entraOid);
     $stmt->execute();
     $newUserId = $conn->insert_id;
     $stmt->close();

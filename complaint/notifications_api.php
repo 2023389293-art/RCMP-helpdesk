@@ -10,7 +10,7 @@ if (empty($_SESSION['user_id']) || empty($_SESSION['user_role'])) {
     exit;
 }
 
-$allowedRoles = ['student', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
+$allowedRoles = ['user', 'lecturer', 'dept_handler', 'admin', 'super_admin', 'report_viewer', 'staff'];
 if (!in_array($_SESSION['user_role'], $allowedRoles)) {
     http_response_code(403);
     header('Content-Type: application/json');
@@ -22,7 +22,7 @@ require '../db_connect.php';
 
 $userId        = (int)($_SESSION['staff_id'] ?? $_SESSION['user_id'] ?? 0);
 $userRole      = $_SESSION['user_role'];
-$submitterType = ($userRole === 'student') ? 'student' : 'staff';
+$submitterType = ($userRole === 'user') ? 'user' : 'staff';
 
 $notifications = [];
 

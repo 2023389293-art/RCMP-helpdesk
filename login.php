@@ -47,30 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $domain = strtolower(substr(strrchr($email, '@'), 1));
 
-        if ($domain === 's.unikl.edu.my') {
-            // ── STUDENT LOGIN (UniKL student email) ──────────────────────
-            $stmt = $conn->prepare("SELECT * FROM students WHERE email = ? AND status = 'active' LIMIT 1");
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $user = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-
-            if ($user && password_verify($password, $user['password_hash'])) {
-                session_regenerate_id(true);
-                $_SESSION['user_id']    = $user['student_id'];
-                $_SESSION['user_name']  = $user['full_name'];
-                $_SESSION['user_email'] = $user['email'];
-                $_SESSION['user_role']  = 'student';
-                $_SESSION['user_dept']  = null;
-                unset($_SESSION['staff_id']);
-                unset($_SESSION['fb_popup_shown']);
-                header('Location: ' . $redirectUrl);
-                exit;
-            } else {
-                $error = 'Invalid email or password.';
-            }
-
-        } elseif ($domain === 'unikl.edu.my') {
+        if ($domain === 'unikl.edu.my') {
             // ── STAFF / ADMIN LOGIN (any UniKL staff email) ──────────────
             $stmt = $conn->prepare("SELECT * FROM staff WHERE email = ? AND status = 'active' LIMIT 1");
             $stmt->bind_param("s", $email);
@@ -107,28 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($domain === 'gmail.com') {
             // ── GMAIL: Try STUDENT first, then STAFF ─────────────────────
 
-            // 1. Check students table first
-            $stmt = $conn->prepare("SELECT * FROM students WHERE email = ? AND status = 'active' LIMIT 1");
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $user = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-
-            if ($user && password_verify($password, $user['password_hash'])) {
-                // Logged in as STUDENT
-                session_regenerate_id(true);
-                $_SESSION['user_id']    = $user['student_id'];
-                $_SESSION['user_name']  = $user['full_name'];
-                $_SESSION['user_email'] = $user['email'];
-                $_SESSION['user_role']  = 'student';
-                $_SESSION['user_dept']  = null;
-                unset($_SESSION['staff_id']);
-                unset($_SESSION['fb_popup_shown']);
-                header('Location: ' . $redirectUrl);
-                exit;
-            }
-
-            // 2. If not a student, check staff table (all roles allowed)
+            // Check staff table
             $stmt = $conn->prepare("SELECT * FROM staff WHERE email = ? AND status = 'active' LIMIT 1");
             $stmt->bind_param("s", $email);
             $stmt->execute();
@@ -162,29 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Invalid email or password.';
             }
 
-            } elseif ($domain === 'student.uitm.edu.my') {
-    $stmt = $conn->prepare("SELECT * FROM students WHERE email = ? AND status = 'active' LIMIT 1");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $user = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    if ($user && password_verify($password, $user['password_hash'])) {
-        session_regenerate_id(true);
-        $_SESSION['user_id']    = $user['student_id'];
-        $_SESSION['user_name']  = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_role']  = 'student';
-        $_SESSION['user_dept']  = null;
-        unset($_SESSION['staff_id']);
-        unset($_SESSION['fb_popup_shown']);
-        header('Location: ' . $redirectUrl);
-        exit;
-    } else {
-        $error = 'Invalid email or password.';
-    }
-
-        } else {
+            } else {
             $error = 'Please use your UniKL email (@s.unikl.edu.my or @unikl.edu.my) or registered Gmail address.';
         }
     }
