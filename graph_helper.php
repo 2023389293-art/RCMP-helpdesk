@@ -25,8 +25,21 @@ function getGraphAppToken(): ?string {
 }
 
 function getGraphUserByOid(string $entraOid): ?array {
+    if (empty($entraOid)) return null;
+
+    // Session cache — avoid repeated Graph calls per page load
+    if (session_status() === PHP_SESSION_NONE) session_start();
+    $cacheKey = 'graph_user_' . $entraOid;
+    if (array_key_exists($cacheKey, $_SESSION)) {
+        // null means cached failure, array means cached success
+        return is_array($_SESSION[$cacheKey]) ? $_SESSION[$cacheKey] : null;
+    }
+
     $token = getGraphAppToken();
-    if (!$token) return null;
+    if (!$token) {
+        error_log("[Graph] Failed to get app token for OID: {$entraOid}");
+        return null;
+    }
 
     $url = 'https://graph.microsoft.com/v1.0/users/' . urlencode($entraOid)
          . '?$select=id,displayName,mail,userPrincipalName';
@@ -37,15 +50,30 @@ function getGraphUserByOid(string $entraOid): ?array {
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_SSL_VERIFYPEER => true,
     ]);
-    $result  = curl_exec($ch);
+    $result   = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    $profile = json_decode($result, true);
 
-    $email = strtolower(trim($profile['mail'] ?? $profile['userPrincipalName'] ?? ''));
-    $name  = trim($profile['displayName'] ?? '');
-    if (empty($email)) return null;
+    if ($httpCode !== 200) {
+        error_log("[Graph] HTTP {$httpCode} for OID {$entraOid}: {$result}");
+        $_SESSION[$cacheKey] = null; // cache the failure
+        return null;
+    }
+
+    $profile = json_decode($result, true);
+    $email   = strtolower(trim($profile['mail'] ?? $profile['userPrincipalName'] ?? ''));
+    $name    = trim($profile['displayName'] ?? '');
+
+    if (empty($email)) {
+        error_log("[Graph] No email returned for OID: {$entraOid}");
+        $_SESSION[$cacheKey] = null;
+        return null;
+    }
     if (empty($name)) {
         $name = ucwords(str_replace(['.','_','-'], ' ', explode('@', $email)[0]));
     }
-    return ['email' => $email, 'name' => $name];
+
+    $data = ['email' => $email, 'name' => $name];
+    $_SESSION[$cacheKey] = $data;
+    return $data;
 }

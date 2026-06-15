@@ -490,7 +490,6 @@ $submitter = null;
 if ($ticket) {
 $type  = $ticket['submitter_type'] ?? 'user';
 if ($type === 'user') {
-    // Email not stored (PDPA). Fetch entra_oid to allow Graph lookup if needed.
     $s2 = $conn->prepare("SELECT entra_oid, NULL AS name, NULL AS email FROM users WHERE user_id = ? LIMIT 1");
 } else {
     $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
@@ -501,7 +500,16 @@ if ($s2) {
     $submitter = $s2->get_result()->fetch_assoc();
     $s2->close();
 }
-    
+
+// ── Resolve name/email from MS Graph for 'user' submitters ────────────────
+if ($type === 'user' && $submitter && !empty($submitter['entra_oid'])) {
+    $graphData = getGraphUserByOid($submitter['entra_oid']);
+    if ($graphData) {
+        $submitter['name']  = $graphData['name'];
+        $submitter['email'] = $graphData['email'];
+    }
+}
+
 }
 
 $changeLogs = [];
@@ -894,19 +902,13 @@ $pageSubtitle = 'Information Technology Department';
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Name</div>
                 <div class="ti-submitter-val">
-    <?php echo ($ticket['submitter_type'] === 'user')
-        ? '<em style="color:#9CA3AF;font-size:12px;">Name not stored (PDPA)</em>'
-        : htmlspecialchars($submitter['name'] ?? '—'); ?>
+    <?php echo htmlspecialchars($submitter['name'] ?? '—'); ?>
 </div>
               </div>
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Email</div>
                 <div class="ti-submitter-val">
-    <?php if ($ticket['submitter_type'] === 'user'): ?>
-        <em style="color:#9CA3AF;font-size:12px;">Email not stored (PDPA)</em>
-    <?php else: ?>
-        <?php echo htmlspecialchars($submitter['email'] ?? '—'); ?>
-    <?php endif; ?>
+    <?php echo htmlspecialchars($submitter['email'] ?? '—'); ?>
 </div>
               </div>
               <div class="ti-submitter-cell" style="border-right:none">

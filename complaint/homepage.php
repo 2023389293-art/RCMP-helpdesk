@@ -24,9 +24,9 @@ $stmt = $conn->prepare("
         SUM(status = 'in_progress') AS in_progress,
         SUM(status = 'closed')      AS closed
     FROM complaints
-    WHERE submitter_id = ? AND submitter_type = ?
+    WHERE submitter_id = ? AND submitter_type IN ('user','student')
 ");
-$stmt->bind_param("is", $userId, $submitterType);
+$stmt->bind_param("i", $userId);
 $stmt->execute();
 $stats = $stmt->get_result()->fetch_assoc();
 $stmt->close();
@@ -35,9 +35,9 @@ $stmt->close();
 $stmtReq = $conn->prepare("
     SELECT COUNT(*) AS req_total
     FROM requisitions
-    WHERE submitter_id = ? AND submitter_type = ?
+    WHERE submitter_id = ? AND submitter_type IN ('user','student')
 ");
-$stmtReq->bind_param("is", $userId, $submitterType);
+$stmtReq->bind_param("i", $userId);
 $stmtReq->execute();
 $reqStats = $stmtReq->get_result()->fetch_assoc();
 $stmtReq->close();
@@ -55,15 +55,15 @@ $stmt2 = $conn->prepare("
         c.title,
         c.status,
         c.created_at,
-        cat.category_name AS category_name,
+        COALESCE(cat.category_name, c.title) AS category_name,
         'complaint'  AS row_type
     FROM complaints c
-    JOIN categories cat ON c.category_id = cat.category_id
-    WHERE c.submitter_id = ? AND c.submitter_type = ?
+    LEFT JOIN categories cat ON c.category_id = cat.category_id
+    WHERE c.submitter_id = ? AND c.submitter_type IN ('user','student')
     ORDER BY c.created_at DESC
     LIMIT 5
 ");
-$stmt2->bind_param("is", $userId, $submitterType);
+$stmt2->bind_param("i", $userId);
 $stmt2->execute();
 $recentComplaints = $stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt2->close();
@@ -78,11 +78,11 @@ $stmt3 = $conn->prepare("
         r.category   AS category_name,
         'requisition' AS row_type
     FROM requisitions r
-    WHERE r.submitter_id = ? AND r.submitter_type = ?
+    WHERE r.submitter_id = ? AND r.submitter_type IN ('user','student')
     ORDER BY r.created_at DESC
     LIMIT 5
 ");
-$stmt3->bind_param("is", $userId, $submitterType);
+$stmt3->bind_param("i", $userId);
 $stmt3->execute();
 $recentRequisitions = $stmt3->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt3->close();
