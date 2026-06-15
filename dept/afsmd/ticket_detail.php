@@ -206,6 +206,7 @@ FBHTML;
             // Fetch submitter data once for both email branches
             $subType = $ticket['submitter_type'] ?? 'user';
             $submitterData = null;
+            $emailSkippedReason = '';
             if ($subType === 'user') {
                 $subQ = $conn->prepare("SELECT entra_oid FROM users WHERE user_id = ? LIMIT 1");
                 $subQ->bind_param("i", $ticket['submitter_id']);
@@ -216,7 +217,13 @@ FBHTML;
                     $graphData = getGraphUserByOid($oidRow['entra_oid']);
                     if ($graphData) {
                         $submitterData = ['email' => $graphData['email'], 'full_name' => $graphData['name']];
+                    } else {
+                        $emailSkippedReason = 'graph_unavailable';
+                        error_log("[UniKL Mail] No email sent for {$ticketId}: Graph lookup failed for OID {$oidRow['entra_oid']}");
                     }
+                } else {
+                    $emailSkippedReason = 'no_oid';
+                    error_log("[UniKL Mail] No email sent for {$ticketId}: submitter (user_id={$ticket['submitter_id']}) has no entra_oid");
                 }
             } else {
                 $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
@@ -423,6 +430,10 @@ HTML;
 
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.';
 
+            if (!empty($emailSkippedReason)) {
+                $_SESSION['flash_warning'] = 'Note: notification email could not be sent to the submitter (their Microsoft account info is currently unavailable). The status/message has been saved successfully.';
+            }
+
         } else {
             $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
             if ($isAjax) { header('Content-Type: application/json'); http_response_code(500); echo json_encode(['success'=>false]); exit; }
@@ -474,9 +485,10 @@ if (!empty($_GET['action']) && $_GET['action']==='get_logs' && !empty($_GET['id'
     header('Content-Type: application/json'); echo json_encode(['logs'=>$logs]); exit;
 }
 
-$updateMsg   = $_SESSION['flash_success'] ?? '';
-$updateError = $_SESSION['flash_error']   ?? '';
-unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+$updateMsg     = $_SESSION['flash_success'] ?? '';
+$updateError   = $_SESSION['flash_error']   ?? '';
+$updateWarning = $_SESSION['flash_warning'] ?? '';
+unset($_SESSION['flash_success'], $_SESSION['flash_error'], $_SESSION['flash_warning']);
 
 if ($ticketId !== '') {
     $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.dept_id = ? LIMIT 1");
@@ -765,6 +777,13 @@ $pageSubtitle = 'Administration & Facilities Management Department';
   <?php endif; ?>
   <?php if ($updateError): ?>
   <div class="td-alert td-alert-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span><?php echo htmlspecialchars($updateError); ?></span></div>
+  <?php endif; ?>
+
+  <?php if ($updateWarning): ?>
+  <div class="td-alert" style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13.5px;">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#D97706" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span><?php echo htmlspecialchars($updateWarning); ?></span>
+  </div>
   <?php endif; ?>
 
   <!-- Ticket header strip (always visible above tabs) -->
