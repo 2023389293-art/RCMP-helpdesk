@@ -238,28 +238,31 @@ $maxSize = 5 * 1024 * 1024;
                 $slaInsertStr = $slaAtSubmit->format('Y-m-d H:i:s');
                 $defaultPriority = 'medium';
 
-                $stmt = $conn->prepare("
-                    INSERT INTO complaints
-                        (ticket_id, submitter_id, submitter_type, phone, my_department,
-                         category_id, dept_id, title, description,
-                         attachment_path, status, priority, assigned_to, sla_start_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, NULL, ?, NOW(), NOW())
-                ");
-                $stmt->bind_param(
-                    "sisssiisssss",
-                    $ticketId,
-                    $userId,
-                    $submitterType,
-                    $phone,
-                    $my_department,
-                    $category_id,
-                    $dept_id,
-                    $title,
-                    $description,
-                    $attachmentPath,
-                    $defaultPriority,
-                    $slaInsertStr
-                );
+                $submitterEmail = $_SESSION['user_email'] ?? '';
+
+$stmt = $conn->prepare("
+    INSERT INTO complaints
+        (ticket_id, submitter_id, submitter_type, submitter_email, phone, my_department,
+         category_id, dept_id, title, description,
+         attachment_path, status, priority, assigned_to, sla_start_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, NULL, ?, NOW(), NOW())
+");
+$stmt->bind_param(
+    "sissssiisssss",
+    $ticketId,
+    $userId,
+    $submitterType,
+    $submitterEmail,
+    $phone,
+    $my_department,
+    $category_id,
+    $dept_id,
+    $title,
+    $description,
+    $attachmentPath,
+    $defaultPriority,
+    $slaInsertStr
+);
 
                 if ($stmt->execute()) {
                     autoAssignTicket($conn, $dept_id, $ticketId);

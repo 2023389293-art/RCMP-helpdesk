@@ -131,8 +131,9 @@ $seqOffset++;
         $slaInsert  = $slaStart->format('Y-m-d H:i:s');
         $defaultPri = 'medium';
 
-        $stmt = $conn->prepare("INSERT INTO complaints (ticket_id,submitter_id,submitter_type,phone,my_department,category_id,dept_id,title,description,attachment_path,status,priority,assigned_to,sla_start_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,'open',?,NULL,?,NOW(),NOW())");
-        $stmt->bind_param("sisssiisssss", $ticketId,$userId,$submitterType,$phone,$my_department,$category_id,$dept_id,$title,$description,$attachmentPath,$defaultPri,$slaInsert);
+$batchEmail = $_SESSION['user_email'] ?? '';
+$stmt = $conn->prepare("INSERT INTO complaints (ticket_id,submitter_id,submitter_type,submitter_email,phone,my_department,category_id,dept_id,title,description,attachment_path,status,priority,assigned_to,sla_start_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,'open',?,NULL,?,NOW(),NOW())");
+$stmt->bind_param("sissssiisssss", $ticketId,$userId,$submitterType,$batchEmail,$phone,$my_department,$category_id,$dept_id,$title,$description,$attachmentPath,$defaultPri,$slaInsert);
         if ($stmt->execute()) {
             autoAssignTicket($conn, $dept_id, $ticketId);
             sendComplaintEmail($conn, $dept_id, $ticketId);

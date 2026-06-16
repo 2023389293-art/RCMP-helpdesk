@@ -5,7 +5,7 @@ if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
 require_once __DIR__ . '/../../assign_helper.php';
 require_once __DIR__ . '/../../sla_helper.php';
-require_once __DIR__ . '/../../graph_helper.php';
+
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -203,27 +203,20 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
 FBHTML;
             }
 
-            // Fetch submitter data once for both email branches
+            // Fetch submitter data — email stored in complaints table for users
             $subType = $ticket['submitter_type'] ?? 'user';
             $submitterData = null;
             $emailSkippedReason = '';
             if ($subType === 'user') {
-                $subQ = $conn->prepare("SELECT entra_oid FROM users WHERE user_id = ? LIMIT 1");
-                $subQ->bind_param("i", $ticket['submitter_id']);
-                $subQ->execute();
-                $oidRow = $subQ->get_result()->fetch_assoc();
-                $subQ->close();
-                if ($oidRow && !empty($oidRow['entra_oid'])) {
-                    $graphData = getGraphUserByOid($oidRow['entra_oid']);
-                    if ($graphData) {
-                        $submitterData = ['email' => $graphData['email'], 'full_name' => $graphData['name']];
-                    } else {
-                        $emailSkippedReason = 'graph_unavailable';
-                        error_log("[UniKL Mail] No email sent for {$ticketId}: Graph lookup failed for OID {$oidRow['entra_oid']}");
-                    }
+                $storedEmail = $ticket['submitter_email'] ?? '';
+                if (!empty($storedEmail)) {
+                    $submitterData = [
+                        'email'     => $storedEmail,
+                        'full_name' => 'User',   // name not stored — generic fallback for email greeting
+                    ];
                 } else {
-                    $emailSkippedReason = 'no_oid';
-                    error_log("[UniKL Mail] No email sent for {$ticketId}: submitter (user_id={$ticket['submitter_id']}) has no entra_oid");
+                    $emailSkippedReason = 'no_email_in_complaint';
+                    error_log("[UniKL Mail] No email sent for {$ticketId}: submitter_email not in complaints table");
                 }
             } else {
                 $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
@@ -430,6 +423,16 @@ HTML;
 
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.';
 
+            // ── PDPA: wipe personal data from complaints table once closed ──
+            if ($newStatus === 'closed' && $oldStatus !== 'closed') {
+                $wipe = $conn->prepare("UPDATE complaints SET submitter_email = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = ?");
+                if ($wipe) {
+                    $wipe->bind_param("si", $ticketId, $deptId);
+                    $wipe->execute();
+                    $wipe->close();
+                }
+            }
+
             if (!empty($emailSkippedReason)) {
                 $_SESSION['flash_warning'] = 'Note: notification email could not be sent to the submitter (their Microsoft account info is currently unavailable). The status/message has been saved successfully.';
             }
@@ -498,37 +501,22 @@ if ($ticketId !== '') {
 
 $submitter = null;
 if ($ticket) {
-$type  = $ticket['submitter_type'] ?? 'user';
-if ($type === 'user') {
-    $s2 = $conn->prepare("SELECT user_id, entra_oid FROM users WHERE user_id = ? LIMIT 1");
-} else {
-    $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
-}
-if ($s2) {
-    $s2->bind_param("i", $ticket['submitter_id']);
-    $s2->execute();
-    $submitter = $s2->get_result()->fetch_assoc();
-    $s2->close();
-}
-
-// ── Resolve name/email from MS Graph for 'user' submitters ────────────────
-if ($type === 'user') {
-    $oid = $submitter['entra_oid'] ?? '';
-    if (!empty($oid)) {
-        $graphData = getGraphUserByOid($oid);
-        if ($graphData) {
-            $submitter['name']  = $graphData['name'];
-            $submitter['email'] = $graphData['email'];
-        } else {
-            $submitter['name']  = '— (Graph unavailable)';
-            $submitter['email'] = '— (Graph unavailable)';
-        }
+    $type = $ticket['submitter_type'] ?? 'user';
+    if ($type === 'user') {
+        // Name comes from SSO (session only, not stored) — show email from complaint row
+        $submitter = [
+            'name'  => '— (SSO login, name not stored)',
+            'email' => !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—',
+        ];
     } else {
-        $submitter['name']  = '— (No OID on record)';
-        $submitter['email'] = '—';
+        $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
+        if ($s2) {
+            $s2->bind_param("i", $ticket['submitter_id']);
+            $s2->execute();
+            $submitter = $s2->get_result()->fetch_assoc();
+            $s2->close();
+        }
     }
-}
-
 }
 
 $changeLogs = [];
