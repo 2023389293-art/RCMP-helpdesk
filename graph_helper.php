@@ -16,7 +16,8 @@ function getGraphAppToken(): ?string {
         ]),
         CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
         CURLOPT_TIMEOUT        => 15,
-        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
     ]);
     $result = curl_exec($ch);
     // ADD THIS:
@@ -54,7 +55,8 @@ function getGraphUserByOid(string $entraOid): ?array {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $token],
         CURLOPT_TIMEOUT        => 15,
-        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
     ]);
     $result   = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
