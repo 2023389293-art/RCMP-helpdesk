@@ -520,9 +520,8 @@ if ($type === 'user') {
             $submitter['name']  = $graphData['name'];
             $submitter['email'] = $graphData['email'];
         } else {
-            // Graph failed — keep oid accessible, show safe fallback
-            $submitter['name']  = '— (Fetching from Microsoft…)';
-            $submitter['email'] = '— (Try refreshing the page)';
+            $submitter['name']  = '— (Graph unavailable)';
+            $submitter['email'] = '— (Graph unavailable)';
         }
     } else {
         $submitter['name']  = '— (No OID on record)';

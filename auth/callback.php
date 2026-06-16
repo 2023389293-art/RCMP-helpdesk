@@ -197,10 +197,11 @@ if ($loginMode === 'user') {
     // Fallback: look up by email in case entra_oid was not stored before
    // No email fallback — entra_oid is the sole identifier
 
-    if ($existingUser) {
-        // Known user — log in
-        session_regenerate_id(true);
-        $_SESSION['user_id']    = $existingUser['user_id'];
+   
+if ($existingUser) {
+    // Known user — log in (rest unchanged)
+    session_regenerate_id(true);
+    $_SESSION['user_id']    = $existingUser['user_id'];
         $_SESSION['user_name']  = $displayName;    // from Graph, NOT from DB
         $_SESSION['user_email'] = $email;          // from Graph, NOT from DB
         $_SESSION['user_role']  = 'user';          // ← CHANGED: was 'student'
@@ -216,6 +217,7 @@ if ($loginMode === 'user') {
     $stmt = $conn->prepare("
     INSERT INTO users (entra_oid, status, created_at)
     VALUES (?, 'active', NOW())
+    ON DUPLICATE KEY UPDATE entra_oid = VALUES(entra_oid)
 ");
 $stmt->bind_param('s', $entraOid);
     $stmt->execute();

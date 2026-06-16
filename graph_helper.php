@@ -19,8 +19,14 @@ function getGraphAppToken(): ?string {
         CURLOPT_SSL_VERIFYPEER => true,
     ]);
     $result = curl_exec($ch);
+    // ADD THIS:
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     $json = json_decode($result, true);
+    // ADD THIS:
+    if (empty($json['access_token'])) {
+        error_log("[Graph] getGraphAppToken failed. HTTP={$httpCode} Response=" . $result);
+    }
     return $json['access_token'] ?? null;
 }
 
