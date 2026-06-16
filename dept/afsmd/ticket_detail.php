@@ -5,6 +5,7 @@ if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
 require_once __DIR__ . '/../../assign_helper.php';
 require_once __DIR__ . '/../../sla_helper.php';
+require_once __DIR__ . '/../../graph_helper.php';
 
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -503,11 +504,11 @@ $submitter = null;
 if ($ticket) {
     $type = $ticket['submitter_type'] ?? 'user';
     if ($type === 'user') {
-        // Name comes from SSO (session only, not stored) — show email from complaint row
-        $submitter = [
-            'name'  => '— (SSO login, name not stored)',
-            'email' => !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—',
-        ];
+    $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—';
+    $submitter = [
+        'name'  => $userEmail,  // use email as display name since SSO name isn't stored
+        'email' => $userEmail,
+    ];
     } else {
         $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
         if ($s2) {
@@ -1496,16 +1497,20 @@ $pageSubtitle = 'Administration & Facilities Management Department';
           <div class="feedback-card-header-sub">
     <?php
     if ($hasFeedback) {
-        if ($feedback['submitter_type'] === 'user') {
-            // $submitter['name'] already resolved from Graph above — reuse it
-            $fbName = $submitter['name'] ?? 'User';
+    if ($feedback['submitter_type'] === 'user') {
+        $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : null;
+        $fbName = $userEmail ?? ($submitter['name'] ?? null);
+        if ($fbName && $fbName !== '—') {
             echo 'Submitted by ' . htmlspecialchars($fbName);
         } else {
-            echo 'Submitted by ' . htmlspecialchars($feedback['submitter_name'] ?? 'Staff');
+            echo 'Submitted by User';
         }
     } else {
-        echo 'Awaiting feedback';
+        echo 'Submitted by ' . htmlspecialchars($feedback['submitter_name'] ?? 'Staff');
     }
+} else {
+    echo 'Awaiting feedback';
+}
     ?>
 </div>
         </div>
@@ -1522,8 +1527,15 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             <div style="flex-shrink:0;line-height:0"><?php echo feedbackEmojiSvg($r, 38); ?></div>
             <div style="flex:1;min-width:0">
               <div class="fb-compact-label" style="color:<?php echo $chipFg; ?>"><?php echo ratingLabel($r); ?></div>
-              <div class="fb-compact-meta">
-                <?php echo htmlspecialchars($feedback['submitter_name'] ?? '—'); ?> &nbsp;·&nbsp;
+<div class="fb-compact-meta">
+    <?php
+    if ($feedback['submitter_type'] === 'user') {
+        $fbMetaName = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : 'User';
+    } else {
+        $fbMetaName = $feedback['submitter_name'] ?? 'Staff';
+    }
+    echo htmlspecialchars($fbMetaName);
+    ?> &nbsp;·&nbsp;
                 <?php echo date('d M Y, H:i',strtotime($feedback['created_at'])); ?>
                 <?php if($feedback['is_auto_submitted']): ?>&nbsp;<span class="fb-auto-chip">Auto</span><?php endif; ?>
               </div>

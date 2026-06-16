@@ -238,7 +238,8 @@ $maxSize = 5 * 1024 * 1024;
                 $slaInsertStr = $slaAtSubmit->format('Y-m-d H:i:s');
                 $defaultPriority = 'medium';
 
-                $submitterEmail = $_SESSION['user_email'] ?? '';
+                // Only store email for 'user' type — staff email is always retrievable from staff table
+$submitterEmail = ($submitterType === 'user') ? ($_SESSION['user_email'] ?? '') : null;
 
 $stmt = $conn->prepare("
     INSERT INTO complaints

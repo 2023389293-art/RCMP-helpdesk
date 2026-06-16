@@ -13,7 +13,12 @@ require '../db_connect.php';
 $userName      = htmlspecialchars($_SESSION['user_name']  ?? 'User');
 $userEmail     = htmlspecialchars($_SESSION['user_email'] ?? '');
 $userRole      = $_SESSION['user_role'];
-$userId = (int)(isset($_SESSION['user_id']) ? $_SESSION['user_id'] : (isset($_SESSION['staff_id']) ? $_SESSION['staff_id'] : 0));
+$userId = 0;
+if (isset($_SESSION['staff_id']) && (int)$_SESSION['staff_id'] > 0) {
+    $userId = (int)$_SESSION['staff_id'];
+} elseif (isset($_SESSION['user_id']) && (int)$_SESSION['user_id'] > 0) {
+    $userId = (int)$_SESSION['user_id'];
+}
 $submitterType = ($userRole === 'user') ? 'user' : 'staff';
 
 $ticketId = trim($_GET['id'] ?? '');
@@ -21,18 +26,18 @@ $ticket   = null;
 
 if ($ticketId !== '') {
     $stmt = $conn->prepare("
-        SELECT c.*, cat.category_name, d.dept_name, d.dept_id,
-               u.email AS submitter_email,
-               st.full_name AS submitter_staff_name, st.email AS submitter_staff_email, st.phone AS submitter_staff_phone
-        FROM complaints c
-        LEFT JOIN categories cat ON cat.category_id = c.category_id
-        LEFT JOIN departments d ON d.dept_id = c.dept_id
-        LEFT JOIN users u ON c.submitter_type = 'user' AND u.user_id = c.submitter_id
-        LEFT JOIN staff st ON c.submitter_type = 'staff' AND st.staff_id = c.submitter_id
-        WHERE c.ticket_id = ? AND c.submitter_id = ? AND c.submitter_type = ?
-        LIMIT 1
-    ");
-    $stmt->bind_param("sis", $ticketId, $userId, $submitterType);
+    SELECT c.*, cat.category_name, d.dept_name, d.dept_id,
+           c.submitter_email,
+           st.full_name AS submitter_staff_name, st.email AS submitter_staff_email, st.phone AS submitter_staff_phone
+    FROM complaints c
+    LEFT JOIN categories cat ON cat.category_id = c.category_id
+    LEFT JOIN departments d ON d.dept_id = c.dept_id
+    LEFT JOIN staff st ON c.submitter_type = 'staff' AND st.staff_id = c.submitter_id
+    WHERE c.ticket_id = ?
+      AND c.submitter_id = ?
+    LIMIT 1
+");
+$stmt->bind_param("si", $ticketId, $userId);
     $stmt->execute();
     $ticket = $stmt->get_result()->fetch_assoc();
     $stmt->close();
@@ -169,7 +174,9 @@ $curPriority = $priorityMap[($ticket['priority'] ?? 'medium')] ?? $priorityMap['
 $submitterName  = ($submitterType === 'user')
     ? ($_SESSION['user_name'] ?? 'User')        // name from Graph session
     : ($ticket['submitter_staff_name'] ?? '—');
-$submitterEmail = ($ticket['submitter_email'] ?? $ticket['submitter_staff_email'] ?? '—');
+$submitterEmail = (!empty($ticket['submitter_email'])) 
+    ? $ticket['submitter_email'] 
+    : ($ticket['submitter_staff_email'] ?? '—');
 $submitterPhone = '—';   // removed from DB (PDPA)
 $submitterType2 = ($submitterType === 'user') ? 'User' : 'Staff';
 

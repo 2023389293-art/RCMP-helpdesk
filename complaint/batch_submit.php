@@ -131,7 +131,7 @@ $seqOffset++;
         $slaInsert  = $slaStart->format('Y-m-d H:i:s');
         $defaultPri = 'medium';
 
-$batchEmail = $_SESSION['user_email'] ?? '';
+$batchEmail = ($submitterType === 'user') ? ($_SESSION['user_email'] ?? '') : null;
 $stmt = $conn->prepare("INSERT INTO complaints (ticket_id,submitter_id,submitter_type,submitter_email,phone,my_department,category_id,dept_id,title,description,attachment_path,status,priority,assigned_to,sla_start_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,'open',?,NULL,?,NOW(),NOW())");
 $stmt->bind_param("sissssiisssss", $ticketId,$userId,$submitterType,$batchEmail,$phone,$my_department,$category_id,$dept_id,$title,$description,$attachmentPath,$defaultPri,$slaInsert);
         if ($stmt->execute()) {

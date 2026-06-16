@@ -205,28 +205,28 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
 FBHTML;
             }
 
-            // Fetch submitter data once for both email branches
-            $subType = $ticket['submitter_type'] ?? 'user';
-            $submitterData = null;
-            if ($subType === 'user') {
-                $subQ = $conn->prepare("SELECT entra_oid FROM users WHERE user_id = ? LIMIT 1");
-                $subQ->bind_param("i", $ticket['submitter_id']);
-                $subQ->execute();
-                $oidRow = $subQ->get_result()->fetch_assoc();
-                $subQ->close();
-                if ($oidRow && !empty($oidRow['entra_oid'])) {
-                    $graphData = getGraphUserByOid($oidRow['entra_oid']);
-                    if ($graphData) {
-                        $submitterData = ['email' => $graphData['email'], 'full_name' => $graphData['name']];
-                    }
-                }
-            } else {
-                $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
-                $subQ->bind_param("i", $ticket['submitter_id']);
-                $subQ->execute();
-                $submitterData = $subQ->get_result()->fetch_assoc();
-                $subQ->close();
-            }
+// Fetch submitter data — email stored in complaints table for users
+$subType = $ticket['submitter_type'] ?? 'user';
+$submitterData = null;
+$emailSkippedReason = '';
+if ($subType === 'user') {
+    $storedEmail = $ticket['submitter_email'] ?? '';
+    if (!empty($storedEmail)) {
+        $submitterData = [
+            'email'     => $storedEmail,
+            'full_name' => 'User',
+        ];
+    } else {
+        $emailSkippedReason = 'no_email_in_complaint';
+        error_log("[UniKL Mail] No email sent for {$ticketId}: submitter_email not in complaints table");
+    }
+} else {
+    $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
+    $subQ->bind_param("i", $ticket['submitter_id']);
+    $subQ->execute();
+    $submitterData = $subQ->get_result()->fetch_assoc();
+    $subQ->close();
+}
 
             // ── Status-only email (no message typed) ─────────────────────────
             if ($statChanged && empty(trim($_POST['message'] ?? ''))) {
@@ -425,6 +425,20 @@ HTML;
 
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.';
 
+            // ── PDPA: wipe personal data from complaints table once closed ──
+            if ($newStatus === 'closed' && $oldStatus !== 'closed') {
+                $wipe = $conn->prepare("UPDATE complaints SET submitter_email = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = ?");
+                if ($wipe) {
+                    $wipe->bind_param("si", $ticketId, $deptId);
+                    $wipe->execute();
+                    $wipe->close();
+                }
+            }
+
+            if (!empty($emailSkippedReason)) {
+                $_SESSION['flash_warning'] = 'Note: notification email could not be sent to the submitter (their Microsoft account info is currently unavailable). The status/message has been saved successfully.';
+            }
+
         } else {
             $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
             if ($isAjax) { header('Content-Type: application/json'); http_response_code(500); echo json_encode(['success'=>false]); exit; }
@@ -476,9 +490,10 @@ if (!empty($_GET['action']) && $_GET['action']==='get_logs' && !empty($_GET['id'
     header('Content-Type: application/json'); echo json_encode(['logs'=>$logs]); exit;
 }
 
-$updateMsg   = $_SESSION['flash_success'] ?? '';
-$updateError = $_SESSION['flash_error']   ?? '';
-unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+$updateMsg     = $_SESSION['flash_success'] ?? '';
+$updateError   = $_SESSION['flash_error']   ?? '';
+$updateWarning = $_SESSION['flash_warning'] ?? '';
+unset($_SESSION['flash_success'], $_SESSION['flash_error'], $_SESSION['flash_warning']);
 
 if ($ticketId !== '') {
     $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.dept_id = ? LIMIT 1");
@@ -488,28 +503,22 @@ if ($ticketId !== '') {
 
 $submitter = null;
 if ($ticket) {
-$type  = $ticket['submitter_type'] ?? 'user';
-if ($type === 'user') {
-    $s2 = $conn->prepare("SELECT entra_oid, NULL AS name, NULL AS email FROM users WHERE user_id = ? LIMIT 1");
-} else {
-    $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
-}
-if ($s2) {
-    $s2->bind_param("i", $ticket['submitter_id']);
-    $s2->execute();
-    $submitter = $s2->get_result()->fetch_assoc();
-    $s2->close();
-}
-
-// ── Resolve name/email from MS Graph for 'user' submitters ────────────────
-if ($type === 'user' && $submitter && !empty($submitter['entra_oid'])) {
-    $graphData = getGraphUserByOid($submitter['entra_oid']);
-    if ($graphData) {
-        $submitter['name']  = $graphData['name'];
-        $submitter['email'] = $graphData['email'];
+    $type = $ticket['submitter_type'] ?? 'user';
+    if ($type === 'user') {
+        $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—';
+$submitter = [
+    'name'  => $userEmail,  // use email as display name since SSO name isn't stored
+    'email' => $userEmail,
+];
+    } else {
+        $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
+        if ($s2) {
+            $s2->bind_param("i", $ticket['submitter_id']);
+            $s2->execute();
+            $submitter = $s2->get_result()->fetch_assoc();
+            $s2->close();
+        }
     }
-}
-
 }
 
 $changeLogs = [];
@@ -719,6 +728,76 @@ $pageSubtitle = 'Information Technology Department';
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <style>
+    .td-alert-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+}
+/* ══ Flash Toast ══ */
+.flash-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 99999;
+  min-width: 320px;
+  max-width: 440px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 16px 20px;
+  border-left: 4px solid #22C55E;
+  animation: toastSlideIn .35s cubic-bezier(.34,1.56,.64,1);
+  overflow: hidden;
+}
+.flash-toast.toast-error   { border-left-color: #EF4444; }
+.flash-toast.toast-warning { border-left-color: #F59E0B; }
+.flash-toast.toast-success { border-left-color: #22C55E; }
+.flash-toast-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.toast-success .flash-toast-icon { background: #D1FAE5; color: #059669; }
+.toast-error   .flash-toast-icon { background: #FEE2E2; color: #DC2626; }
+.toast-warning .flash-toast-icon { background: #FEF3C7; color: #D97706; }
+.flash-toast-icon svg { width: 18px; height: 18px; }
+.flash-toast-body   { flex: 1; min-width: 0; }
+.flash-toast-title  { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 3px; }
+.flash-toast-msg    { font-size: 12.5px; color: #6B7280; line-height: 1.55; }
+.flash-toast-close {
+  background: none; border: none; cursor: pointer;
+  color: #9CA3AF; font-size: 18px; line-height: 1;
+  padding: 0; flex-shrink: 0; margin-top: -2px;
+}
+.flash-toast-close:hover { color: #374151; }
+.flash-toast-bar {
+  position: absolute; bottom: 0; left: 0;
+  height: 3px; border-radius: 0 0 12px 12px;
+  animation: toastBarDrain 5s linear forwards;
+}
+.toast-success .flash-toast-bar { background: #22C55E; }
+.toast-error   .flash-toast-bar { background: #EF4444; }
+.toast-warning .flash-toast-bar { background: #F59E0B; }
+@keyframes toastSlideIn {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes toastBarDrain {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+    </style>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Ticket Detail | UniKL Help Desk – IT</title>
@@ -751,13 +830,55 @@ $pageSubtitle = 'Information Technology Department';
   </div>
   <?php else: ?>
 
-  <!-- Flash messages -->
   <?php if ($updateMsg): ?>
-  <div class="td-alert td-alert-success"><svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg><span><?php echo $updateMsg; ?></span></div>
-  <?php endif; ?>
-  <?php if ($updateError): ?>
-  <div class="td-alert td-alert-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span><?php echo htmlspecialchars($updateError); ?></span></div>
-  <?php endif; ?>
+<div class="td-alert td-alert-success"><svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg><span><?php echo $updateMsg; ?></span></div>
+<?php endif; ?>
+<?php if ($updateError): ?>
+<div class="td-alert td-alert-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span><?php echo htmlspecialchars($updateError); ?></span></div>
+<?php endif; ?>
+<?php if ($updateWarning): ?>
+<div class="td-alert td-alert-warning" id="flashWarningInline">
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#D97706" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  <span><?php echo htmlspecialchars($updateWarning); ?></span>
+</div>
+<?php endif; ?>
+
+<!-- ══ Toast Popup ══ -->
+<?php if ($updateMsg || $updateError || $updateWarning): ?>
+<div id="flashToast" class="flash-toast <?php
+  if ($updateMsg)        echo 'toast-success';
+  elseif ($updateError)  echo 'toast-error';
+  else                   echo 'toast-warning';
+?>">
+  <div class="flash-toast-icon">
+    <?php if ($updateMsg): ?>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+    <?php elseif ($updateError): ?>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    <?php else: ?>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <?php endif; ?>
+  </div>
+  <div class="flash-toast-body">
+    <div class="flash-toast-title">
+      <?php
+        if ($updateMsg)        echo 'Update Successful';
+        elseif ($updateError)  echo 'Error';
+        else                   echo 'Email Not Sent';
+      ?>
+    </div>
+    <div class="flash-toast-msg">
+      <?php
+        if ($updateMsg)        echo $updateMsg;
+        elseif ($updateError)  echo htmlspecialchars($updateError);
+        else                   echo htmlspecialchars($updateWarning);
+      ?>
+    </div>
+  </div>
+  <button class="flash-toast-close" onclick="dismissToast()">&#215;</button>
+  <div class="flash-toast-bar" id="flashToastBar"></div>
+</div>
+<?php endif; ?>
 
   <!-- Ticket header strip (always visible above tabs) -->
 <div class="ticket-header-strip">
@@ -1373,20 +1494,20 @@ else { $dotCls = 'both'; }
           <div class="feedback-card-header-sub">
     <?php
     if ($hasFeedback) {
-        if ($feedback['submitter_type'] === 'user') {
-            // Name not stored — use Graph if entra_oid available
-            $fbName = 'User';
-            if (!empty($submitter['entra_oid'])) {
-                $fbGraph = getGraphUserByOid($submitter['entra_oid']);
-                if ($fbGraph) $fbName = $fbGraph['name'];
-            }
-            echo 'Submitted by ' . htmlspecialchars($fbName);
-        } else {
-            echo 'Submitted by ' . htmlspecialchars($feedback['submitter_name'] ?? 'Staff');
-        }
+if ($feedback['submitter_type'] === 'user') {
+    $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : null;
+    $fbName = $userEmail ?? ($submitter['name'] ?? null);
+    if ($fbName && $fbName !== '—') {
+        echo 'Submitted by ' . htmlspecialchars($fbName);
     } else {
-        echo 'Awaiting feedback';
+        echo 'Submitted by User';
     }
+} else {
+    echo 'Submitted by ' . htmlspecialchars($feedback['submitter_name'] ?? 'Staff');
+}
+} else {
+echo 'Awaiting feedback';
+}
     ?>
 </div>
         </div>
@@ -1404,7 +1525,14 @@ else { $dotCls = 'both'; }
             <div style="flex:1;min-width:0">
               <div class="fb-compact-label" style="color:<?php echo $chipFg; ?>"><?php echo ratingLabel($r); ?></div>
               <div class="fb-compact-meta">
-                <?php echo htmlspecialchars($feedback['submitter_name'] ?? '—'); ?> &nbsp;·&nbsp;
+<?php
+if ($feedback['submitter_type'] === 'user') {
+    $fbMetaName = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : 'User';
+} else {
+    $fbMetaName = $feedback['submitter_name'] ?? 'Staff';
+}
+echo htmlspecialchars($fbMetaName);
+?> &nbsp;·&nbsp;
                 <?php echo date('d M Y, H:i',strtotime($feedback['created_at'])); ?>
                 <?php if($feedback['is_auto_submitted']): ?>&nbsp;<span class="fb-auto-chip">Auto</span><?php endif; ?>
               </div>
@@ -1732,7 +1860,23 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeLightb
   showPage(1);
 })();
 
+// ── Flash Toast ──────────────────────────────────────────────────────────────
+(function () {
+  var toast = document.getElementById('flashToast');
+  if (!toast) return;
+  var timer = setTimeout(dismissToast, 5000);
+  toast.addEventListener('mouseenter', function () { clearTimeout(timer); });
+  toast.addEventListener('mouseleave', function () { timer = setTimeout(dismissToast, 2000); });
+})();
 
+function dismissToast() {
+  var toast = document.getElementById('flashToast');
+  if (!toast) return;
+  toast.style.transition = 'transform .3s ease, opacity .3s ease';
+  toast.style.transform  = 'translateX(110%)';
+  toast.style.opacity    = '0';
+  setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 320);
+}
 
 </script>
 </body>
