@@ -13,6 +13,24 @@ $_firstName = $_nameParts[0];
 
 $_fbApiUrl  = '../feedback_api.php';
 $_fbMarkUrl = '../feedback_mark_shown.php';
+
+// ── PDPA CHECK ──────────────────────────────────────────────
+$_showPdpa = false;
+if ($_fbUserId > 0) {
+    $userRole = $_SESSION['user_role'] ?? '';
+    if ($userRole === 'user') {
+        $pdpaStmt = $conn->prepare("SELECT pdpa_accepted_at FROM users WHERE user_id = ? LIMIT 1");
+    } else {
+        $pdpaStmt = $conn->prepare("SELECT pdpa_accepted_at FROM staff WHERE staff_id = ? LIMIT 1");
+    }
+    $pdpaStmt->bind_param("i", $_fbUserId);
+    $pdpaStmt->execute();
+    $pdpaRow = $pdpaStmt->get_result()->fetch_assoc();
+    $pdpaStmt->close();
+    if (!$pdpaRow || empty($pdpaRow['pdpa_accepted_at'])) {
+        $_showPdpa = true;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -46,12 +64,15 @@ $_fbMarkUrl = '../feedback_mark_shown.php';
       font-size: 13px !important; color: #5a607a !important;
       line-height: 1.3 !important; margin: 0 !important; font-style: normal !important;
     }
-    .topbar-title p {
-      font-family: 'Inter', sans-serif !important; font-size: 11px !important;
-      font-weight: 400 !important; color: #8a92ad !important;
-      letter-spacing: 0.04em !important; text-transform: uppercase !important;
-      margin-top: 3px !important; font-style: normal !important;
-    }
+.topbar-title p {
+  font-family: 'Inter', sans-serif !important; font-size: 11px !important;
+  font-weight: 400 !important; color: #8a92ad !important;
+  letter-spacing: 0.04em !important; text-transform: uppercase !important;
+  margin-top: 3px !important; font-style: normal !important;
+}
+@media (max-width: 640px) {
+  .topbar-title p { display: none !important; }
+}
     .section-header h2 {
       font-family: 'Inter', sans-serif !important; font-weight: 700 !important;
       font-size: 16px !important; color: #0D1F3C !important;
@@ -295,11 +316,320 @@ $_fbMarkUrl = '../feedback_mark_shown.php';
     .nd-notif-status-open        { color: #92520c; background: #fef3e2; }
     .nd-notif-status-in_progress { color: #1d4ed8; background: #eff6ff; }
     .nd-notif-status-closed      { color: #166534; background: #f0fdf4; }
+
+    /* ── PDPA POPUP ── */
+    #pdpaOverlay {
+      display: none; position: fixed; inset: 0; z-index: 20000;
+      background: rgba(10,20,45,0.70);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      align-items: center; justify-content: center;
+    }
+    #pdpaOverlay.pdpa-active { display: flex; animation: pdpaFadeIn .25s ease; }
+    @keyframes pdpaFadeIn { from{opacity:0} to{opacity:1} }
+
+    #pdpaModal {
+      background: #fff; border-radius: 22px;
+      box-shadow: 0 28px 72px rgba(0,30,80,.28), 0 4px 18px rgba(0,0,0,.10);
+      width: 100%; max-width: 560px; margin: 16px;
+      display: flex; flex-direction: column;
+      max-height: 90vh; overflow: hidden;
+      animation: pdpaSlideIn .35s cubic-bezier(.34,1.2,.64,1);
+    }
+    @keyframes pdpaSlideIn { from{opacity:0;transform:scale(.88) translateY(28px)} to{opacity:1;transform:scale(1) translateY(0)} }
+
+    .pdpa-header {
+      background: linear-gradient(135deg, #0D1F3C 0%, #1a3a6e 60%, #1e4a8a 100%);
+      padding: 28px 30px 22px; flex-shrink: 0; position: relative; overflow: hidden;
+    }
+    .pdpa-header::before {
+      content: ''; position: absolute; top: -40px; right: -40px;
+      width: 130px; height: 130px; border-radius: 50%;
+      background: rgba(255,255,255,.05);
+    }
+    .pdpa-header-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: rgba(255,255,255,.12); border: 1.5px solid rgba(255,255,255,.22);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 14px; position: relative; z-index: 1;
+    }
+    .pdpa-header-icon svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2; }
+    .pdpa-header-title {
+      font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 700;
+      color: #fff; position: relative; z-index: 1; margin-bottom: 6px;
+    }
+    .pdpa-header-sub {
+      font-family: 'Inter', sans-serif; font-size: 13px;
+      color: rgba(255,255,255,.65); position: relative; z-index: 1; line-height: 1.5;
+    }
+
+    .pdpa-scroll-area {
+      flex: 1; overflow-y: auto; padding: 24px 30px;
+      scroll-behavior: smooth;
+    }
+    .pdpa-scroll-area::-webkit-scrollbar { width: 5px; }
+    .pdpa-scroll-area::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+    .pdpa-section-title {
+      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+      color: #0D1F3C; text-transform: uppercase; letter-spacing: 0.07em;
+      margin: 20px 0 8px; padding-bottom: 6px;
+      border-bottom: 1.5px solid #e5e7eb;
+    }
+    .pdpa-section-title:first-child { margin-top: 0; }
+    .pdpa-body-text {
+      font-family: 'Inter', sans-serif; font-size: 13.5px; color: #374151;
+      line-height: 1.75; margin-bottom: 10px;
+    }
+    .pdpa-highlight {
+      background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+      padding: 12px 16px; margin: 12px 0;
+      font-family: 'Inter', sans-serif; font-size: 13px; color: #1e40af; line-height: 1.6;
+    }
+    .pdpa-highlight svg { width: 14px; height: 14px; fill: none; stroke: #2563eb; stroke-width: 2; vertical-align: middle; margin-right: 5px; }
+    .pdpa-list {
+      margin: 8px 0 12px 18px; padding: 0;
+      font-family: 'Inter', sans-serif; font-size: 13.5px; color: #374151; line-height: 1.8;
+    }
+    .pdpa-list li { margin-bottom: 4px; }
+
+    .pdpa-scroll-indicator {
+      display: flex; align-items: center; gap: 8px; padding: 10px 30px;
+      background: #fffbeb; border-top: 1px solid #fde68a;
+      font-family: 'Inter', sans-serif; font-size: 12px; color: #92400e;
+      font-weight: 500; flex-shrink: 0; transition: opacity .3s;
+    }
+    .pdpa-scroll-indicator svg { width: 14px; height: 14px; fill: none; stroke: #d97706; stroke-width: 2; flex-shrink: 0; }
+    .pdpa-scroll-indicator.hidden { display: none; }
+
+    .pdpa-footer {
+      padding: 18px 30px 22px; border-top: 1px solid #e5e7eb;
+      background: #f9fafb; flex-shrink: 0;
+    }
+    .pdpa-checkbox-row {
+      display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px;
+    }
+    .pdpa-checkbox-row input[type="checkbox"] {
+      width: 18px; height: 18px; accent-color: #003B8E;
+      cursor: pointer; flex-shrink: 0; margin-top: 2px;
+    }
+    .pdpa-checkbox-label {
+      font-family: 'Inter', sans-serif; font-size: 13px; color: #374151;
+      line-height: 1.55; cursor: pointer; user-select: none;
+    }
+    .pdpa-checkbox-label strong { color: #0D1F3C; }
+    .pdpa-accept-btn {
+      width: 100%; padding: 13px; border: none; border-radius: 11px;
+      background: #003B8E; color: #fff;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background .18s, transform .15s, box-shadow .18s;
+      box-shadow: 0 4px 14px rgba(0,59,142,.28);
+    }
+    .pdpa-accept-btn:not(:disabled):hover { background: #002d6b; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,59,142,.35); }
+    .pdpa-accept-btn:disabled { background: #9ca3af; cursor: not-allowed; box-shadow: none; transform: none; }
+    .pdpa-accept-btn svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 2.5; }
+    .pdpa-must-scroll {
+      font-family: 'Inter', sans-serif; font-size: 11.5px; color: #9ca3af;
+      text-align: center; margin-top: 8px; display: none;
+    }
+    .pdpa-must-scroll.show { display: block; }
   </style>
 </head>
 <body>
 
 <div class="main">
+
+<?php if ($_showPdpa): ?>
+<!-- ══════════════════════════════════════════════════════════════
+     PDPA CONSENT POPUP — shown once per user, blocks interaction
+══════════════════════════════════════════════════════════════ -->
+<div id="pdpaOverlay" role="dialog" aria-modal="true" aria-labelledby="pdpaTitle">
+  <div id="pdpaModal">
+
+    <div class="pdpa-header">
+      <div class="pdpa-header-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="pdpa-header-title" id="pdpaTitle">Personal Data Protection Notice</div>
+      <div class="pdpa-header-sub">UniKL RCMP Help Desk — Please read carefully before continuing</div>
+    </div>
+
+    <div class="pdpa-scroll-area" id="pdpaScrollArea">
+
+      <div class="pdpa-section-title">1. Introduction</div>
+      <p class="pdpa-body-text">
+        Universiti Kuala Lumpur Royal College of Medicine Perak (UniKL RCMP) is committed to protecting
+        your personal data in accordance with the <strong>Personal Data Protection Act 2010 (PDPA)</strong> of Malaysia.
+        This notice explains how we collect, use, and safeguard your personal information when you use
+        the Help Desk System.
+      </p>
+
+      <div class="pdpa-section-title">2. Data We Collect</div>
+      <p class="pdpa-body-text">When you submit a complaint or equipment request, we may collect:</p>
+      <ul class="pdpa-list">
+        <li>Your full name and staff/student ID</li>
+        <li>Email address and contact number</li>
+        <li>Department or faculty affiliation</li>
+        <li>Description of your issue or request</li>
+        <li>Attachments or supporting documents you upload</li>
+        <li>Login activity and system usage data</li>
+      </ul>
+
+      <div class="pdpa-section-title">3. Purpose of Collection</div>
+      <p class="pdpa-body-text">Your personal data is collected and processed solely for:</p>
+      <ul class="pdpa-list">
+        <li>Processing and managing your Help Desk tickets</li>
+        <li>Routing complaints to the appropriate department</li>
+        <li>Communicating updates on your ticket status via email</li>
+        <li>Generating anonymised reports to improve service quality</li>
+        <li>Maintaining audit trails and compliance records</li>
+      </ul>
+
+      <div class="pdpa-section-title">4. Disclosure of Data</div>
+      <p class="pdpa-body-text">
+        Your personal data will only be disclosed to authorised UniKL RCMP staff who are directly
+        involved in resolving your complaint or request. We do <strong>not</strong> sell, rent, or
+        share your personal data with any third party outside of UniKL without your explicit consent,
+        except where required by law.
+      </p>
+
+      <div class="pdpa-section-title">5. Data Retention</div>
+      <p class="pdpa-body-text">
+        Personal data collected through this system will be retained for a period necessary to fulfil
+        the purposes stated above, or as required by applicable laws and UniKL's data retention policy.
+        After the retention period, your data will be securely deleted or anonymised.
+      </p>
+
+      <div class="pdpa-section-title">6. Your Rights</div>
+      <p class="pdpa-body-text">Under PDPA 2010, you have the right to:</p>
+      <ul class="pdpa-list">
+        <li>Access your personal data held by us</li>
+        <li>Request corrections to inaccurate data</li>
+        <li>Withdraw consent (subject to operational limitations)</li>
+        <li>Enquire about how your data is being used</li>
+      </ul>
+      <p class="pdpa-body-text">
+        To exercise these rights, please contact the UniKL RCMP Administration at
+        <strong>afsmd.rcmp@unikl.edu.my</strong>.
+      </p>
+
+      <div class="pdpa-section-title">7. Security</div>
+      <p class="pdpa-body-text">
+        We implement appropriate technical and organisational measures to protect your personal data
+        against unauthorised access, loss, or misuse. Access to Help Desk data is restricted to
+        authorised personnel only.
+      </p>
+
+      <div class="pdpa-highlight">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        By continuing to use the UniKL RCMP Help Desk System, you acknowledge that you have read,
+        understood, and agree to the collection and use of your personal data as described in this notice.
+      </div>
+
+      <p class="pdpa-body-text" style="font-size:12px;color:#6b7280;margin-top:8px;">
+        Last updated: June 2026 &nbsp;|&nbsp; UniKL RCMP Administration &amp; Facilities Management Department
+      </p>
+
+    </div><!-- /pdpa-scroll-area -->
+
+    <div class="pdpa-scroll-indicator" id="pdpaScrollIndicator">
+      <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      Please scroll down to read the full notice before accepting
+    </div>
+
+    <div class="pdpa-footer">
+      <div class="pdpa-checkbox-row">
+        <input type="checkbox" id="pdpaCheckbox" disabled/>
+        <label class="pdpa-checkbox-label" for="pdpaCheckbox">
+          I have read and understood the <strong>Personal Data Protection Notice</strong> and
+          consent to the collection and processing of my personal data by UniKL RCMP for
+          Help Desk purposes.
+        </label>
+      </div>
+      <button class="pdpa-accept-btn" id="pdpaAcceptBtn" disabled>
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        I Accept &amp; Continue
+      </button>
+      <div class="pdpa-must-scroll" id="pdpaMustScroll">
+        ↑ Scroll to the bottom of the notice to enable acceptance
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var scrollArea  = document.getElementById('pdpaScrollArea');
+  var indicator   = document.getElementById('pdpaScrollIndicator');
+  var checkbox    = document.getElementById('pdpaCheckbox');
+  var acceptBtn   = document.getElementById('pdpaAcceptBtn');
+  var mustScroll  = document.getElementById('pdpaMustScroll');
+  var overlay     = document.getElementById('pdpaOverlay');
+  var hasScrolled = false;
+
+  // Show overlay immediately
+  overlay.classList.add('pdpa-active');
+  document.body.style.overflow = 'hidden';
+
+  function checkScrolled() {
+    var el  = scrollArea;
+    var remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (!hasScrolled && remaining < 40) {
+      hasScrolled = true;
+      indicator.classList.add('hidden');
+      checkbox.disabled  = false;
+      mustScroll.classList.remove('show');
+    }
+  }
+
+  scrollArea.addEventListener('scroll', checkScrolled);
+
+  checkbox.addEventListener('change', function () {
+    if (!hasScrolled) {
+      this.checked = false;
+      mustScroll.classList.add('show');
+      return;
+    }
+    acceptBtn.disabled = !this.checked;
+  });
+
+  acceptBtn.addEventListener('click', function () {
+    if (!checkbox.checked || !hasScrolled) return;
+    acceptBtn.disabled = true;
+    acceptBtn.innerHTML = 'Saving… <svg viewBox="0 0 24 24" width="15" height="15" style="animation:spin .8s linear infinite;fill:none;stroke:#fff;stroke-width:2"><circle cx="12" cy="12" r="10" stroke-opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>';
+
+    fetch('pdpa_accept.php', {
+      method: 'POST',
+      credentials: 'same-origin'
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.success) {
+        overlay.style.animation = 'pdpaFadeIn .2s ease reverse';
+        setTimeout(function () {
+          overlay.classList.remove('pdpa-active');
+          document.body.style.overflow = '';
+        }, 220);
+      } else {
+        acceptBtn.disabled = false;
+        acceptBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="fill:none;stroke:#fff;stroke-width:2.5"><polyline points="20 6 9 17 4 12"/></svg> I Accept &amp; Continue';
+      }
+    })
+    .catch(function () {
+      acceptBtn.disabled = false;
+      acceptBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="fill:none;stroke:#fff;stroke-width:2.5"><polyline points="20 6 9 17 4 12"/></svg> I Accept &amp; Continue';
+    });
+  });
+
+  // Prevent closing by clicking outside or pressing Escape
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') e.preventDefault();
+  });
+})();
+</script>
+<?php endif; ?>
 
   <!-- ── TOPBAR ── -->
   <header class="topbar">

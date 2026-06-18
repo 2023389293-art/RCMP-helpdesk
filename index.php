@@ -47,13 +47,13 @@
       justify-content: space-between;
       border-bottom: 2px solid var(--gold);
     }
-    .gov-banner-left {
-      display: flex; align-items: center; gap: 10px;
-      font-size: 11px; color: rgba(255,255,255,0.75);
-      letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;
-    }
+.gov-banner-left {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: 13px; color: rgba(255,255,255,0.75);
+  letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
+}
     .gov-banner-left span { color: var(--gold-light); }
-    .gov-banner-right { font-size: 10.5px; color: rgba(255,255,255,0.5); letter-spacing: 0.04em; }
+    .gov-banner-right { font-size: 13px; color: rgba(255,255,255,0.5); letter-spacing: 0.04em; }
 
     /* ── NAV ── */
     nav {
@@ -62,15 +62,15 @@
       box-shadow: 0 2px 16px rgba(0,0,0,0.08);
       padding: 0 48px;
       display: flex; align-items: center; justify-content: space-between;
-      height: 76px;
+      height: 96px;
       position: sticky; top: 0; z-index: 100;
     }
     .nav-brand { display: flex; align-items: center; gap: 16px; text-decoration: none; }
-    .nav-logo img { width: 82px; height: 82px; object-fit: contain; }
+    .nav-logo img { width: 100px; height: 100px; object-fit: contain; }
     .nav-divider { width: 1px; height: 36px; background: var(--border); }
     .nav-text-group { display: flex; flex-direction: column; }
-    .nav-org { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--olive); }
-    .nav-title { font-size: 15px; font-weight: 700; color: var(--navy-dark); letter-spacing: 0.01em; }
+    .nav-org { font-size: 16px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--olive); }
+.nav-title { font-size: 19px; font-weight: 700; color: var(--navy-dark); letter-spacing: 0.01em; }
     .nav-actions { display: flex; align-items: center; gap: 10px; }
 
     .btn-ghost {
@@ -257,7 +257,7 @@
 }
 .dept-card {
   background: rgba(255,255,255,0.45);
-  border: 1.5px solid rgba(30,58,95,0.18);
+  border: 2.5px solid rgba(30,58,95,0.18);
   border-radius: 16px;
   padding: 14px 16px;
   display: flex; flex-direction: row; align-items: center; gap: 14px;
@@ -284,30 +284,7 @@
   filter: drop-shadow(0 4px 10px rgba(30,58,95,0.22));
 }
 
-/* ── DEPT CARD LABEL (tooltip on hover) ── */
-.dept-card::after {
-  content: attr(title);
-  position: absolute;
-  bottom: -36px;
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  background: var(--navy-dark);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  padding: 5px 10px;
-  border-radius: 6px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
-}
-.dept-card:hover::after {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
+
 
 /* ── PER-DEPT ICON ANIMATIONS ── */
 .dept-card.it img {
@@ -423,7 +400,8 @@
     }
     @media (max-width: 860px) {
 .gov-banner { display: none; }
-nav { padding: 0 14px; height: 60px; }
+.gov-banner-right { font-size: 9px; }
+nav { padding: 0 16px; height: 60px; }
 .nav-logo img { width: 44px; height: 44px; }
 .nav-org { font-size: 10px; }
 .nav-title { font-size: 12px; }
@@ -468,11 +446,12 @@ nav { padding: 0 14px; height: 60px; }
       .rush-subtitle-line { font-size: 10px; margin-top: 6px; }
       .hero-eyebrow-label { font-size: 10px; margin-top: 6px; }
 
-      .dept-grid { gap: 10px; }
-      .dept-card { width: 78px !important; min-height: 78px !important; padding: 14px !important; }
-      .dept-card img { width: 50px !important; height: 50px !important; }
+      .dept-grid { gap: 20px; }
+      .dept-card { width: 130px !important; min-height: 145px !important; padding: 20px 12px !important; }
+      .dept-card img { width: 75px !important; height: 75px !important; }
 
-      [style*="font-size:15px"] { font-size: 13px !important; }
+      [style*="font-size:15px"] { font-size: 14px !important; }
+      [style*="font-size:13px"] { font-size: 14px !important; }
       .rush-curved-wrap { gap: 0; }
       .hero-center { gap: 12px; }
     }
@@ -629,22 +608,26 @@ nav { padding: 0 14px; height: 60px; }
       <div class="hero-center fade-up d1">
 
         <div class="rush-curved-wrap">
-          <svg viewBox="0 0 340 155" class="rush-curved-svg">
-            <defs>
-              <path id="rushArc" d="M 20,145 A 155,155 0 0,1 320,145"/>
-            </defs>
-            <text>
-              <textPath href="#rushArc" startOffset="50%" text-anchor="middle"
-                style="font-family:'Playfair Display',serif;font-size:76px;font-weight:700;font-style:italic;fill:#1E3A5F;letter-spacing:0.06em;">
-                RUSH
-              </textPath>
-            </text>
-          </svg>
-          <div class="rush-runner-wrap">
-            <img src="img/Rush.png" alt="RUSH mascot" class="rush-runner-img" />
+
+          <!-- Straight RUSH wordmark: runner image + USH text inline -->
+          <div style="display:flex;align-items:center;justify-content:center;gap:0;">
+            <img src="img/Rush.png" alt="R"
+              style="height:clamp(72px,10vw,100px);
+                     width:auto;
+                     object-fit:contain;
+                     filter:sepia(1) saturate(3) hue-rotate(5deg) brightness(0.7);
+                     animation:runBob 0.4s ease-in-out infinite alternate, runLean 0.8s ease-in-out infinite alternate;" />
+            <span style="font-family:'Playfair Display',serif;
+                         font-size:clamp(64px,10vw,100px);
+                         font-weight:700;
+                         font-style:italic;
+                         color:#1E3A5F;
+                         line-height:1;
+                         letter-spacing:-0.02em;">USH</span>
           </div>
-          <p class="rush-subtitle-line">RCMP User Helpdesk</p>
-          <div class="hero-eyebrow-label" style="justify-content:center;margin-top:10px;">Official Helpdesk Portal</div>
+
+         <br> <p class="rush-subtitle-line" style="margin-top:4px;">RCMP User Helpdesk</p> <br>
+          
         </div>
 
         <!-- Departments panel — centered below -->
@@ -653,18 +636,21 @@ nav { padding: 0 14px; height: 60px; }
           <div class="dept-grid" style="display:flex;justify-content:center;gap:16px;">
 
             <!-- IT -->
-<a href="login.php?dept=it" class="dept-card it" title="Information Technology" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
-  <img src="img/it.png" alt="Information Technology" style="width:64px;height:64px;object-fit:contain;" />
+<a href="login.php?dept=it" class="dept-card it" title="Information Technology" style="text-decoration:none;cursor:pointer;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;width:140px;min-height:130px;gap:10px;">
+  <img src="img/it.png" alt="Information Technology" style="width:56px;height:56px;object-fit:contain;" />
+  <span style="font-size:13px;font-weight:700;color:var(--navy-dark);letter-spacing:0.06em;text-transform:uppercase;text-align:center;line-height:1.3;">IT</span>
 </a>
 
 <!-- AF -->
-<a href="login.php?dept=af" class="dept-card af" title="Administration & Facilities" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
-  <img src="img/admin.png" alt="Administration & Facilities" style="width:64px;height:64px;object-fit:contain;" />
+<a href="login.php?dept=af" class="dept-card af" title="Administration & Facilities" style="text-decoration:none;cursor:pointer;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;width:140px;min-height:130px;gap:10px;">
+  <img src="img/admin.png" alt="Administration & Facilities" style="width:56px;height:56px;object-fit:contain;" />
+  <span style="font-size:13px;font-weight:700;color:var(--navy-dark);letter-spacing:0.06em;text-transform:uppercase;text-align:center;line-height:1.3;">Administration & Facilities</span>
 </a>
 
 <!-- MAINT -->
-<a href="login.php?dept=maint" class="dept-card maint" title="Maintenance" style="text-decoration:none;cursor:pointer;justify-content:center;padding:20px;width:90px;min-height:90px;">
-  <img src="img/maintenance.png" alt="Maintenance" style="width:64px;height:64px;object-fit:contain;" />
+<a href="login.php?dept=maint" class="dept-card maint" title="Maintenance" style="text-decoration:none;cursor:pointer;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;width:140px;min-height:130px;gap:10px;">
+  <img src="img/maintenance.png" alt="Maintenance" style="width:56px;height:56px;object-fit:contain;" />
+  <span style="font-size:13px;font-weight:700;color:var(--navy-dark);letter-spacing:0.06em;text-transform:uppercase;text-align:center;line-height:1.3;">Maintenance</span>
 </a>
 
           </div>

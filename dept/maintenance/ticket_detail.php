@@ -5,6 +5,7 @@ if (isset($_GET['logout'])) { staffLogout(); }
 require_once __DIR__ . '/../../db_connect.php';
 require_once __DIR__ . '/../../assign_helper.php';
 require_once __DIR__ . '/../../sla_helper.php';
+require_once __DIR__ . '/../../graph_helper.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -218,19 +219,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
             $statusLabel = ucfirst(str_replace('_', ' ', $newStatus));
 
             // ── Always notify submitter on status change ───────────────────────
+            $subType = $ticket['submitter_type'] ?? 'user';
+            $submitterData = null;
+            $emailSkippedReason = '';
+            if ($subType === 'user') {
+                $storedEmail = $ticket['submitter_email'] ?? '';
+                if (!empty($storedEmail)) {
+                    $submitterData = [
+                        'email'     => $storedEmail,
+                        'full_name' => 'User',
+                    ];
+                } else {
+                    $emailSkippedReason = 'no_email_in_complaint';
+                    error_log("[UniKL Mail] No email sent for {$ticketId}: submitter_email not in complaints table");
+                }
+            } else {
+                $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
+                $subQ->bind_param("i", $ticket['submitter_id']);
+                $subQ->execute();
+                $submitterData = $subQ->get_result()->fetch_assoc();
+                $subQ->close();
+            }
+
+            // Build feedback section once
+            $feedbackSection = '';
+            if ($newStatus === 'closed') {
+                $feedbackSection = <<<FBHTML
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr><td style="border-left:3px solid #22C55E;background:#F0FDF4;padding:16px 20px;border-radius:0 4px 4px 0;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#166534;">Your Feedback Matters</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
+        <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#16A34A;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
+      </td></tr>
+    </table>
+FBHTML;
+            }
+
             if ($statChanged && empty(trim($_POST['message'] ?? ''))) {
-                $subType  = $ticket['submitter_type'] ?? 'student';
-                $subTable = $subType === 'student' ? 'students' : 'staff';
-                $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
-                $subQ = $conn->prepare("SELECT full_name, email FROM {$subTable} WHERE {$subPk}=? LIMIT 1");
-                if ($subQ) {
-                    $subQ->bind_param("i", $ticket['submitter_id']);
-                    $subQ->execute();
-                    $submitterData = $subQ->get_result()->fetch_assoc();
-                    $subQ->close();
-                    if ($submitterData && !empty($submitterData['email'])) {
-                        $toName      = $submitterData['full_name'];
-                        $toEmail     = $submitterData['email'];
+    if ($submitterData && !empty($submitterData['email'])) {
+        $toName  = $submitterData['full_name'];
+        $toEmail = $submitterData['email'];
                         $currentYear = date('Y');
                         $currentDate = date('d F Y');
                         $escapedTo   = htmlspecialchars($toName);
@@ -238,19 +266,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
                         $escapedStat = htmlspecialchars($statusLabel);
 $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
 $statFg  = $newStatus==='closed' ? '#059669' : ($newStatus==='in_progress' ? '#1D4ED8' : '#D97706');
-
-$feedbackSection = '';
-if ($newStatus === 'closed') {
-    $feedbackSection = <<<FBHTML
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-      <tr><td style="border-left:3px solid #22C55E;background:#F0FDF4;padding:16px 20px;border-radius:0 4px 4px 0;">
-        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#166534;">Your Feedback Matters</p>
-        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
-        <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#16A34A;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
-      </td></tr>
-    </table>
-FBHTML;
-}
 
 $statusOnlyHtml = <<<HTML
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
@@ -294,7 +309,7 @@ $statusOnlyHtml = <<<HTML
       <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
         <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
         <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details of this ticket.</p>
-        <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
+        <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
       </td></tr>
     </table>
     <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
@@ -325,9 +340,7 @@ HTML;
                             error_log("[UniKL Mail] Status-only email failed for {$ticketId}: ".$mail->ErrorInfo);
                         }
                     }
-                }
-            } // end status-change notification
-
+            } // end status-only email
             // ── Send message if provided ──────────────────────────────────────
             $inlineMessage = trim($_POST['message'] ?? '');
             if (!empty($inlineMessage)) {
@@ -338,17 +351,7 @@ HTML;
                 $ins->bind_param("sisss", $ticketId, $senderId, $senderName, $senderRole, $inlineMessage);
                 $ins->execute(); $ins->close();
 
-                // Email to submitter
-                $subType  = $ticket['submitter_type'] ?? 'student';
-                $subTable = $subType === 'student' ? 'students' : 'staff';
-                $subPk    = $subType === 'student' ? 'student_id' : 'staff_id';
-                $subQ = $conn->prepare("SELECT full_name, email FROM {$subTable} WHERE {$subPk}=? LIMIT 1");
-                if ($subQ) {
-                    $subQ->bind_param("i", $ticket['submitter_id']);
-                    $subQ->execute();
-                    $submitterData = $subQ->get_result()->fetch_assoc();
-                    $subQ->close();
-                    if ($submitterData && !empty($submitterData['email'])) {
+                if ($submitterData && !empty($submitterData['email'])) {
                         $toName      = $submitterData['full_name'];
                         $toEmail     = $submitterData['email'];
                         $currentYear = date('Y');
@@ -360,19 +363,6 @@ HTML;
                         $escapedStat = htmlspecialchars($statusLabel);
                         $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
                         $statFg  = $newStatus==='closed' ? '#059669' : ($newStatus==='in_progress' ? '#1D4ED8' : '#D97706');
-
-                        $feedbackSection = '';
-                        if ($newStatus === 'closed') {
-                            $feedbackSection = <<<FBHTML
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-      <tr><td style="border-left:3px solid #22C55E;background:#F0FDF4;padding:16px 20px;border-radius:0 4px 4px 0;">
-        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#166534;">Your Feedback Matters</p>
-        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
-        <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#16A34A;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
-      </td></tr>
-    </table>
-FBHTML;
-                        }
 
                         $htmlBody = <<<HTML
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
@@ -420,7 +410,7 @@ FBHTML;
   <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
     <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
     <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details of this ticket.</p>
-    <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
+    <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
   </td></tr>
 </table>
     <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
@@ -450,9 +440,8 @@ HTML;
                         } catch (Exception $e) {
                             error_log("[UniKL Mail] Merged message send failed for {$ticketId}: ".$mail->ErrorInfo);
                         }
-                    }
                 }
-            }
+            } // end if (!empty($inlineMessage))
 
             if ($statChanged && in_array($newStatus, ['in_progress', 'closed'])) {
                 processQueue($conn, $deptId, (int)$staffId);
@@ -460,25 +449,34 @@ HTML;
 
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.';
 
+            // ── PDPA: wipe personal data from complaints table once closed ──
+            if ($newStatus === 'closed' && $oldStatus !== 'closed') {
+                $wipe = $conn->prepare("UPDATE complaints SET submitter_email = NULL, submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = ?");
+                if ($wipe) {
+                    $wipe->bind_param("si", $ticketId, $deptId);
+                    $wipe->execute();
+                    $wipe->close();
+                }
+            }
+
+            if (!empty($emailSkippedReason)) {
+                $_SESSION['flash_warning'] = 'Note: notification email could not be sent to the submitter (their Microsoft account info is currently unavailable). The status/message has been saved successfully.';
+            }
+
         } else {
             if ($isAjax) { header('Content-Type: application/json'); http_response_code(500); echo json_encode(['success'=>false]); exit; }
             $_SESSION['flash_error'] = 'Failed to update.';
         }
         $upd->close();
         header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
-    }
+    } // ← closes if update/update_with_message
 } // ← closes if POST
 
-
-
-
-
-
-
 // Flash messages
-$updateMsg   = $_SESSION['flash_success'] ?? '';
-$updateError = $_SESSION['flash_error']   ?? '';
-unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+$updateMsg     = $_SESSION['flash_success'] ?? '';
+$updateError   = $_SESSION['flash_error']   ?? '';
+$updateWarning = $_SESSION['flash_warning'] ?? '';
+unset($_SESSION['flash_success'], $_SESSION['flash_error'], $_SESSION['flash_warning']);
 
 // Re-fetch ticket after POST redirect
 if ($ticketId !== '') {
@@ -536,15 +534,22 @@ if ($ticket && !empty($ticket['created_at'])) {
 // ── Fetch submitter info ──────────────────────────────────────────────────────
 $submitter = null;
 if ($ticket) {
-    $type  = $ticket['submitter_type'] ?? 'student';
-    $table = $type === 'student' ? 'students' : 'staff';
-    $pkCol = $type === 'student' ? 'student_id' : 'staff_id';
-    $s2 = $conn->prepare("SELECT full_name AS name, email FROM {$table} WHERE {$pkCol} = ? LIMIT 1");
-    if ($s2) {
-        $s2->bind_param("i", $ticket['submitter_id']);
-        $s2->execute();
-        $submitter = $s2->get_result()->fetch_assoc();
-        $s2->close();
+    $type = $ticket['submitter_type'] ?? 'user';
+    if ($type === 'user') {
+        $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—';
+        $userNameDisplay = !empty($ticket['submitter_name']) ? $ticket['submitter_name'] : '—';
+        $submitter = [
+            'name'  => $userNameDisplay,
+            'email' => $userEmail,
+        ];
+    } else {
+        $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
+        if ($s2) {
+            $s2->bind_param("i", $ticket['submitter_id']);
+            $s2->execute();
+            $submitter = $s2->get_result()->fetch_assoc();
+            $s2->close();
+        }
     }
 }
 
@@ -626,18 +631,17 @@ if ($ticket) {
 $feedback = null;
 if ($ticket && strtolower($ticket['status']) === 'closed') {
     $fq = $conn->prepare("
-        SELECT tf.rating, tf.comment, tf.is_auto_submitted, tf.created_at,
-               COALESCE(s.full_name, st.full_name) AS student_name
-        FROM ticket_feedback tf
-        LEFT JOIN students s  ON s.student_id = tf.submitter_id
-        LEFT JOIN staff    st ON st.staff_id  = tf.submitter_id
-        WHERE tf.ticket_id = ?
-        LIMIT 1
-    ");
-    $fq->bind_param("s", $ticketId);
-    $fq->execute();
-    $feedback = $fq->get_result()->fetch_assoc();
-    $fq->close();
+    SELECT rating, comment, is_auto_submitted, created_at, submitter_name
+    FROM v_ticket_feedback_summary
+    WHERE ticket_id = ?
+    LIMIT 1
+");
+    if ($fq) {
+        $fq->bind_param("s", $ticketId);
+        $fq->execute();
+        $feedback = $fq->get_result()->fetch_assoc();
+        $fq->close();
+    }
 }
 
 // Active tab
@@ -842,6 +846,76 @@ $pageSubtitle = 'Maintenance Department';
 
     /* Priority modal ticket ID chip */
     #priModalTicketId { color: #0E7490 !important; background: #CFFAFE !important; }
+
+    .td-alert-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+}
+/* ══ Flash Toast ══ */
+.flash-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 99999;
+  min-width: 320px;
+  max-width: 440px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 16px 20px;
+  border-left: 4px solid #22C55E;
+  animation: toastSlideIn .35s cubic-bezier(.34,1.56,.64,1);
+  overflow: hidden;
+}
+.flash-toast.toast-error   { border-left-color: #EF4444; }
+.flash-toast.toast-warning { border-left-color: #F59E0B; }
+.flash-toast.toast-success { border-left-color: #22C55E; }
+.flash-toast-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.toast-success .flash-toast-icon { background: #D1FAE5; color: #059669; }
+.toast-error   .flash-toast-icon { background: #FEE2E2; color: #DC2626; }
+.toast-warning .flash-toast-icon { background: #FEF3C7; color: #D97706; }
+.flash-toast-icon svg { width: 18px; height: 18px; }
+.flash-toast-body   { flex: 1; min-width: 0; }
+.flash-toast-title  { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 3px; }
+.flash-toast-msg    { font-size: 12.5px; color: #6B7280; line-height: 1.55; }
+.flash-toast-close {
+  background: none; border: none; cursor: pointer;
+  color: #9CA3AF; font-size: 18px; line-height: 1;
+  padding: 0; flex-shrink: 0; margin-top: -2px;
+}
+.flash-toast-close:hover { color: #374151; }
+.flash-toast-bar {
+  position: absolute; bottom: 0; left: 0;
+  height: 3px; border-radius: 0 0 12px 12px;
+  animation: toastBarDrain 5s linear forwards;
+}
+.toast-success .flash-toast-bar { background: #22C55E; }
+.toast-error   .flash-toast-bar { background: #EF4444; }
+.toast-warning .flash-toast-bar { background: #F59E0B; }
+@keyframes toastSlideIn {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes toastBarDrain {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
   </style>
 </head>
 <body>
@@ -877,6 +951,48 @@ $pageSubtitle = 'Maintenance Department';
   <?php if ($updateError): ?>
   <div class="td-alert td-alert-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span><?php echo htmlspecialchars($updateError); ?></span></div>
   <?php endif; ?>
+  <?php if ($updateWarning): ?>
+<div class="td-alert td-alert-warning" id="flashWarningInline">
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#D97706" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  <span><?php echo htmlspecialchars($updateWarning); ?></span>
+</div>
+<?php endif; ?>
+
+<?php if ($updateMsg || $updateError || $updateWarning): ?>
+<div id="flashToast" class="flash-toast <?php
+  if ($updateMsg)        echo 'toast-success';
+  elseif ($updateError)  echo 'toast-error';
+  else                   echo 'toast-warning';
+?>">
+  <div class="flash-toast-icon">
+    <?php if ($updateMsg): ?>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+    <?php elseif ($updateError): ?>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    <?php else: ?>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <?php endif; ?>
+  </div>
+  <div class="flash-toast-body">
+    <div class="flash-toast-title">
+      <?php
+        if ($updateMsg)        echo 'Update Successful';
+        elseif ($updateError)  echo 'Error';
+        else                   echo 'Email Not Sent';
+      ?>
+    </div>
+    <div class="flash-toast-msg">
+      <?php
+        if ($updateMsg)        echo $updateMsg;
+        elseif ($updateError)  echo htmlspecialchars($updateError);
+        else                   echo htmlspecialchars($updateWarning);
+      ?>
+    </div>
+  </div>
+  <button class="flash-toast-close" onclick="dismissToast()">&#215;</button>
+  <div class="flash-toast-bar" id="flashToastBar"></div>
+</div>
+<?php endif; ?>
 
   <!-- Ticket header strip -->
   <div class="ticket-header-strip">
@@ -1001,6 +1117,7 @@ $pageSubtitle = 'Maintenance Department';
 
             <div class="ti-divider"></div>
 
+            <?php if (strtolower($ticket['status']) !== 'closed'): ?>
             <div class="ti-section-label">
               <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               Submitted By
@@ -1018,8 +1135,8 @@ $pageSubtitle = 'Maintenance Department';
                 <div class="ti-submitter-lbl">Phone</div>
                 <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone'] ?? '—'); ?></div>
               </div>
-              
             </div>
+            <?php endif; ?>
 
          </div>
         </div>
@@ -1463,7 +1580,7 @@ else { $dotCls = 'both'; }
         <div>
           <div class="feedback-card-header-title">Customer Feedback</div>
           <div class="feedback-card-header-sub">
-            <?php echo $hasFeedback ? 'Submitted by ' . htmlspecialchars($feedback['student_name'] ?? 'student') : 'Awaiting student feedback'; ?>
+            <?php echo $hasFeedback ? 'Feedback received' : 'Awaiting feedback'; ?>
           </div>
         </div>
         <?php if ($hasFeedback): ?>
@@ -1480,7 +1597,6 @@ else { $dotCls = 'both'; }
             <div style="flex:1;min-width:0">
               <div class="fb-compact-label" style="color:<?php echo $chipFg; ?>"><?php echo ratingLabel($r); ?></div>
               <div class="fb-compact-meta">
-                <?php echo htmlspecialchars($feedback['student_name'] ?? '—'); ?> &nbsp;·&nbsp;
                 <?php echo date('d M Y, H:i', strtotime($feedback['created_at'])); ?>
                 <?php if ($feedback['is_auto_submitted']): ?>&nbsp;<span class="fb-auto-chip">Auto</span><?php endif; ?>
               </div>
@@ -1515,7 +1631,7 @@ else { $dotCls = 'both'; }
             </div>
             <div>
               <div class="fb-no-feedback-title">No feedback yet</div>
-              <div class="fb-no-feedback-sub">The student hasn't submitted feedback for this ticket.</div>
+              <div class="fb-no-feedback-sub">The submitter hasn't submitted feedback for this ticket.</div>
             </div>
           </div>
         <?php endif; ?>
@@ -1799,6 +1915,25 @@ document.addEventListener('keydown', function(e) {
 
   showPage(1);
 })();
+
+// ── Flash Toast ──────────────────────────────────────────────────────────────
+(function () {
+  var toast = document.getElementById('flashToast');
+  if (!toast) return;
+  var timer = setTimeout(dismissToast, 5000);
+  toast.addEventListener('mouseenter', function () { clearTimeout(timer); });
+  toast.addEventListener('mouseleave', function () { timer = setTimeout(dismissToast, 2000); });
+})();
+
+function dismissToast() {
+  var toast = document.getElementById('flashToast');
+  if (!toast) return;
+  toast.style.transition = 'transform .3s ease, opacity .3s ease';
+  toast.style.transform  = 'translateX(110%)';
+  toast.style.opacity    = '0';
+  setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 320);
+}
+
 </script>
 </body>
 </html>

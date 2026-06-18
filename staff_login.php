@@ -239,29 +239,29 @@ if ($loginRole === 'reports' && !in_array($staffRole, ['super_admin', 'report_vi
       display: flex; align-items: center; justify-content: space-between;
       border-bottom: 2px solid var(--gold);
     }
-    .gov-banner-left {
-      display: flex; align-items: center; gap: 10px;
-      font-size: 11px; color: rgba(255,255,255,0.75);
-      letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;
-    }
+.gov-banner-left {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: 13px; color: rgba(255,255,255,0.75);
+  letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
+}
     .gov-banner-left span { color: var(--gold-light); }
-    .gov-banner-right { font-size: 10.5px; color: rgba(255,255,255,0.5); letter-spacing: 0.04em; }
+    .gov-banner-right { font-size: 13px; color: rgba(255,255,255,0.5); letter-spacing: 0.04em; }
 
     /* ── NAV ── */
     nav {
-      background: var(--surface);
-      border-bottom: 3px solid var(--navy);
-      box-shadow: 0 2px 16px rgba(0,0,0,0.08);
-      padding: 0 48px;
-      display: flex; align-items: center; justify-content: space-between;
-      height: 76px;
-    }
+  background: var(--surface);
+  border-bottom: 3px solid var(--navy);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  padding: 0 48px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 96px;
+}
     .nav-brand { display: flex; align-items: center; gap: 16px; text-decoration: none; }
-    .nav-logo img { width: 72px; height: 72px; object-fit: contain; }
+    .nav-logo img { width: 100px; height: 100px; object-fit: contain; }
     .nav-divider { width: 1px; height: 36px; background: var(--border); }
     .nav-text-group { display: flex; flex-direction: column; }
-    .nav-org   { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--olive); }
-    .nav-title { font-size: 15px; font-weight: 700; color: var(--navy-dark); }
+.nav-org   { font-size: 16px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--olive); }
+.nav-title { font-size: 19px; font-weight: 700; color: var(--navy-dark); letter-spacing: 0.01em; }
     .nav-back {
       font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em;
       padding: 9px 22px; border-radius: 5px;

@@ -47,14 +47,13 @@ $offset  = ($page - 1) * $perPage;
 $sql = "
     SELECT c.ticket_id, c.title, c.status, c.priority, c.created_at,
            cat.category_name,
-           COALESCE(s.full_name, st.full_name, 'Unknown') AS submitter_name,
+           COALESCE(st.full_name, c.submitter_email, 'Unknown') AS submitter_name,
            c.submitter_type,
            c.my_department,
            c.description,
            ast.full_name  AS assigned_staff_name
     FROM complaints c
     LEFT JOIN categories cat ON cat.category_id = c.category_id
-    LEFT JOIN students s  ON c.submitter_type = 'student' AND c.submitter_id = s.student_id
     LEFT JOIN staff   st  ON c.submitter_type = 'staff'   AND c.submitter_id = st.staff_id
     LEFT JOIN staff   ast ON c.assigned_to = ast.staff_id
     WHERE $whereSQL

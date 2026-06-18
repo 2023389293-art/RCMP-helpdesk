@@ -14,11 +14,7 @@ require '../assign_helper.php';
 
 $myt  = new DateTimeZone('Asia/Kuala_Lumpur');
 $now  = new DateTime('now', $myt);
-$h    = (int)$now->format('H');
-$dow  = (int)$now->format('N');
-if (!($dow >= 1 && $dow <= 5 && $h >= 8 && $h < 17)) {
-    echo json_encode(['success' => false, 'error' => 'Outside working hours']); exit;
-}
+
 
 $userRole      = $_SESSION['user_role'];
 $userId        = (int)($_SESSION['user_id'] ?? $_SESSION['staff_id'] ?? 0);
@@ -132,11 +128,16 @@ $seqOffset++;
         $defaultPri = 'medium';
 
 $batchEmail = ($submitterType === 'user') ? ($_SESSION['user_email'] ?? '') : null;
-$stmt = $conn->prepare("INSERT INTO complaints (ticket_id,submitter_id,submitter_type,submitter_email,phone,my_department,category_id,dept_id,title,description,attachment_path,status,priority,assigned_to,sla_start_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,'open',?,NULL,?,NOW(),NOW())");
-$stmt->bind_param("sissssiisssss", $ticketId,$userId,$submitterType,$batchEmail,$phone,$my_department,$category_id,$dept_id,$title,$description,$attachmentPath,$defaultPri,$slaInsert);
+$batchName  = ($submitterType === 'user') ? ($_SESSION['user_name']  ?? '') : null;
+$stmt = $conn->prepare("INSERT INTO complaints (ticket_id,submitter_id,submitter_type,submitter_email,submitter_name,phone,my_department,category_id,dept_id,title,description,attachment_path,status,priority,assigned_to,sla_start_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'open',?,NULL,?,NOW(),NOW())");
+$stmt->bind_param("sisssssiisssss", $ticketId,$userId,$submitterType,$batchEmail,$batchName,$phone,$my_department,$category_id,$dept_id,$title,$description,$attachmentPath,$defaultPri,$slaInsert);
         if ($stmt->execute()) {
             autoAssignTicket($conn, $dept_id, $ticketId);
-            sendComplaintEmail($conn, $dept_id, $ticketId);
+            try {
+                sendComplaintEmail($conn, $dept_id, $ticketId);
+            } catch (\Throwable $mailErr) {
+                error_log("[Batch Submit] Email failed for {$ticketId}: " . $mailErr->getMessage());
+            }
             $tickets[] = $ticketId;
         } else {
             $errors[] = "Item ".($idx+1).": DB error ".$stmt->error;
@@ -180,8 +181,12 @@ $reqSeqOffset++;
         $stmt = $conn->prepare("INSERT INTO requisitions (ref_number,submitter_id,submitter_type,phone,my_department,category,item_name,quantity,location,reason,urgency,attachment_path,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pending',NOW(),NOW())");
         $stmt->bind_param("sisssssissss",$refNumber,$userId,$submitterType,$req_phone,$req_my_department,$req_category,$req_item_name,$req_quantity,$req_location,$req_reason,$req_urgency,$attachmentPath);
         if ($stmt->execute()) {
-            sendRequisitionConfirmationEmail($userEmail,$userName,$refNumber,$req_category,$req_category,$req_quantity,$req_my_department,$req_location,$req_urgency,$now->format('d M Y, g:ia'));
-            sendRequisitionEmail($conn,$refNumber,$userName,$submitterType,$userEmail,$req_phone,$req_my_department,$req_category,$req_category,$req_quantity,$req_location,$req_reason,$req_urgency,$now->format('d M Y, g:ia'));
+            try {
+                sendRequisitionConfirmationEmail($userEmail,$userName,$refNumber,$req_category,$req_category,$req_quantity,$req_my_department,$req_location,$req_urgency,$now->format('d M Y, g:ia'));
+                sendRequisitionEmail($conn,$refNumber,$userName,$submitterType,$userEmail,$req_phone,$req_my_department,$req_category,$req_category,$req_quantity,$req_location,$req_reason,$req_urgency,$now->format('d M Y, g:ia'));
+            } catch (\Throwable $mailErr) {
+                error_log("[Batch Submit] Requisition email failed for {$refNumber}: " . $mailErr->getMessage());
+            }
             $requisitions[] = $refNumber;
         } else {
             $errors[] = "Item ".($idx+1).": DB error ".$stmt->error;

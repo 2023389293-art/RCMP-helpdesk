@@ -198,7 +198,7 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
       <tr><td style="border-left:3px solid #22C55E;background:#F0FDF4;padding:16px 20px;border-radius:0 4px 4px 0;">
         <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#166534;">Your Feedback Matters</p>
         <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
-        <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#16A34A;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
+        <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#16A34A;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
       </td></tr>
     </table>
 FBHTML;
@@ -282,7 +282,7 @@ FBHTML;
       <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
         <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
         <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details of this ticket.</p>
-        <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
+        <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
       </td></tr>
     </table>
     <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
@@ -384,7 +384,7 @@ HTML;
   <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
     <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
     <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details of this ticket.</p>
-    <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
+    <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
   </td></tr>
 </table>
     <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
@@ -426,7 +426,7 @@ HTML;
 
             // ── PDPA: wipe personal data from complaints table once closed ──
             if ($newStatus === 'closed' && $oldStatus !== 'closed') {
-                $wipe = $conn->prepare("UPDATE complaints SET submitter_email = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = ?");
+                $wipe = $conn->prepare("UPDATE complaints SET submitter_email = NULL, submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = ?");
                 if ($wipe) {
                     $wipe->bind_param("si", $ticketId, $deptId);
                     $wipe->execute();
@@ -504,11 +504,12 @@ $submitter = null;
 if ($ticket) {
     $type = $ticket['submitter_type'] ?? 'user';
     if ($type === 'user') {
-    $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—';
-    $submitter = [
-        'name'  => $userEmail,  // use email as display name since SSO name isn't stored
-        'email' => $userEmail,
-    ];
+        $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—';
+        $userNameDisplay = !empty($ticket['submitter_name']) ? $ticket['submitter_name'] : '—';
+        $submitter = [
+            'name'  => $userNameDisplay,
+            'email' => $userEmail,
+        ];
     } else {
         $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
         if ($s2) {
@@ -1017,6 +1018,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             <div class="ti-divider"></div>
 
             <!-- Submitted by -->
+            <?php if (strtolower($ticket['status']) !== 'closed'): ?>
             <div class="ti-section-label">
               <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               Submitted By
@@ -1035,11 +1037,11 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 </div>
               </div>
               <div class="ti-submitter-cell" style="border-right:none">
-  <div class="ti-submitter-lbl">Phone</div>
-  <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone']??'—'); ?></div>
-</div>
-              
+                <div class="ti-submitter-lbl">Phone</div>
+                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone']??'—'); ?></div>
+              </div>
             </div>
+            <?php endif; ?>
 
           </div>
         </div>
@@ -1495,23 +1497,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
         <div>
           <div class="feedback-card-header-title">Customer Feedback</div>
           <div class="feedback-card-header-sub">
-    <?php
-    if ($hasFeedback) {
-    if ($feedback['submitter_type'] === 'user') {
-        $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : null;
-        $fbName = $userEmail ?? ($submitter['name'] ?? null);
-        if ($fbName && $fbName !== '—') {
-            echo 'Submitted by ' . htmlspecialchars($fbName);
-        } else {
-            echo 'Submitted by User';
-        }
-    } else {
-        echo 'Submitted by ' . htmlspecialchars($feedback['submitter_name'] ?? 'Staff');
-    }
-} else {
-    echo 'Awaiting feedback';
-}
-    ?>
+    <?php echo $hasFeedback ? 'Feedback received' : 'Awaiting feedback'; ?>
 </div>
         </div>
         <?php if ($hasFeedback): ?>
@@ -1528,14 +1514,6 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             <div style="flex:1;min-width:0">
               <div class="fb-compact-label" style="color:<?php echo $chipFg; ?>"><?php echo ratingLabel($r); ?></div>
 <div class="fb-compact-meta">
-    <?php
-    if ($feedback['submitter_type'] === 'user') {
-        $fbMetaName = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : 'User';
-    } else {
-        $fbMetaName = $feedback['submitter_name'] ?? 'Staff';
-    }
-    echo htmlspecialchars($fbMetaName);
-    ?> &nbsp;·&nbsp;
                 <?php echo date('d M Y, H:i',strtotime($feedback['created_at'])); ?>
                 <?php if($feedback['is_auto_submitted']): ?>&nbsp;<span class="fb-auto-chip">Auto</span><?php endif; ?>
               </div>

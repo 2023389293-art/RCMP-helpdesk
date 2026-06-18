@@ -52,12 +52,7 @@ function calcSlaStart(DateTime $from): DateTime {
 $slaStartDt = calcSlaStart($now);
 $slaDisplay = $slaStartDt->format('l, d M Y \a\t g:ia');
 
-// ── BLOCK SUBMISSION OUTSIDE WORKING HOURS ────────────────────────────────────
-// If a POST is attempted outside working hours, reject it immediately
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isWorkingHours) {
-    // Do NOT process — just fall through with an error
-    $error = 'Complaints can only be submitted during working hours (Monday – Friday, 8:00 AM – 5:00 PM MYT). Your submission has not been recorded.';
-}
+
 
 // ── FETCH MY DEPARTMENTS ──────────────────────────────────────────────────────
 $myDepartments = [];
@@ -99,7 +94,7 @@ $error    = $error ?? '';
 $ticketId = '';
 
 // ── HANDLE REQUISITION SUBMISSION ────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_type']) && $_POST['form_type'] === 'requisition' && $isWorkingHours) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_type']) && $_POST['form_type'] === 'requisition') {
     $req_category      = trim($_POST['req_category']      ?? '');
     $req_item_name     = trim($_POST['req_item_name'] ?? '');
     $req_quantity      = (int)($_POST['req_quantity']     ?? 0);
@@ -185,7 +180,7 @@ if (!in_array($ext, $allowed)) {
 $reqSuccess   = $reqSuccess   ?? false;
 $reqRefNumber = $reqRefNumber ?? '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isWorkingHours && !isset($_POST['form_type'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['form_type'])) {
 $category_id   = (int)($_POST['category_id'] ?? 0);
 $description   = trim($_POST['description']  ?? '');
 $phone         = trim($_POST['phone']         ?? '');
@@ -238,22 +233,24 @@ $maxSize = 5 * 1024 * 1024;
                 $slaInsertStr = $slaAtSubmit->format('Y-m-d H:i:s');
                 $defaultPriority = 'medium';
 
-                // Only store email for 'user' type — staff email is always retrievable from staff table
+                // Only store email/name for 'user' type — staff email/name is always retrievable from staff table
 $submitterEmail = ($submitterType === 'user') ? ($_SESSION['user_email'] ?? '') : null;
+$submitterName  = ($submitterType === 'user') ? ($_SESSION['user_name']  ?? '') : null;
 
 $stmt = $conn->prepare("
     INSERT INTO complaints
-        (ticket_id, submitter_id, submitter_type, submitter_email, phone, my_department,
+        (ticket_id, submitter_id, submitter_type, submitter_email, submitter_name, phone, my_department,
          category_id, dept_id, title, description,
          attachment_path, status, priority, assigned_to, sla_start_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, NULL, ?, NOW(), NOW())
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, NULL, ?, NOW(), NOW())
 ");
 $stmt->bind_param(
-    "sissssiisssss",
+    "sisssssiisssss",
     $ticketId,
     $userId,
     $submitterType,
     $submitterEmail,
+    $submitterName,
     $phone,
     $my_department,
     $category_id,
@@ -657,6 +654,7 @@ require 'layout.php';
       <span class="dept-tab-label">Admin &amp; Facilities</span>
     </button>
 
+    <?php /* HIDDEN: Corporate Communication tab disabled for now
     <button class="dept-tab dept-tab-disabled" data-dept="Corporate Communication Unit" type="button" disabled onclick="return false;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -664,7 +662,9 @@ require 'layout.php';
       </span>
       <span class="dept-tab-label">Corporate Communication</span>
     </button>
+    */ ?>
 
+    <?php /* HIDDEN: Human Capital tab disabled for now
     <button class="dept-tab dept-tab-disabled" data-dept="Human Capital Department" type="button" disabled onclick="return false;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -675,6 +675,7 @@ require 'layout.php';
       </span>
       <span class="dept-tab-label">Human Capital</span>
     </button>
+    */ ?>
 
   </div>
 </div>
@@ -744,33 +745,33 @@ require 'layout.php';
   </div>
 </div>
 
-<?php if ($isWorkingHours): ?>
-<div class="wh-banner wh-open">
-  <div class="wh-banner-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+<div class="wh-banner <?php echo $isWorkingHours ? 'wh-open' : 'wh-closed'; ?>">
+  <div class="wh-banner-icon">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  </div>
   <div class="wh-banner-body">
-    <strong>We are currently open — your complaint will be processed today!</strong>
-    UniKL RCMP Help Desk is operating right now.
+    <?php if ($isWorkingHours): ?>
+      <strong>SLA is active — your complaint will be attended to today.</strong>
+      You can submit complaints anytime, but the SLA 8-hour response window only counts during working hours.
+    <?php else: ?>
+      <strong>You can still submit — but note the SLA hours below.</strong>
+      Complaints submitted outside working hours will be queued. The 8-hour SLA clock starts on the next working day at 8:00 AM.
+    <?php endif; ?>
     <div class="wh-hours-chips">
-      <span class="wh-chip">Mon – Fri</span>
-      <span class="wh-chip">8:00 AM – 5:00 PM</span>
+      <span class="wh-chip">SLA: Mon – Fri</span>
+      <span class="wh-chip">8:00 AM – 5:00 PM MYT</span>
       <span class="wh-chip">Now: <?php echo $now->format('g:i A, l'); ?></span>
     </div>
-    <div class="wh-sla-row"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>SLA starts immediately upon submission.</div>
-  </div>
-</div>
-<?php else: ?>
-<div class="wh-banner wh-closed">
-  <div class="wh-banner-icon"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
-  <div class="wh-banner-body">
-    <strong>Outside Working Hours — Complaints are currently disabled</strong>
-    Submissions are only accepted Monday–Friday, 8:00 AM – 5:00 PM (MYT).
-    <div class="wh-hours-chips">
-      <span class="wh-chip">Now: <?php echo $now->format('g:i A, l'); ?></span>
+    <div class="wh-sla-row">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <?php if ($isWorkingHours): ?>
+        SLA starts immediately upon submission.
+      <?php else: ?>
+        SLA will start from: <strong>&nbsp;<?php echo $slaDisplay; ?></strong>
+      <?php endif; ?>
     </div>
-    <div class="wh-sla-row"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Form will be available from: <strong>&nbsp;<?php echo $slaDisplay; ?></strong></div>
   </div>
 </div>
-<?php endif; ?>
 
 <?php if (!empty($error)): ?>
 <div class="alert alert-error">
@@ -779,45 +780,7 @@ require 'layout.php';
 </div>
 <?php endif; ?>
 
-<?php if (!$isWorkingHours): ?>
-<!-- ── OUTSIDE HOURS: clean locked state, no scrollable form ── -->
-<div id="complaintForm" style="width:100%;max-width:960px;">
-  <div style="
-    background:white;
-    border-radius:20px;
-    border:1px solid #ffe082;
-    padding:48px 32px;
-    text-align:center;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:16px;
-  ">
-    <div class="flo-icon">
-      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    </div>
-    <div class="flo-title">Submissions Closed</div>
-    <div class="flo-body">
-      The complaint form is only available during official working hours.<br>
-      Please come back when the Help Desk is open.
-    </div>
-    <div class="flo-hours">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Monday – Friday &nbsp;|&nbsp; 8:00 AM – 5:00 PM MYT
-    </div>
-    <div class="flo-next">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Next available: <?php echo $slaDisplay; ?>
-    </div>
-    <a href="homepage.php" class="tp-back-btn" style="margin-top:8px;">
-      <svg viewBox="0 0 24 24"><polyline points="15,18 9,12 15,6"/></svg>
-      Back to Dashboard
-    </a>
-  </div>
-</div>
-
-<?php else: ?>
-<!-- ── WORKING HOURS: full interactive form ── -->
+<!-- ── FULL INTERACTIVE FORM (always shown) ── -->
 <form method="POST" action="new_complaint.php" id="complaintForm" enctype="multipart/form-data" novalidate>
   <input type="hidden" name="category_id" id="category_id" value="<?php echo $prevCategoryId; ?>"/>
   <div class="form-card">
@@ -872,7 +835,17 @@ require 'layout.php';
       <br>
 
       <div class="form-section-label">Your Information</div>
-      <div class="field-grid">
+      <div class="field-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="field">
+          <label>Full Name</label>
+          <input type="text" value="<?php echo htmlspecialchars($userName); ?>" readonly
+            style="background:#f3f4f6;color:#6b7280;cursor:not-allowed;border-color:#e5e7eb;"/>
+        </div>
+        <div class="field">
+          <label>Email Address</label>
+          <input type="text" value="<?php echo htmlspecialchars($userEmail); ?>" readonly
+            style="background:#f3f4f6;color:#6b7280;cursor:not-allowed;border-color:#e5e7eb;"/>
+        </div>
         <div class="field">
           <label for="phone">Phone Number <span class="req">*</span></label>
           <div class="phone-wrap">
@@ -918,6 +891,8 @@ require 'layout.php';
       <div class="preview-section">
         <div class="preview-section-title">Your Information</div>
         <div class="preview-grid">
+          <div class="preview-field"><div class="preview-label">Full Name</div><div class="preview-value"><?php echo htmlspecialchars($userName); ?></div></div>
+          <div class="preview-field"><div class="preview-label">Email Address</div><div class="preview-value"><?php echo htmlspecialchars($userEmail); ?></div></div>
           <div class="preview-field"><div class="preview-label">Phone Number</div><div class="preview-value" id="pv-phone">—</div></div>
           <div class="preview-field"><div class="preview-label">My Department / Faculty</div><div class="preview-value" id="pv-dept">—</div></div>
         </div>
@@ -956,7 +931,6 @@ require 'layout.php';
     </div>
   </div>
 </div>
-<?php endif; ?>
 </div><!-- /complaint-section-wrapper -->
 </div><!-- /afsmdComplaintSection -->
 
@@ -1450,11 +1424,17 @@ require 'layout.php';
       <div class="tid"><?php echo htmlspecialchars($ticketId); ?></div>
     </div>
     <?php if ($success): ?>
-      <div class="success-sla sla-now">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <div>Your complaint is being processed <strong>right now</strong>.</div>
-      </div>
-    <?php endif; ?>
+  <div class="success-sla <?php echo $isWorkingHours ? 'sla-now' : 'sla-queued'; ?>">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <div>
+      <?php if ($isWorkingHours): ?>
+        Your complaint is being processed <strong>right now</strong>. SLA clock has started.
+      <?php else: ?>
+        Your complaint has been received. The SLA 8-hour response window will begin on <strong><?php echo $slaDisplay; ?></strong>.
+      <?php endif; ?>
+    </div>
+  </div>
+<?php endif; ?>
     <div class="success-actions">
       <a href="new_complaint.php" class="btn-ghost">Submit Another</a>
       <a href="homepage.php" class="btn-primary-sm">← Back to Dashboard</a>
@@ -1512,6 +1492,10 @@ function getBatchSummaryHtml(currentItem) {
     } else {
       detailRows = `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-top:12px;">
+          <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Full Name</div>
+               <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(item.data.user_name || '—')}</div></div>
+          <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Email</div>
+               <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(item.data.user_email || '—')}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Category</div>
                <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(item.data.title)}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Handled By</div>
@@ -1582,6 +1566,10 @@ function getBatchSummaryHtml(currentItem) {
     } else {
       currentDetailRows = `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-top:12px;">
+          <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Full Name</div>
+               <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(currentItem.data.user_name || '—')}</div></div>
+          <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Email</div>
+               <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(currentItem.data.user_email || '—')}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Category</div>
                <div style="font-size:13px;color:var(--g900);font-weight:500;">${esc(currentItem.data.title)}</div></div>
           <div><div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Handled By</div>
@@ -1644,6 +1632,8 @@ function removeBatchItem(idx) {
         description:   _desc,
         phone:         _phone,
         my_department: _dept,
+        user_name:     '<?php echo addslashes($userName); ?>',
+        user_email:    '<?php echo addslashes($userEmail); ?>',
       }
     };
   } else if (reqPreviewVisible) {
@@ -1833,9 +1823,7 @@ function renderConfirmationSummary() {
   if (countEl) countEl.textContent = total;
 }
 
-// Only run interactive JS if working hours are active
-<?php if ($isWorkingHours): ?>
-    // ── AFSMD SUB-TAB SWITCHER ────────────────────────────────────
+// ── AFSMD SUB-TAB SWITCHER ────────────────────────────────────
 function switchAfsmdTab(tab) {
   const complaint    = document.getElementById('afsmdComplaintSection');
   const requisition  = document.getElementById('afsmdRequisitionSection');
@@ -2331,8 +2319,11 @@ document.getElementById('pv-description').textContent = desc;
   const slaRow = document.getElementById('previewSlaRow');
   const slaTxt = document.getElementById('previewSlaText');
   slaRow.style.display = 'flex';
-  slaRow.className = 'preview-sla-row sla-open';
-  slaTxt.textContent = 'Working hours active — complaint will be attended to today.';
+  const isNowWorkingHours = <?php echo $isWorkingHours ? 'true' : 'false'; ?>;
+slaRow.className = isNowWorkingHours ? 'preview-sla-row sla-open' : 'preview-sla-row sla-closed';
+slaTxt.textContent = isNowWorkingHours
+  ? 'Working hours active — complaint will be attended to today.'
+  : 'Outside working hours — SLA will start from: <?php echo addslashes($slaDisplay); ?>';
 
 document.getElementById('complaintForm').style.display = 'none';
 document.getElementById('previewPanel').classList.add('show');
@@ -2347,6 +2338,8 @@ const currentItem = {
     description:   desc,
     phone:         phone,
     my_department: dept,
+    user_name:     '<?php echo addslashes($userName); ?>',
+    user_email:    '<?php echo addslashes($userEmail); ?>',
   }
 };
 renderBatchSummary(currentItem);
@@ -2771,6 +2764,8 @@ function showConfirmationPanel() {
         description:   document.getElementById('description').value.trim(),
         phone:         document.getElementById('phone').value.trim(),
         my_department: document.getElementById('my_department').value,
+        user_name:     '<?php echo addslashes($userName); ?>',
+        user_email:    '<?php echo addslashes($userEmail); ?>',
       }
     };
   } else if (reqVisible && !window._confirmCurrentItem) {
@@ -2931,17 +2926,29 @@ async function submitAllBatch() {
 
   try {
     const resp = await fetch('batch_submit.php', { method: 'POST', body: fd });
-    const json = await resp.json();
+    const rawText = await resp.text();
+    let json;
+    try {
+      json = JSON.parse(rawText);
+    } catch (parseErr) {
+      console.error('Raw server response (not valid JSON):', rawText);
+      alert('Server error — check browser console for details (F12 → Console).');
+      ['confirmBtn','reqConfirmBtn','finalSubmitBtn'].forEach(id => {
+        const b = document.getElementById(id); if(b) { b.disabled = false; }
+      });
+      return;
+    }
     if (json.success) {
       showBatchSuccessOverlay(json.tickets, json.requisitions);
     } else {
-      alert('Submission failed: ' + (json.error || 'Unknown error'));
-      ['confirmBtn','reqConfirmBtn'].forEach(id => {
+      alert('Submission failed: ' + (json.error || (json.errors ? json.errors.join(', ') : 'Unknown error')));
+      ['confirmBtn','reqConfirmBtn','finalSubmitBtn'].forEach(id => {
         const b = document.getElementById(id); if(b) { b.disabled = false; b.textContent = 'Submit All'; }
       });
     }
   } catch(e) {
-    alert('Network error. Please try again.');
+    console.error('Fetch failed:', e);
+    alert('Network error: ' + e.message);
   }
 }
 
@@ -2990,7 +2997,6 @@ document.getElementById('subcategory_select').addEventListener('change', functio
   if(hint) hint.remove();
 });
 
-<?php endif; ?>
 </script>
 <?php
 $extraFoot = ob_get_clean();
