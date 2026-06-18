@@ -1109,7 +1109,7 @@ var POPUP_API = '../new_reply_popup_api.php';
    * Skip / X / ESC → sessionStorage flag → hidden for rest of this login session.
    * New login = new session_id() = fresh key = popup can show again.
    */
-  var SESSION_KEY = 'fb_skipped_u<?php echo (int)$_fbUserId; ?>_<?php echo session_id(); ?>';
+  
 
   
 
@@ -1209,6 +1209,7 @@ var POPUP_API = '../new_reply_popup_api.php';
   function closePopup() {
     clearCountdown();
     isShown = false;
+    _dismissed = true;
     overlay.classList.remove('fb-active');
     document.body.style.overflow = '';
 
@@ -1300,6 +1301,7 @@ var POPUP_API = '../new_reply_popup_api.php';
         return r.json();
       })
       .then(function (data) {
+        if (data.dismissed) { _dismissed = true; return; }
         if (!data.pending) return;
         if (!data.ticket_id) return;
 
@@ -1331,14 +1333,15 @@ var POPUP_API = '../new_reply_popup_api.php';
 
   var pollTimer = null;
 
-  function scheduleNextPoll() {
+  var _dismissed = false;
+
+function scheduleNextPoll() {
     clearTimeout(pollTimer);
-    // Re-poll every 30 seconds so tickets closed mid-session appear
     pollTimer = setTimeout(function () {
-      if (!isShown) checkPending();
-      scheduleNextPoll();
+        if (!isShown && !_dismissed) checkPending();
+        scheduleNextPoll();
     }, 30000);
-  }
+}
 
   /* Initial check after page load */
   setTimeout(function () {

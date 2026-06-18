@@ -120,6 +120,17 @@ LEFT JOIN ticket_feedback tf
     }
 
     if (!empty($pendingTickets)) {
+
+        // Respect a Skip/X dismissal made earlier this login session.
+        if (!empty($_SESSION['fb_popup_dismissed'])) {
+            echo json_encode([
+                'pending'       => false,
+                'pending_count' => count($pendingTickets),
+                'dismissed'     => true,
+            ]);
+            exit;
+        }
+
         $oldest       = $pendingTickets[0];
         $pendingCount = count($pendingTickets);
 

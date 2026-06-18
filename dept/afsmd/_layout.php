@@ -134,6 +134,8 @@ $nav             = $activeNav       ?? 'dashboard';
     
 
     <?php
+// Requisitions section 
+/*
 $reqPendingCount  = $reqPendingCount  ?? 0;
 $reqApprovedCount = $reqApprovedCount ?? 0;
 $reqRejectedCount   = $reqRejectedCount   ?? 0;
@@ -153,6 +155,8 @@ $reqNavOpen = in_array($nav, ['requisitions','requisitions-pending','requisition
     </span>
   </div>
 </div>
+*/
+?>
 
     <a href="categories.php"
        class="nav-item <?php echo $nav === 'categories' ? 'active' : ''; ?>"

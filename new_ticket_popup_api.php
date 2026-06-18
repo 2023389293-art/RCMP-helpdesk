@@ -1,6 +1,6 @@
 <?php
 // FILE LOCATION: uniKL/complaint/new_ticket_popup_api.php  (popup for staff)
-// (same folder as db_connect.php)
+
  
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -68,11 +68,7 @@ $sql = "
         c.title                                    AS ticket_title,
         c.priority,
         cat.category_name,
-        CASE
-            WHEN c.submitter_type = 'student' THEN s.full_name
-            WHEN c.submitter_type = 'staff'   THEN sf2.full_name
-            ELSE 'Unknown'
-        END                                        AS submitter_name,
+        COALESCE(c.submitter_name, 'Unknown')      AS submitter_name,
         c.submitter_type
     FROM ticket_logs tl
     INNER JOIN complaints c
@@ -80,12 +76,6 @@ $sql = "
         AND c.dept_id   = ?
     INNER JOIN categories cat
         ON cat.category_id = c.category_id
-    LEFT JOIN students s
-        ON  s.student_id     = c.submitter_id
-        AND c.submitter_type = 'student'
-    LEFT JOIN staff sf2
-        ON  sf2.staff_id     = c.submitter_id
-        AND c.submitter_type = 'staff'
     WHERE tl.field_changed = 'assigned'
       AND tl.new_priority = ?
       AND tl.log_id        > ?

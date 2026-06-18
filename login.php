@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_name']  = $user['full_name'];
                 $_SESSION['user_email'] = $user['email'];
                 $_SESSION['user_role']  = $user['role']; // use actual role from DB
-                unset($_SESSION['fb_popup_shown']);
+                unset($_SESSION['fb_popup_dismissed']);
 
                 $deptId = null;
                 if (!empty($user['department'])) {
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_name']  = $user['full_name'];
                 $_SESSION['user_email'] = $user['email'];
                 $_SESSION['user_role']  = $user['role']; // use actual role from DB
-                unset($_SESSION['fb_popup_shown']);
+                unset($_SESSION['fb_popup_dismissed']);
 
                 $deptId = null;
                 if (!empty($user['department'])) {

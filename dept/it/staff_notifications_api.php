@@ -140,7 +140,7 @@ $sql = "
     c.status,
         c.priority,
         -- Who submitted the ticket
-        COALESCE(s.full_name, st.full_name, 'Unknown') AS submitter_name,
+        COALESCE(c.submitter_name, 'Unknown') AS submitter_name,
         c.submitter_type   AS sender_role,
         -- When was the ticket last assigned (i.e. the log where assigned_to changed to me)
         -- We'll use the ticket_logs changed_at for event_at where possible
@@ -153,8 +153,6 @@ $sql = "
         -- Grab the name of whoever last assigned this ticket (from staff table via assigned_to)
         assigner.full_name AS assigned_by_name
     FROM complaints c
-    LEFT JOIN students s    ON c.submitter_type = 'student'  AND c.submitter_id = s.student_id
-    LEFT JOIN staff   st    ON c.submitter_type != 'student' AND c.submitter_id = st.staff_id
     -- Self-join to get the assigner's name (assigned_to stores the staff_id of the assignee,
     -- but we want who did the assigning — that's in ticket_logs.changed_by_id)
     LEFT JOIN staff assigner ON assigner.staff_id = (
@@ -234,7 +232,7 @@ $sql = "
     c.sla_start_at,
     c.status,
         c.priority,
-        COALESCE(s.full_name, st.full_name, 'Unknown') AS submitter_name,
+        COALESCE(c.submitter_name, 'Unknown') AS submitter_name,
         c.submitter_type AS sender_role,
         -- The person who last changed this ticket (assigner)
         assigner.full_name AS assigner_name,
@@ -246,8 +244,6 @@ $sql = "
             WHERE tl.ticket_id = c.ticket_id
         ) AS last_log_at
     FROM complaints c
-    LEFT JOIN students s    ON c.submitter_type = 'student'  AND c.submitter_id = s.student_id
-    LEFT JOIN staff   st    ON c.submitter_type != 'student' AND c.submitter_id = st.staff_id
     -- Assigner = whoever last touched this ticket (from logs)
     LEFT JOIN staff assigner ON assigner.staff_id = (
         SELECT tl2.changed_by_id
@@ -328,7 +324,7 @@ $sql = "
     c.status,
         c.priority,
         -- Submitter (for context, kept but not used as sender_name for SLA)
-        COALESCE(s.full_name, st.full_name, 'Unknown') AS submitter_name,
+        COALESCE(c.submitter_name, 'Unknown') AS submitter_name,
         c.submitter_type AS sender_role,
         -- ✅ NEW: the assigned staff's name
         assigned_staff.full_name AS assigned_staff_name,
@@ -339,8 +335,6 @@ $sql = "
               AND tl.new_status = 'open'
         ) AS last_opened_at
     FROM complaints c
-    LEFT JOIN students s  ON c.submitter_type = 'student'  AND c.submitter_id = s.student_id
-    LEFT JOIN staff   st  ON c.submitter_type != 'student' AND c.submitter_id = st.staff_id
     LEFT JOIN staff assigned_staff ON assigned_staff.staff_id = c.assigned_to   -- ✅ NEW join
     WHERE c.dept_id     = ?
   AND c.assigned_to = ?

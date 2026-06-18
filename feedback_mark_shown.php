@@ -1,8 +1,8 @@
 <?php
 // uniKL/complaint/feedback_mark_shown.php
-// Dismissal is tracked client-side via sessionStorage per ticket.
-// This file intentionally does NOT set a server session block
-// so new closed tickets can still trigger the popup later.
+// Marks the feedback popup as dismissed for the rest of THIS login session.
+// Stored in $_SESSION so it disappears automatically on logout, and a
+// fresh session on next login means the popup can show again.
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -22,7 +22,8 @@ if ($submitterId <= 0) {
     exit;
 }
 
-// No session flag — popup re-checks every 30s via JS poll
-// and will show again if a new ticket gets closed
+// Suppress the popup for the rest of this login session.
+$_SESSION['fb_popup_dismissed'] = true;
+
 echo json_encode(['success' => true]);
 exit;

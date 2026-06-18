@@ -1,5 +1,5 @@
 <?php
-// dept/maintenance/staff_notifications_api.php 
+// dept/it/staff_notifications_api.php  
 // Returns JSON: { notifications: [...] }
 //
 // Notification types:
@@ -140,7 +140,7 @@ $sql = "
     c.status,
         c.priority,
         -- Who submitted the ticket
-        COALESCE(s.full_name, st.full_name, 'Unknown') AS submitter_name,
+        COALESCE(c.submitter_name, 'Unknown') AS submitter_name,
         c.submitter_type   AS sender_role,
         -- When was the ticket last assigned (i.e. the log where assigned_to changed to me)
         -- We'll use the ticket_logs changed_at for event_at where possible
@@ -153,8 +153,6 @@ $sql = "
         -- Grab the name of whoever last assigned this ticket (from staff table via assigned_to)
         assigner.full_name AS assigned_by_name
     FROM complaints c
-    LEFT JOIN students s    ON c.submitter_type = 'student'  AND c.submitter_id = s.student_id
-    LEFT JOIN staff   st    ON c.submitter_type != 'student' AND c.submitter_id = st.staff_id
     -- Self-join to get the assigner's name (assigned_to stores the staff_id of the assignee,
     -- but we want who did the assigning — that's in ticket_logs.changed_by_id)
     LEFT JOIN staff assigner ON assigner.staff_id = (
@@ -177,9 +175,8 @@ $stmt->execute();
 $res = $stmt->get_result();
 
 while ($row = $res->fetch_assoc()) {
-    $slaStartStr = !empty($row['sla_start_at']) ? $row['sla_start_at'] : $row['created_at'];
-$slaStart    = new DateTime($slaStartStr);
-    $elapsedMin  = businessMinutesElapsed($slaStart, $now);
+    $slaStart   = new DateTime($row['created_at']);
+$elapsedMin = businessMinutesElapsed($slaStart, $now);
 
     // Only add as a plain "assigned" notification if it's NOT already going
     // to appear as an SLA alert — we'll handle SLA separately below.
@@ -235,7 +232,7 @@ $sql = "
     c.sla_start_at,
     c.status,
         c.priority,
-        COALESCE(s.full_name, st.full_name, 'Unknown') AS submitter_name,
+        COALESCE(c.submitter_name, 'Unknown') AS submitter_name,
         c.submitter_type AS sender_role,
         -- The person who last changed this ticket (assigner)
         assigner.full_name AS assigner_name,
@@ -247,8 +244,6 @@ $sql = "
             WHERE tl.ticket_id = c.ticket_id
         ) AS last_log_at
     FROM complaints c
-    LEFT JOIN students s    ON c.submitter_type = 'student'  AND c.submitter_id = s.student_id
-    LEFT JOIN staff   st    ON c.submitter_type != 'student' AND c.submitter_id = st.staff_id
     -- Assigner = whoever last touched this ticket (from logs)
     LEFT JOIN staff assigner ON assigner.staff_id = (
         SELECT tl2.changed_by_id
@@ -258,15 +253,15 @@ $sql = "
         LIMIT 1
     )
     WHERE c.dept_id     = ?
-      AND c.assigned_to = ?
-      AND (assigner.staff_id IS NULL OR assigner.staff_id != ?)
-      AND c.created_at >= NOW() - INTERVAL 30 DAY
-      AND EXISTS (
-          SELECT 1 FROM ticket_logs tl3
-          WHERE tl3.ticket_id    = c.ticket_id
-            AND tl3.field_changed = 'assigned'
-            AND tl3.changed_by_id != 0
-      )
+  AND c.assigned_to = ?
+  AND (assigner.staff_id IS NULL OR assigner.staff_id != ?)
+  AND c.created_at >= NOW() - INTERVAL 30 DAY
+  AND EXISTS (
+      SELECT 1 FROM ticket_logs tl3
+      WHERE tl3.ticket_id    = c.ticket_id
+        AND tl3.field_changed = 'assigned'
+        AND tl3.changed_by_id != 0
+  )
     ORDER BY c.created_at DESC
     LIMIT 30
 ";
@@ -279,25 +274,26 @@ while ($row = $res->fetch_assoc()) {
     $assigner = $row['assigner_name'] ?? 'System';  // keep for message only
     $eventAt  = $row['last_log_at']   ?? $row['created_at'];
 
-    $remarksStmt = $conn->prepare("
-        SELECT remarks FROM ticket_logs
-        WHERE ticket_id = ? AND field_changed = 'assigned'
-        ORDER BY changed_at DESC LIMIT 1
-    ");
-    $remarksStmt->bind_param("s", $row['ticket_id']);
-    $remarksStmt->execute();
-    $remarksRow  = $remarksStmt->get_result()->fetch_assoc();
-    $remarksStmt->close();
-    $assignRemarks = $remarksRow['remarks'] ?? '';
+    // Fetch remarks from the latest 'assigned' log for this ticket
+        $remarksStmt = $conn->prepare("
+            SELECT remarks FROM ticket_logs
+            WHERE ticket_id = ? AND field_changed = 'assigned'
+            ORDER BY changed_at DESC LIMIT 1
+        ");
+        $remarksStmt->bind_param("s", $row['ticket_id']);
+        $remarksStmt->execute();
+        $remarksRow  = $remarksStmt->get_result()->fetch_assoc();
+        $remarksStmt->close();
+        $assignRemarks = $remarksRow['remarks'] ?? '';
 
-    $notifications[] = [
+        $notifications[] = [
         'notif_key'    => 'ASGN-' . $row['ticket_id'],
         'notif_type'   => 'assignment',
         'ticket_id'    => $row['ticket_id'],
         'ticket_title' => $row['ticket_title'],
         'sender_name'  => 'New Ticket',
         'sender_role'  => 'staff',
-        'message'      => $assigner . ' assigned this ticket to you',
+        'message' => $assigner . ' assigned this ticket to you',
         'remarks'      => $assignRemarks,
         'event_at'     => $eventAt,
         'status'       => $row['status'],
@@ -328,7 +324,7 @@ $sql = "
     c.status,
         c.priority,
         -- Submitter (for context, kept but not used as sender_name for SLA)
-        COALESCE(s.full_name, st.full_name, 'Unknown') AS submitter_name,
+        COALESCE(c.submitter_name, 'Unknown') AS submitter_name,
         c.submitter_type AS sender_role,
         -- ✅ NEW: the assigned staff's name
         assigned_staff.full_name AS assigned_staff_name,
@@ -339,12 +335,10 @@ $sql = "
               AND tl.new_status = 'open'
         ) AS last_opened_at
     FROM complaints c
-    LEFT JOIN students s  ON c.submitter_type = 'student'  AND c.submitter_id = s.student_id
-    LEFT JOIN staff   st  ON c.submitter_type != 'student' AND c.submitter_id = st.staff_id
     LEFT JOIN staff assigned_staff ON assigned_staff.staff_id = c.assigned_to   -- ✅ NEW join
     WHERE c.dept_id     = ?
-      AND c.assigned_to = ?
-      AND c.status      IN ('open', 'in_progress')
+  AND c.assigned_to = ?
+  AND c.status      IN ('open', 'in_progress')
   AND c.first_response_at IS NULL
 ORDER BY c.created_at ASC
 ";
@@ -356,10 +350,10 @@ $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     // ✅ Use sla_start_at — it is reset when a ticket is reopened.
     // This matches the logic in ticket_detail.php and sla_helper.php.
-    $slaStartStr  = $row['created_at'];
-    $slaStart     = new DateTime($slaStartStr);
-    $elapsedMin   = businessMinutesElapsed($slaStart, $now);
-    $remainingMin = SLA_TOTAL_MIN - $elapsedMin;
+   $slaStartStr  = $row['created_at'];
+$slaStart     = new DateTime($slaStartStr);
+$elapsedMin   = businessMinutesElapsed($slaStart, $now);
+$remainingMin = SLA_TOTAL_MIN - $elapsedMin;
 
     if ($elapsedMin >= SLA_TOTAL_MIN) {
         // ── OVERDUE ──
