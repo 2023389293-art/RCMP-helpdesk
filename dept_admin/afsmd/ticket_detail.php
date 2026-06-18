@@ -1065,7 +1065,7 @@ if ($ticketStatus === 'open' && empty($ticket['first_response_at'])) {
             <!-- Ticket closed — priority read-only -->
             <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#9CA3AF;margin-bottom:6px;">Priority</div>
             <div style="display:flex;gap:6px;margin-bottom:4px;">
-              <?php foreach(['low'=>['Low','#3B82F6','#EFF6FF'],'medium'=>['Medium','#F59E0B','#FFFBEB'],'high'=>['High','#EF4444','#FEF2F2']] as $val=>[$lbl,$fg,$bg]): ?>
+              <?php foreach(['low'=>['Low','#3B82F6','#EFF6FF'],'medium'=>['Medium','#F59E0B','#FFFBEB'],'high'=>['High','#EF4444','#FEF2F2']] as $val=>$arr): list($lbl,$fg,$bg) = $arr; ?>
               <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 5px;border-radius:8px;border:1.5px solid <?= $curPri===$val?$fg:'#E5E7EB' ?>;background:<?= $curPri===$val?$bg:'#F9FAFB' ?>;opacity:<?= $curPri===$val?'1':'.45' ?>;">
                 <div style="width:7px;height:7px;border-radius:50%;background:<?= $fg ?>;"></div>
                 <div style="font-size:11.5px;font-weight:<?= $curPri===$val?'700':'500' ?>;color:<?= $curPri===$val?$fg:'#9CA3AF' ?>;"><?= $lbl ?></div>
