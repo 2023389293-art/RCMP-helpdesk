@@ -47,7 +47,7 @@ $offset  = ($page - 1) * $perPage;
 $sql = "
     SELECT c.ticket_id, c.title, c.status, c.priority, c.created_at,
            cat.category_name,
-           COALESCE(st.full_name, c.submitter_email, 'Unknown') AS submitter_name,
+           COALESCE(c.submitter_name, st.full_name, 'Unknown') AS submitter_name,
            c.submitter_type,
            c.my_department,
            c.description,
