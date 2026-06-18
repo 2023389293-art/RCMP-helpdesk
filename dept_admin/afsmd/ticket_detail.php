@@ -565,17 +565,10 @@ function isImageFile(string $path): bool {
 if (!function_exists('fileTypeIcon')) {
 function fileTypeIcon(string $path): array {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    switch($ext) {
-        case 'pdf':
-            return ['label' => 'PDF', 'color' => '#DC2626', 'bg' => '#FEF2F2'];
-        case 'doc':
-        case 'docx':
-            return ['label' => 'DOC', 'color' => '#1D4ED8', 'bg' => '#EFF6FF'];
-        case 'txt':
-            return ['label' => 'TXT', 'color' => '#374151', 'bg' => '#F9FAFB'];
-        default:
-            return ['label' => strtoupper($ext), 'color' => '#6B7280', 'bg' => '#F3F4F6'];
-    }
+    if ($ext === 'pdf') return ['label' => 'PDF', 'color' => '#DC2626', 'bg' => '#FEF2F2'];
+    if ($ext === 'doc' || $ext === 'docx') return ['label' => 'DOC', 'color' => '#1D4ED8', 'bg' => '#EFF6FF'];
+    if ($ext === 'txt') return ['label' => 'TXT', 'color' => '#374151', 'bg' => '#F9FAFB'];
+    return ['label' => strtoupper($ext), 'color' => '#6B7280', 'bg' => '#F3F4F6'];
 }
 }
 if (!function_exists('feedbackEmojiSvg')) {
@@ -593,26 +586,20 @@ function feedbackEmojiSvg(int $rating, int $size = 32): string {
 }
 if (!function_exists('ratingLabel')) {
 function ratingLabel(int $rating): string {
-    switch($rating) {
-        case 1: return 'Very Unsatisfied';
-        case 2: return 'Unsatisfied';
-        case 3: return 'Neutral';
-        case 4: return 'Satisfied';
-        case 5: return 'Very Satisfied';
-        default: return 'Unknown';
-    }
+    $map = [1=>'Very Unsatisfied', 2=>'Unsatisfied', 3=>'Neutral', 4=>'Satisfied', 5=>'Very Satisfied'];
+    return $map[$rating] ?? 'Unknown';
 }
 }
 if (!function_exists('ratingColors')) {
 function ratingColors(int $rating): array {
-    switch($rating) {
-        case 1: return ['#FEF2F2','#DC2626','#EF4444'];
-        case 2: return ['#FFF7ED','#C2410C','#F97316'];
-        case 3: return ['#FEFCE8','#854D0E','#EAB308'];
-        case 4: return ['#F0FDF4','#166534','#22C55E'];
-        case 5: return ['#ECFDF5','#166534','#16A34A'];
-        default: return ['#F3F4F6','#374151','#6B7280'];
-    }
+    $map = [
+        1 => ['#FEF2F2','#DC2626','#EF4444'],
+        2 => ['#FFF7ED','#C2410C','#F97316'],
+        3 => ['#FEFCE8','#854D0E','#EAB308'],
+        4 => ['#F0FDF4','#166534','#22C55E'],
+        5 => ['#ECFDF5','#166534','#16A34A'],
+    ];
+    return $map[$rating] ?? ['#F3F4F6','#374151','#6B7280'];
 }
 }
 ?>
