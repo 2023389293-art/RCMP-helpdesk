@@ -175,9 +175,13 @@ $submitterName  = ($submitterType === 'user')
     ? ($_SESSION['user_name'] ?? 'User')        // name from Graph session
     : ($ticket['submitter_staff_name'] ?? '—');
 $submitterEmail = (!empty($ticket['submitter_email'])) 
-    ? $ticket['submitter_email'] 
+    ? (decryptField($ticket['submitter_email']) ?? '—')
     : ($ticket['submitter_staff_email'] ?? '—');
-$submitterPhone = '—';   // removed from DB (PDPA)
+$rawPhone = '';
+if (!empty($ticket['phone'])) {
+    $rawPhone = decryptField($ticket['phone']) ?? '';
+}
+$submitterPhone = !empty($rawPhone) ? '+60 ' . $rawPhone : '—';
 $submitterType2 = ($submitterType === 'user') ? 'User' : 'Staff';
 
 $pageTitle    = 'My Ticket';

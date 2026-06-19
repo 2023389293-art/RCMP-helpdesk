@@ -127,10 +127,11 @@ $seqOffset++;
         $slaInsert  = $slaStart->format('Y-m-d H:i:s');
         $defaultPri = 'medium';
 
-$batchEmail = ($submitterType === 'user') ? ($_SESSION['user_email'] ?? '') : null;
-$batchName  = ($submitterType === 'user') ? ($_SESSION['user_name']  ?? '') : null;
+$batchEmail = ($submitterType === 'user') ? encryptField($_SESSION['user_email'] ?? '') : null;
+$batchName  = ($submitterType === 'user') ? encryptField($_SESSION['user_name']  ?? '') : null;
 $stmt = $conn->prepare("INSERT INTO complaints (ticket_id,submitter_id,submitter_type,submitter_email,submitter_name,phone,my_department,category_id,dept_id,title,description,attachment_path,status,priority,assigned_to,sla_start_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'open',?,NULL,?,NOW(),NOW())");
-$stmt->bind_param("sisssssiisssss", $ticketId,$userId,$submitterType,$batchEmail,$batchName,$phone,$my_department,$category_id,$dept_id,$title,$description,$attachmentPath,$defaultPri,$slaInsert);
+$encryptedPhone = encryptField($phone);
+$stmt->bind_param("sisssssiisssss", $ticketId,$userId,$submitterType,$batchEmail,$batchName,$encryptedPhone,$my_department,$category_id,$dept_id,$title,$description,$attachmentPath,$defaultPri,$slaInsert);
         if ($stmt->execute()) {
             autoAssignTicket($conn, $dept_id, $ticketId);
             try {
@@ -152,7 +153,7 @@ $stmt->bind_param("sisssssiisssss", $ticketId,$userId,$submitterType,$batchEmail
         $req_reason        = trim($item['reason']         ?? '');
         $req_phone         = trim($item['phone']          ?? '');
         $req_urgency       = trim($item['urgency']        ?? 'normal');
-        $req_item_name     = $req_category;
+        $req_item_name = trim($item['item_name'] ?? $item['category'] ?? '');
 
         $allowedCats = ['Office Furniture','Water Dispenser','Signage','Vending Machine','Office Keys','Office Equipment','Others'];
         $allowedUrg  = ['normal','urgent','critical'];

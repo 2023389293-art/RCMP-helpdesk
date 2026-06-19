@@ -234,8 +234,8 @@ $maxSize = 5 * 1024 * 1024;
                 $defaultPriority = 'medium';
 
                 // Only store email/name for 'user' type — staff email/name is always retrievable from staff table
-$submitterEmail = ($submitterType === 'user') ? ($_SESSION['user_email'] ?? '') : null;
-$submitterName  = ($submitterType === 'user') ? ($_SESSION['user_name']  ?? '') : null;
+$submitterEmail = ($submitterType === 'user') ? encryptField($_SESSION['user_email'] ?? '') : null;
+$submitterName  = ($submitterType === 'user') ? encryptField($_SESSION['user_name']  ?? '') : null;
 
 $stmt = $conn->prepare("
     INSERT INTO complaints
@@ -244,6 +244,7 @@ $stmt = $conn->prepare("
          attachment_path, status, priority, assigned_to, sla_start_at, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, NULL, ?, NOW(), NOW())
 ");
+$encryptedPhone = encryptField($phone);
 $stmt->bind_param(
     "sisssssiisssss",
     $ticketId,
@@ -251,7 +252,7 @@ $stmt->bind_param(
     $submitterType,
     $submitterEmail,
     $submitterName,
-    $phone,
+    $encryptedPhone,
     $my_department,
     $category_id,
     $dept_id,

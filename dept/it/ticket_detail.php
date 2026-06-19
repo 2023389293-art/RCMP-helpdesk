@@ -210,11 +210,12 @@ $subType = $ticket['submitter_type'] ?? 'user';
 $submitterData = null;
 $emailSkippedReason = '';
 if ($subType === 'user') {
-    $storedEmail = $ticket['submitter_email'] ?? '';
+    $storedEmail = decryptField($ticket['submitter_email'] ?? '');
+    $storedName  = decryptField($ticket['submitter_name'] ?? '');
     if (!empty($storedEmail)) {
         $submitterData = [
             'email'     => $storedEmail,
-            'full_name' => 'User',
+            'full_name' => !empty($storedName) ? $storedName : 'Valued User',
         ];
     } else {
         $emailSkippedReason = 'no_email_in_complaint';
@@ -505,12 +506,12 @@ $submitter = null;
 if ($ticket) {
     $type = $ticket['submitter_type'] ?? 'user';
     if ($type === 'user') {
-        $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—';
-        $userNameDisplay = !empty($ticket['submitter_name']) ? $ticket['submitter_name'] : '—';
-$submitter = [
-    'name'  => $userNameDisplay,
-    'email' => $userEmail,
-];
+    $userEmail = !empty($ticket['submitter_email']) ? decryptField($ticket['submitter_email']) : '—';
+    $userNameDisplay = !empty($ticket['submitter_name']) ? decryptField($ticket['submitter_name']) : '—';
+    $submitter = [
+        'name'  => $userNameDisplay,
+        'email' => $userEmail,
+    ];
     } else {
         $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
         if ($s2) {
@@ -1036,7 +1037,7 @@ $pageSubtitle = 'Information Technology Department';
               </div>
               <div class="ti-submitter-cell" style="border-right:none">
                 <div class="ti-submitter-lbl">Phone</div>
-                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone']??'—'); ?></div>
+                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars(decryptField($ticket['phone']??'')?:'—'); ?></div>
               </div>
             </div>
             <?php endif; ?>

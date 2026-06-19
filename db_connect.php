@@ -1,5 +1,5 @@
 <?php
-// uniKL/complaint/db_connect.php
+// db_connect.php
 
 $servername = "localhost:3308";
 $username   = "root";
@@ -17,4 +17,5 @@ if ($conn->connect_error) {
 // This only affects the PHP connection, NOT your database or tables
 $conn->set_charset('utf8mb4');
 $conn->query("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+require_once __DIR__ . '/encryption_helper.php';
 ?>
