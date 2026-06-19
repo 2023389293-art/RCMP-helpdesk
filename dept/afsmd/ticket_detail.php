@@ -209,16 +209,17 @@ FBHTML;
             $submitterData = null;
             $emailSkippedReason = '';
             if ($subType === 'user') {
-                $storedEmail = $ticket['submitter_email'] ?? '';
-                if (!empty($storedEmail)) {
-                    $submitterData = [
-                        'email'     => $storedEmail,
-                        'full_name' => 'User',   // name not stored — generic fallback for email greeting
-                    ];
-                } else {
-                    $emailSkippedReason = 'no_email_in_complaint';
-                    error_log("[UniKL Mail] No email sent for {$ticketId}: submitter_email not in complaints table");
-                }
+    $storedEmail = decryptField($ticket['submitter_email'] ?? '');
+    $storedName  = decryptField($ticket['submitter_name'] ?? '');
+    if (!empty($storedEmail)) {
+        $submitterData = [
+            'email'     => $storedEmail,
+            'full_name' => !empty($storedName) ? $storedName : 'Valued User',
+        ];
+    } else {
+        $emailSkippedReason = 'no_email_in_complaint';
+        error_log("[UniKL Mail] No email sent for {$ticketId}: submitter_email not in complaints table");
+    }
             } else {
                 $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
                 $subQ->bind_param("i", $ticket['submitter_id']);
@@ -504,8 +505,8 @@ $submitter = null;
 if ($ticket) {
     $type = $ticket['submitter_type'] ?? 'user';
     if ($type === 'user') {
-        $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—';
-        $userNameDisplay = !empty($ticket['submitter_name']) ? $ticket['submitter_name'] : '—';
+        $userEmail = !empty($ticket['submitter_email']) ? decryptField($ticket['submitter_email']) : '—';
+        $userNameDisplay = !empty($ticket['submitter_name']) ? decryptField($ticket['submitter_name']) : '—';
         $submitter = [
             'name'  => $userNameDisplay,
             'email' => $userEmail,
@@ -1038,7 +1039,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
               </div>
               <div class="ti-submitter-cell" style="border-right:none">
                 <div class="ti-submitter-lbl">Phone</div>
-                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone']??'—'); ?></div>
+                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars(decryptField($ticket['phone']??'')?:'—'); ?></div>
               </div>
             </div>
             <?php endif; ?>
