@@ -223,11 +223,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
             $submitterData = null;
             $emailSkippedReason = '';
             if ($subType === 'user') {
-                $storedEmail = $ticket['submitter_email'] ?? '';
+                $storedEmail = decryptField($ticket['submitter_email'] ?? '');
+                $storedName  = decryptField($ticket['submitter_name'] ?? '');
                 if (!empty($storedEmail)) {
                     $submitterData = [
                         'email'     => $storedEmail,
-                        'full_name' => 'User',
+                        'full_name' => !empty($storedName) ? $storedName : 'Valued User',
                     ];
                 } else {
                     $emailSkippedReason = 'no_email_in_complaint';
@@ -536,8 +537,8 @@ $submitter = null;
 if ($ticket) {
     $type = $ticket['submitter_type'] ?? 'user';
     if ($type === 'user') {
-        $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—';
-        $userNameDisplay = !empty($ticket['submitter_name']) ? $ticket['submitter_name'] : '—';
+        $userEmail = !empty($ticket['submitter_email']) ? decryptField($ticket['submitter_email']) : '—';
+        $userNameDisplay = !empty($ticket['submitter_name']) ? decryptField($ticket['submitter_name']) : '—';
         $submitter = [
             'name'  => $userNameDisplay,
             'email' => $userEmail,
@@ -1133,7 +1134,7 @@ $pageSubtitle = 'Maintenance Department';
               </div>
               <div class="ti-submitter-cell" style="border-right:none">
                 <div class="ti-submitter-lbl">Phone</div>
-                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars($ticket['phone'] ?? '—'); ?></div>
+                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars(decryptField($ticket['phone'] ?? '') ?: '—'); ?></div>
               </div>
             </div>
             <?php endif; ?>
@@ -1294,7 +1295,7 @@ $pageSubtitle = 'Maintenance Department';
             <div class="unassigned-pill">⚠️ No staff assigned yet.</div>
             <?php endif; ?>
 
-            <?php if (!empty($deptStaffList)): ?>
+            <?php if (!empty($deptStaffList) && !$isClosed): ?>
             <form method="POST" action="ticket_detail.php?id=<?php echo urlencode($ticketId); ?>">
               <input type="hidden" name="action" value="reassign"/>
               <div class="reassign-label">Reassign to</div>
@@ -1316,6 +1317,9 @@ $pageSubtitle = 'Maintenance Department';
               <button type="submit" id="reassignSaveBtn" class="reassign-btn" style="width:100%;margin-top:8px;display:none;">Save Assignment</button>
             </form>
             <?php endif; ?>
+            <?php if ($isClosed): ?>
+            <div style="margin-top:8px;font-size:11.5px;color:#9CA3AF;text-align:center;">Ticket is closed — reassignment locked</div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -1327,13 +1331,30 @@ $pageSubtitle = 'Maintenance Department';
             </div>
             <div>
               <div class="td-card-header-title">Update Ticket</div>
-              <div class="td-card-header-sub"><?php echo $isAssignedStaff ? 'Change priority &amp; status' : 'View only — not assigned'; ?></div>
+              <div class="td-card-header-sub"><?php echo $isClosed ? 'Ticket is closed — read only' : ($isAssignedStaff ? 'Change priority &amp; status' : 'View only — not assigned'); ?></div>
             </div>
           </div>
           <div class="td-card-body">
             <?php $curPri = strtolower($ticket['priority'] ?? 'medium'); $curStat = strtolower($ticket['status'] ?? 'open'); ?>
 
-            <?php if ($isAssignedStaff): ?>
+            <?php if ($isClosed): ?>
+            <!-- Ticket closed — everything locked, read-only display -->
+            <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#9CA3AF;margin-bottom:6px;">Priority</div>
+            <div style="display:flex;gap:6px;margin-bottom:4px;">
+              <?php foreach(['low'=>['Low','#3B82F6','#EFF6FF'],'medium'=>['Medium','#F59E0B','#FFFBEB'],'high'=>['High','#EF4444','#FEF2F2']] as $val=>$arr): list($lbl,$fg,$bg)=$arr; ?>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 5px;border-radius:8px;border:1.5px solid <?php echo $curPri===$val?$fg:'#E5E7EB'; ?>;background:<?php echo $curPri===$val?$bg:'#F9FAFB'; ?>;opacity:<?php echo $curPri===$val?'1':'.45'; ?>;">
+                <div style="width:7px;height:7px;border-radius:50%;background:<?php echo $fg; ?>;"></div>
+                <div style="font-size:11.5px;font-weight:<?php echo $curPri===$val?'700':'500'; ?>;color:<?php echo $curPri===$val?$fg:'#9CA3AF'; ?>;"><?php echo $lbl; ?></div>
+              </div>
+              <?php endforeach; ?>
+            </div>
+            <div style="height:1px;background:#F3F4F6;margin:14px 0;"></div>
+            <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#9CA3AF;margin-bottom:6px;">Status</div>
+            <div style="padding:9px 11px;border:1.5px solid #E5E7EB;border-radius:7px;font-size:13px;color:#9CA3AF;background:#F9FAFB;">
+              Closed
+            </div>
+
+            <?php elseif ($isAssignedStaff): ?>
               <div class="pri-label-sm">Priority <span id="priSavingSpinner" style="display:none;font-size:10px;color:#9CA3AF;font-weight:400;margin-left:3px">saving…</span></div>
               <div class="pri-btn-group">
                 <?php foreach(['low'=>'Low','medium'=>'Medium','high'=>'High'] as $val=>$label): ?>

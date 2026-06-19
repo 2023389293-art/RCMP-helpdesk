@@ -233,11 +233,12 @@ if ($logStmt2) {
                 $submitterData = null;
                 $emailSkippedReason = '';
                 if ($subType === 'user') {
-                    $storedEmail = $ticket['submitter_email'] ?? '';
+                    $storedEmail = decryptField($ticket['submitter_email'] ?? '');
+                    $storedName  = decryptField($ticket['submitter_name'] ?? '');
                     if (!empty($storedEmail)) {
                         $submitterData = [
                             'email'     => $storedEmail,
-                            'full_name' => $ticket['submitter_name'] ?? 'User',
+                            'full_name' => !empty($storedName) ? $storedName : 'User',
                         ];
                     } else {
                         $emailSkippedReason = 'no_email_in_complaint';
@@ -344,6 +345,16 @@ HTML;
             }
 
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>' . htmlspecialchars($statusLabel) . '</strong>.';
+
+            // ── PDPA: wipe personal data from complaints table once closed ──
+            if ($newStatus === 'closed' && $oldStatus !== 'closed') {
+                $wipe = $conn->prepare("UPDATE complaints SET submitter_email = NULL, submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = 2");
+                if ($wipe) {
+                    $wipe->bind_param("s", $ticketId);
+                    $wipe->execute();
+                    $wipe->close();
+                }
+            }
         } else {
             $_SESSION['flash_error'] = 'Failed to update ticket.';
         }
@@ -358,8 +369,8 @@ $submitter = null;
 if ($ticket) {
     $type = $ticket['submitter_type'] ?? 'user';
     if ($type === 'user') {
-        $userEmail = !empty($ticket['submitter_email']) ? $ticket['submitter_email'] : '—';
-        $userNameDisplay = !empty($ticket['submitter_name']) ? $ticket['submitter_name'] : '—';
+        $userEmail = !empty($ticket['submitter_email']) ? decryptField($ticket['submitter_email']) : '—';
+        $userNameDisplay = !empty($ticket['submitter_name']) ? decryptField($ticket['submitter_name']) : '—';
         $submitter = [
             'name'  => $userNameDisplay,
             'email' => $userEmail,
@@ -780,7 +791,7 @@ function ratingColors(int $rating): array {
   </div>
   <div class="ti-submitter-cell" style="border-right:none">
     <div class="ti-submitter-lbl">Phone</div>
-    <div class="ti-submitter-val">+60 <?= htmlspecialchars($ticket['phone'] ?? '—') ?></div>
+    <div class="ti-submitter-val">+60 <?= htmlspecialchars(decryptField($ticket['phone'] ?? '') ?: '—') ?></div>
   </div>
 </div>
 <?php endif; ?>
