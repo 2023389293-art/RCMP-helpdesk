@@ -597,7 +597,31 @@ ob_start();
   pointer-events: none !important;
 }
 
+/* ── AFTER-HOURS CONFIRMATION MODAL ── */
+.ah-modal{display:none;position:fixed;inset:0;z-index:997;
+  background:rgba(10,20,50,.6);backdrop-filter:blur(5px);
+  align-items:center;justify-content:center;}
+.ah-modal.show{display:flex;}
+.ah-card{background:white;border-radius:20px;padding:40px 36px;max-width:440px;
+  width:90%;text-align:center;animation:scaleIn .35s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 24px 80px rgba(0,0,0,.18);}
+.ah-icon{width:64px;height:64px;border-radius:50%;background:#fff3e0;
+  border:2px solid #ffcc80;display:flex;align-items:center;justify-content:center;
+  margin:0 auto 18px;}
+.ah-icon svg{width:28px;height:28px;fill:none;stroke:#e65100;stroke-width:2;}
+.ah-title{font-family:'DM Serif Display',serif;font-size:21px;color:#bf360c;margin-bottom:8px;}
+.ah-body{font-size:13px;color:#5d4037;line-height:1.7;margin-bottom:16px;}
+.ah-sla{display:inline-flex;align-items:center;gap:8px;background:#fff8e1;
+  border:1px solid #ffe082;border-radius:10px;padding:10px 18px;
+  font-size:13px;font-weight:600;color:#6d3200;margin-bottom:24px;}
+.ah-sla svg{width:15px;height:15px;fill:none;stroke:#e65100;stroke-width:2;}
+.ah-actions{display:flex;gap:10px;justify-content:center;}
+
 </style>
+
+
+
+
 <?php
 $extraHead = ob_get_clean();
 require 'layout.php';
@@ -836,16 +860,6 @@ require 'layout.php';
 
       <div class="form-section-label">Your Information</div>
       <div class="field-grid" style="grid-template-columns:1fr 1fr;">
-        <div class="field">
-          <label>Full Name</label>
-          <input type="text" value="<?php echo htmlspecialchars($userName); ?>" readonly
-            style="background:#f3f4f6;color:#6b7280;cursor:not-allowed;border-color:#e5e7eb;"/>
-        </div>
-        <div class="field">
-          <label>Email Address</label>
-          <input type="text" value="<?php echo htmlspecialchars($userEmail); ?>" readonly
-            style="background:#f3f4f6;color:#6b7280;cursor:not-allowed;border-color:#e5e7eb;"/>
-        </div>
         <div class="field">
           <label for="phone">Phone Number <span class="req">*</span></label>
           <div class="phone-wrap">
@@ -1243,7 +1257,7 @@ require 'layout.php';
         </svg>
         Add Another
       </button>
-      <button type="button" class="btn-confirm" id="finalSubmitBtn" onclick="submitAllBatch()">
+      <button type="button" class="btn-confirm" id="finalSubmitBtn" onclick="maybeAfterHours(submitAllBatch)">
         Submit All
         <span id="finalSubmitCount" style="background:rgba(255,255,255,.25);border-radius:100px;
               padding:1px 8px;font-size:11px;font-weight:700;">1</span>
@@ -2998,7 +3012,53 @@ document.getElementById('subcategory_select').addEventListener('change', functio
 });
 
 </script>
+
+<!-- ── AFTER-HOURS CONFIRMATION MODAL ── -->
+<div class="ah-modal" id="afterHoursModal">
+  <div class="ah-card">
+    <div class="ah-icon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </div>
+    <div class="ah-title">Outside Working Hours</div>
+    <div class="ah-body">
+      Your complaint will be received, but the SLA 8-hour response window
+      will only begin on the next working day.
+    </div>
+    <div class="ah-sla">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      SLA starts: <?php echo $slaDisplay; ?>
+    </div>
+    <div class="ah-actions">
+      <button type="button" class="btn-ghost" onclick="closeAfterHoursModal()">Go Back</button>
+      <button type="button" class="btn-primary-sm" id="ahProceedBtn" onclick="proceedAfterHours()">
+        Submit Anyway
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── AFTER-HOURS POPUP ─────────────────────────────────────────
+const _isWorkingHours = <?php echo $isWorkingHours ? 'true' : 'false'; ?>;
+let _afterHoursProceedFn = null;
+
+function maybeAfterHours(proceedFn) {
+  if (_isWorkingHours) { proceedFn(); return; }
+  _afterHoursProceedFn = proceedFn;
+  document.getElementById('afterHoursModal').classList.add('show');
+}
+function closeAfterHoursModal() {
+  document.getElementById('afterHoursModal').classList.remove('show');
+  _afterHoursProceedFn = null;
+}
+function proceedAfterHours() {
+  document.getElementById('afterHoursModal').classList.remove('show');
+  if (_afterHoursProceedFn) { _afterHoursProceedFn(); _afterHoursProceedFn = null; }
+}
+  </script>
+
 <?php
+
 $extraFoot = ob_get_clean();
 require 'layout_end.php';
 ?>
