@@ -1,5 +1,5 @@
 <?php
-// dept/it/staff_notifications_api.php  
+// dept/afsmd/staff_notifications_api.php  
 // Returns JSON: { notifications: [...] }
 //
 // Notification types:
