@@ -463,7 +463,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </a>
     <p class="sso-note">Use your UniKL Microsoft account.</p>
 
-    <?php if (false): // manual login disabled ?>
     <!-- OR divider -->
     <div class="or-row">
       <div class="or-line"></div>
@@ -530,7 +529,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
       </div>
     </div><!-- /manual-panel -->
-    <?php endif; ?>
 
     <!-- Back link -->
     <div class="bottom-link" style="margin-top:18px;">
@@ -543,7 +541,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 </div>
 
-<!--
 <script>
   /* ── Toggle manual panel ── */
   const toggleBtn   = document.getElementById('toggleBtn');
@@ -567,7 +564,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     eye.innerHTML = show ? shutEye : openEye;
   });
 </script>
--->
 
 </body>
 </html>

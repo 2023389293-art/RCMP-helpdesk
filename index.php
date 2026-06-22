@@ -438,6 +438,43 @@
     .fchip strong { color: rgba(255,255,255,0.9); }
     .footer-right { font-size: 10.5px; color: rgba(255,255,255,0.28); letter-spacing: 0.04em; }
 
+    /* ── USER MANUAL MODAL ── */
+    .fchip-clickable { cursor: pointer; border: none; }
+    .fchip-clickable:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.2); }
+
+    .manual-modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(20,40,69,0.78);
+      z-index: 1000;
+      align-items: center; justify-content: center;
+      padding: 40px;
+    }
+    .manual-modal-overlay.active { display: flex; }
+    .manual-modal-content {
+      position: relative;
+      max-width: 90vw; max-height: 90vh;
+      background: #fff;
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    }
+    .manual-modal-content img {
+      display: block;
+      max-width: 100%; max-height: 82vh;
+      border-radius: 4px;
+    }
+    .manual-modal-close {
+      position: absolute; top: -16px; right: -16px;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--navy-dark); color: #fff;
+      border: 2px solid var(--gold);
+      font-size: 18px; font-weight: 700; line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .manual-modal-close:hover { background: var(--gold); }
+
     /* ── ANIMATIONS ── */
     @keyframes fadeUp {
       from { opacity:0; transform:translateY(16px); }
@@ -647,7 +684,7 @@ nav { padding: 0 16px; height: 60px; }
     </a>
     <div class="nav-actions">
 
-      <a href="staff_login.php" class="btn-icon-admin" data-tooltip="For Admin / Staff Login" aria-label="Admin Login">
+      <a href="staff_login.php" class="btn-icon-admin" data-tooltip="For Administration" aria-label="Admin Login">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <circle cx="11" cy="8.2" r="4" fill="#FFFFFF"/>
           <path d="M3 20.5c0-4.6 3.6-7.4 8-7.4s8 2.8 8 7.4" fill="#FFFFFF"/>
@@ -737,10 +774,34 @@ nav { padding: 0 16px; height: 60px; }
         <svg viewBox="0 0 24 24" fill="none" stroke="rgba(212,160,23,0.8)" stroke-width="2" width="11" height="11"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Real-time ticket tracking
       </div>
+      <div class="fchip fchip-clickable" onclick="openUserManual()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(212,160,23,0.8)" stroke-width="2" width="11" height="11"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        User Manual
+      </div>
       
     </div>
     <div class="footer-right">© <?php echo date('Y'); ?> UniKL RCMP · RUSH — RCMP User Helpdesk</div>
   </footer>
+
+<!-- ── USER MANUAL MODAL ── -->
+  <div class="manual-modal-overlay" id="userManualModal" onclick="if(event.target===this) closeUserManual()">
+    <div class="manual-modal-content">
+      <button class="manual-modal-close" onclick="closeUserManual()" aria-label="Close">&times;</button>
+      <img src="img/User Manual.png" alt="User Manual" />
+    </div>
+  </div>
+
+  <script>
+    function openUserManual() {
+      document.getElementById('userManualModal').classList.add('active');
+    }
+    function closeUserManual() {
+      document.getElementById('userManualModal').classList.remove('active');
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeUserManual();
+    });
+  </script>
 
 </body>
 </html>
