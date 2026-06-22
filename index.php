@@ -97,7 +97,7 @@
 
     .btn-icon-admin {
       position: relative;
-      width: 40px; height: 40px;
+      width: 46px; height: 46px;
       border-radius: 50%;
       border: none; background: var(--navy); color: #fff;
       cursor: pointer; text-decoration: none;
@@ -106,7 +106,7 @@
       box-shadow: 0 2px 8px rgba(30,58,95,0.3);
     }
     .btn-icon-admin:hover { background: var(--navy-dark); transform: translateY(-1px); }
-    .btn-icon-admin svg { width: 24px; height: 24px; overflow: visible; }
+    .btn-icon-admin svg { width: 30px; height: 30px; overflow: visible; }
 
     /* custom tooltip */
     .btn-icon-admin::after {
@@ -686,12 +686,19 @@ nav { padding: 0 16px; height: 60px; }
 
       <a href="staff_login.php" class="btn-icon-admin" data-tooltip="For Administration" aria-label="Admin Login">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="11" cy="8.2" r="4" fill="#FFFFFF"/>
-          <path d="M3 20.5c0-4.6 3.6-7.4 8-7.4s8 2.8 8 7.4" fill="#FFFFFF"/>
-          <circle cx="17.5" cy="17.5" r="4.6" fill="#D4A017"/>
-          <circle cx="17.5" cy="15.9" r="1.1" fill="#142845"/>
-          <rect x="17.05" y="16.7" width="0.9" height="2.4" rx="0.45" fill="#142845"/>
-          <rect x="17.5" y="18.3" width="1.5" height="0.7" rx="0.3" fill="#142845"/>
+          <!-- head -->
+          <circle cx="12" cy="6.5" r="3.5" fill="#FFFFFF"/>
+          <!-- suit body / shoulders -->
+          <path d="M3 22 C3 16 6 13.5 9.5 13 L10.5 15 L12 13.8 L13.5 15 L14.5 13 C18 13.5 21 16 21 22 Z" fill="#FFFFFF"/>
+          <!-- shirt collar white gap -->
+          <path d="M10.5 15 L12 13.8 L13.5 15 L12 22 Z" fill="#142845"/>
+          <!-- tie -->
+          <path d="M11.3 15.2 L12 14.5 L12.7 15.2 L12.4 19.5 L12 20.2 L11.6 19.5 Z" fill="#D4A017"/>
+          <!-- gold badge -->
+          <circle cx="18.5" cy="18.5" r="4" fill="#D4A017"/>
+          <!-- shield / operator mark -->
+          <path d="M18.5 15.5 L16.2 16.5 L16.2 18.8 C16.2 20.1 17.2 21.2 18.5 21.5 C19.8 21.2 20.8 20.1 20.8 18.8 L20.8 16.5 Z" fill="#142845"/>
+          <polyline points="17.3,18.5 18.2,19.4 19.9,17.4" fill="none" stroke="#D4A017" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </a>
     </div>
