@@ -180,28 +180,39 @@ if (!empty($staffCategories)) {
 
 if ($action === 'edit') {
         $sid   = (int)($_POST['staff_id'] ?? 0);
-        $name  = trim($_POST['full_name'] ?? '');
-        $email = trim($_POST['email']     ?? '');
-        $phone = trim($_POST['phone']     ?? '');
+        $name  = trim($_POST['full_name']   ?? '');
+        $email = trim($_POST['email']       ?? '');
+        $phone = trim($_POST['phone']       ?? '');
+        $code  = trim($_POST['staff_code']  ?? '');
 
-        if (!$name || !$email) {
-            $error = 'Name and email are required.';
+        if (!$name || !$email || !$code) {
+            $error = 'Name, email and staff code are required.';
+        } elseif (!preg_match('/^\d{6}$/', $code)) {
+            $error = 'Staff code must be exactly 6 digits (numbers only).';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Invalid email address.';
         } elseif ($phone !== '' && !preg_match('/^\d{10,11}$/', $phone)) {
             $error = 'Phone number must be 10 or 11 digits.';
         } else {
+            // Check duplicate email (excluding self)
             $chk = $conn->prepare("SELECT staff_id FROM staff WHERE email = ? AND staff_id != ?");
             $chk->bind_param("si", $email, $sid);
             $chk->execute();
             if ($chk->get_result()->num_rows > 0) {
                 $error = 'Another staff member already uses this email.';
             } else {
+                // Check duplicate staff code (excluding self)
+                $chkCode = $conn->prepare("SELECT staff_id FROM staff WHERE staff_code = ? AND staff_id != ?");
+                $chkCode->bind_param("si", $code, $sid);
+                $chkCode->execute();
+                if ($chkCode->get_result()->num_rows > 0) {
+                    $error = 'Another staff member already uses this staff code.';
+                } else {
                 $categories = $_POST['categories'] ?? [];
 $category   = !empty($categories) ? $categories[0] : '';
 
-$u = $conn->prepare("UPDATE staff SET full_name = ?, email = ?, phone = ?, category = ? WHERE staff_id = ? AND dept_id = 1");
-$u->bind_param("ssssi", $name, $email, $phone, $category, $sid);
+$u = $conn->prepare("UPDATE staff SET staff_code = ?, full_name = ?, email = ?, phone = ?, category = ? WHERE staff_id = ? AND dept_id = 1");
+$u->bind_param("sssssi", $code, $name, $email, $phone, $category, $sid);
 if ($u->execute()) {
 
     // Delete old staff_categories for this dept
@@ -240,13 +251,14 @@ if ($u->execute()) {
     }
 
     header('Location: users.php?success=edited');
-    exit;
+                    exit;
                 } else {
                     $error = 'Update failed: ' . $conn->error;
                 }
-            }
-        }
-    }
+                } // close duplicate-code else
+            } // close duplicate-email else
+        } // close main validation else
+    } // close edit action
 
 
     if ($action === 'reset_password') {
@@ -382,6 +394,11 @@ foreach ($scRows as $scRow) {
     .actions-cell form { display: inline-flex; }
 
 
+  /* Fix hover — use a visually distinct color from thead gray-100 */
+  .data-table tbody tr:hover td {
+    background-color: #ede9fe !important; /* light purple, distinct from header */
+    transition: background-color 0.15s ease;
+  }
   </style>
 </head>
 <body>
@@ -484,7 +501,7 @@ foreach ($scRows as $scRow) {
 
             <!-- Edit Staff button -->
             <button type="button" class="icon-btn btn-edit" title="Edit Staff"
-                    onclick="openEditModal(<?= $s['staff_id'] ?>, '<?= htmlspecialchars(addslashes($s['full_name'])) ?>', '<?= htmlspecialchars(addslashes($s['email'])) ?>', '<?= htmlspecialchars(addslashes($s['phone'] ?? '')) ?>', '<?= $s['role'] ?>')">
+                    onclick="openEditModal(<?= $s['staff_id'] ?>, '<?= htmlspecialchars(addslashes($s['full_name'])) ?>', '<?= htmlspecialchars(addslashes($s['email'])) ?>', '<?= htmlspecialchars(addslashes($s['phone'] ?? '')) ?>', '<?= $s['role'] ?>', '<?= htmlspecialchars(addslashes($s['staff_code'])) ?>')">
               <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
 
@@ -696,6 +713,14 @@ foreach ($scRows as $scRow) {
     <form method="POST" class="modal-form" id="editForm" onsubmit="return validateEditForm()">
       <input type="hidden" name="action"   value="edit"/>
       <input type="hidden" name="staff_id" id="editStaffId"/>
+      <div class="field">
+        <label>Staff Code <span class="req">*</span></label>
+        <input type="text" name="staff_code" id="editStaffCode"
+               placeholder="e.g. 001007" maxlength="6" pattern="\d{6}"
+               inputmode="numeric"
+               title="Staff code must be exactly 6 digits (numbers only)" required/>
+        <small style="color:#9ca3af;font-size:0.75rem;">Must be exactly 6 digits (numbers only).</small>
+      </div>
       <div class="field">
         <label>Full Name <span class="req">*</span></label>
         <input type="text" name="full_name" id="editFullName" placeholder="Full name as per ID" required/>
@@ -981,9 +1006,10 @@ document.getElementById('addPwToggle').addEventListener('click', function () {
 });
 
 // ── Edit Staff modal ───────────────────────────────────────────────────
-function openEditModal(id, name, email, phone, role) {
+function openEditModal(id, name, email, phone, role, code) {
   document.getElementById('editStaffId').value         = id;
   document.getElementById('editModalName').textContent = name;
+  document.getElementById('editStaffCode').value       = code || '';
   document.getElementById('editFullName').value        = name;
   document.getElementById('editEmail').value           = email;
   document.getElementById('editPhone').value           = phone || '';
@@ -1015,6 +1041,12 @@ function openEditModal(id, name, email, phone, role) {
 }
 
 function validateEditForm() {
+  const code = document.getElementById('editStaffCode').value.trim();
+  if (!/^\d{6}$/.test(code)) {
+    alert('Staff code must be exactly 6 digits (numbers only).');
+    document.getElementById('editStaffCode').focus();
+    return false;
+  }
   const phone = document.getElementById('editPhone').value.trim();
   if (phone !== '' && !/^\d{10,11}$/.test(phone)) {
     alert('Phone number must be 10 or 11 digits (numbers only).');

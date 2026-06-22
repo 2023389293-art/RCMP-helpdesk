@@ -1140,7 +1140,7 @@ function filterCats(deptId, listId, secId, checkedIds) {
   filtered.forEach(c => {
     const parts = c.category_name.split('/');
     const label = (parts[1] || c.category_name).trim();
-    const checked = checkedIds && checkedIds.includes(c.category_id) ? 'checked' : '';
+    const checked = checkedIds && checkedIds.map(Number).includes(Number(c.category_id)) ? 'checked' : '';
     list.innerHTML += `
       <label style="display:flex;align-items:center;gap:8px;font-size:0.875rem;cursor:pointer;font-weight:400;">
         <input type="checkbox" name="category_ids[]" value="${c.category_id}" ${checked}
@@ -1162,40 +1162,82 @@ function filterEditCats(checkedIds) {
 function openViewModal(s) {
   document.getElementById('viewModalTitle').textContent = s.full_name;
   document.getElementById('viewModalSubtitle').textContent = s.staff_code + ' · ' + (s.role.charAt(0).toUpperCase() + s.role.slice(1));
-  const rows = [
-    ['Staff Code', s.staff_code], ['Full Name', s.full_name],
+
+  // Build rows without category first, insert a placeholder
+  const baseRows = [
+    ['Staff Code', s.staff_code],
+    ['Full Name', s.full_name],
     ['Role', s.role.charAt(0).toUpperCase() + s.role.slice(1)],
-    ['Email', s.email], ['Phone', s.phone || '—'],
-    ['Department', s.dept_name || '—'], ['Category', s.category || '—'],
+    ['Email', s.email],
+    ['Phone', s.phone || '—'],
+    ['Department', s.dept_name || '—'],
     ['Status', s.status.charAt(0).toUpperCase() + s.status.slice(1)],
     ['Joined', s.created_at ? s.created_at.split(' ')[0] : '—'],
   ];
-  document.getElementById('viewModalBody').innerHTML = rows.map(([l,v]) =>
-    `<div class="view-row"><span class="view-label">${l}</span><span class="view-val">${v}</span></div>`
-  ).join('');
+
+  // Render immediately with a loading placeholder for category
+  document.getElementById('viewModalBody').innerHTML =
+    baseRows.map(([l,v]) =>
+      `<div class="view-row"><span class="view-label">${l}</span><span class="view-val">${v}</span></div>`
+    ).join('') +
+    `<div class="view-row"><span class="view-label">Category</span><span class="view-val" id="viewCategoryVal"><em style="color:#9ca3af;">Loading…</em></span></div>`;
+
   openModal('viewModal');
+
+  // Fetch all categories from junction table
+  fetch('get_staff_categories_sa.php?staff_id=' + s.staff_id)
+    .then(r => r.json())
+    .then(data => {
+      const catEl = document.getElementById('viewCategoryVal');
+      if (!catEl) return;
+      const ids = (data.category_ids || []).map(Number);
+      if (!ids.length) { catEl.textContent = '—'; return; }
+      // Match IDs against ALL_CATS to get display labels
+      const labels = ALL_CATS
+        .filter(c => ids.includes(Number(c.category_id)))
+        .map(c => {
+          const parts = c.category_name.split('/');
+          return (parts[1] || c.category_name).trim();
+        });
+      catEl.innerHTML = labels.length
+        ? labels.map(l => `<span class="cat-chip" style="margin:1px 3px 1px 0;">${l}</span>`).join('')
+        : '—';
+    })
+    .catch(() => {
+      const catEl = document.getElementById('viewCategoryVal');
+      if (catEl) catEl.textContent = s.category || '—';
+    });
 }
 
 function openEditModal(s) {
   document.getElementById('editModalSubtitle').textContent = 'Editing: ' + s.full_name;
-  document.getElementById('editStaffId').value  = s.staff_id;
-  document.getElementById('editFullName').value = s.full_name;
-  document.getElementById('editEmail').value    = s.email;
-  document.getElementById('editPhone').value    = (s.phone || '').replace(/[^0-9]/g, '').slice(0, 11);
-  document.getElementById('editStatus').value   = s.status;
-  document.getElementById('editDeptId').value   = s.dept_id || '';
+  document.getElementById('editStaffId').value   = s.staff_id;
+  document.getElementById('editFullName').value  = s.full_name;
+  document.getElementById('editEmail').value     = s.email;
+  document.getElementById('editPhone').value     = (s.phone || '').replace(/[^0-9]/g, '').slice(0, 11);
+  document.getElementById('editStatus').value    = s.status;
+  document.getElementById('editDeptId').value    = s.dept_id || '';
   document.getElementById('editStaffCode').value = s.staff_code || '';
 
-  // Fetch current categories then build checkboxes
+  // Open modal first so the category section is in the DOM and visible
+  openModal('editModal');
+
+  // Show a loading indicator in the category list while fetching
+  const editList = document.getElementById('editCategoryList');
+  const editSec  = document.getElementById('editCategorySection');
+  if (s.dept_id) {
+    editList.innerHTML = '<em style="color:#9ca3af;font-size:13px;">Loading categories…</em>';
+    editSec.classList.add('visible');
+  }
+
+  // Fetch current categories then build checkboxes with correct checked state
   fetch('get_staff_categories_sa.php?staff_id=' + s.staff_id)
     .then(r => r.json())
     .then(data => {
-      const checkedIds = data.category_ids || [];
+      const checkedIds = (data.category_ids || []).map(Number);
       filterEditCats(checkedIds);
     })
     .catch(() => { filterEditCats([]); });
-
-  openModal('editModal');
 }
 
 function openResetModal(id, name) {

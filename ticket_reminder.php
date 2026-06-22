@@ -29,13 +29,11 @@ require __DIR__ . '/PHPMailer-master/src/SMTP.php';
 
 date_default_timezone_set(SLA_TIMEZONE);
 
-// ── STEP 1: Ensure the tracking column exists ─────────────────────────────────
-// We store the reminder timestamp directly on the complaints table so we never
-// send the same reminder twice — no extra table needed.
-$conn->query("
-    ALTER TABLE complaints
-    ADD COLUMN IF NOT EXISTS reminder_sent_at DATETIME NULL DEFAULT NULL
-");
+// ── DEBUG LOG ─────────────────────────────────────────────────────────────────
+$logFile = __DIR__ . '/reminder_debug.log';
+file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Script started\n", FILE_APPEND);
+
+// ── STEP 1: (column reminder_sent_at already exists in DB — no action needed) ──
 
 // ── STEP 2: Find tickets that need a reminder ─────────────────────────────────
 //
@@ -55,7 +53,8 @@ cat.category_name,
 c.my_department,
 c.priority,
 c.sla_start_at,
-d.dept_name
+        c.reminder_sent_at,
+        d.dept_name
     FROM complaints c
     LEFT JOIN categories cat ON cat.category_id = c.category_id
     LEFT JOIN departments d  ON d.dept_id = c.dept_id
