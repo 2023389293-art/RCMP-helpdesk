@@ -95,6 +95,60 @@
     .btn-navy-solid:hover { background: var(--navy-dark); transform: translateY(-1px); }
     .btn-navy-solid svg { width: 14px; height: 14px; }
 
+    .btn-icon-admin {
+      position: relative;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      border: none; background: var(--navy); color: #fff;
+      cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: background 0.2s, transform 0.15s;
+      box-shadow: 0 2px 8px rgba(30,58,95,0.3);
+    }
+    .btn-icon-admin:hover { background: var(--navy-dark); transform: translateY(-1px); }
+    .btn-icon-admin svg { width: 24px; height: 24px; overflow: visible; }
+
+    /* custom tooltip */
+    .btn-icon-admin::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      background: var(--navy-dark);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      padding: 6px 12px;
+      border-radius: 5px;
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(-4px);
+      transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      z-index: 200;
+    }
+    .btn-icon-admin::before {
+      content: '';
+      position: absolute;
+      top: 100%;
+      right: 14px;
+      border: 5px solid transparent;
+      border-bottom-color: var(--navy-dark);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.2s, visibility 0.2s;
+      z-index: 200;
+    }
+    .btn-icon-admin:hover::after,
+    .btn-icon-admin:hover::before {
+      opacity: 1;
+      visibility: visible;
+    }
+
     /* ── HERO — full-bleed, everything inside ── */
     .hero {
   background: #d8deea;
@@ -593,9 +647,15 @@ nav { padding: 0 16px; height: 60px; }
     </a>
     <div class="nav-actions">
 
-      <a href="staff_login.php" class="btn-navy-solid">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Internal Login
+      <a href="staff_login.php" class="btn-icon-admin" data-tooltip="For Admin / Staff Login" aria-label="Admin Login">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="11" cy="8.2" r="4" fill="#FFFFFF"/>
+          <path d="M3 20.5c0-4.6 3.6-7.4 8-7.4s8 2.8 8 7.4" fill="#FFFFFF"/>
+          <circle cx="17.5" cy="17.5" r="4.6" fill="#D4A017"/>
+          <circle cx="17.5" cy="15.9" r="1.1" fill="#142845"/>
+          <rect x="17.05" y="16.7" width="0.9" height="2.4" rx="0.45" fill="#142845"/>
+          <rect x="17.5" y="18.3" width="1.5" height="0.7" rx="0.3" fill="#142845"/>
+        </svg>
       </a>
     </div>
   </nav>

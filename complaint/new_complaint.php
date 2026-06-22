@@ -1293,24 +1293,33 @@ require 'layout.php';
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
       <?php
       $modalDepts = [
-        ['key'=>'Information Technology Department',                  'label'=>'Information Technology',     'color'=>'#2563EB','bg'=>'#EFF6FF','icon'=>'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'],
-        ['key'=>'Maintenance Department',                            'label'=>'Maintenance',                 'color'=>'#16A34A','bg'=>'#F0FDF4','icon'=>'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'],
-        ['key'=>'Administration &amp; Facilities Management Department','label'=>'Admin &amp; Facilities Mgmt','color'=>'#EA580C','bg'=>'#FFF7ED','icon'=>'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'],
-        ['key'=>'Corporate Communication Unit',                      'label'=>'Corporate Communication',     'color'=>'#7C3AED','bg'=>'#FAF5FF','icon'=>'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'],
-        ['key'=>'Human Capital Department',                          'label'=>'Human Capital',               'color'=>'#E11D48','bg'=>'#FFF1F2','icon'=>'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'],
+        ['key'=>'Information Technology Department',                  'label'=>'Information Technology',     'color'=>'#2563EB','bg'=>'#EFF6FF','icon'=>'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',         'disabled'=>false],
+        ['key'=>'Maintenance Department',                            'label'=>'Maintenance',                 'color'=>'#16A34A','bg'=>'#F0FDF4','icon'=>'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',  'disabled'=>false],
+        ['key'=>'Administration &amp; Facilities Management Department','label'=>'Admin &amp; Facilities Mgmt','color'=>'#EA580C','bg'=>'#FFF7ED','icon'=>'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',                            'disabled'=>false],
+        // HIDDEN: Corporate Communication option — uncomment to re-enable
+        // ['key'=>'Corporate Communication Unit',                      'label'=>'Corporate Communication',     'color'=>'#7C3AED','bg'=>'#FAF5FF','icon'=>'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',                                                             'disabled'=>true],
+        // HIDDEN: Human Capital option — uncomment to re-enable
+        // ['key'=>'Human Capital Department',                          'label'=>'Human Capital',               'color'=>'#E11D48','bg'=>'#FFF1F2','icon'=>'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',  'disabled'=>true],
       ];
       foreach ($modalDepts as $md):
+        $disabled = $md['disabled'] ?? false;
       ?>
       <button type="button"
-        onclick="pickAddAnotherDept('<?php echo addslashes($md['key']); ?>', 'complaint')"
+        <?php if (!$disabled): ?>
+          onclick="pickAddAnotherDept('<?php echo addslashes($md['key']); ?>', 'complaint')"
+          onmouseover="this.style.borderColor='<?php echo $md['color']; ?>';this.style.boxShadow='0 4px 12px <?php echo $md['color']; ?>22';"
+          onmouseout="this.style.borderColor='<?php echo $md['color']; ?>22';this.style.boxShadow='none';"
+        <?php else: ?>
+          disabled
+          title="Coming soon — not yet available"
+        <?php endif; ?>
         style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
                padding:14px 10px;border-radius:12px;
                border:1.5px solid <?php echo $md['color']; ?>22;
                background:<?php echo $md['bg']; ?>;
-               cursor:pointer;font-family:'DM Sans',sans-serif;
-               text-align:center;transition:all .18s;width:100%;"
-        onmouseover="this.style.borderColor='<?php echo $md['color']; ?>';this.style.boxShadow='0 4px 12px <?php echo $md['color']; ?>22';"
-        onmouseout="this.style.borderColor='<?php echo $md['color']; ?>22';this.style.boxShadow='none';">
+               <?php echo $disabled ? 'cursor:not-allowed;opacity:0.4;filter:grayscale(0.4);' : 'cursor:pointer;' ?>
+               font-family:'DM Sans',sans-serif;
+               text-align:center;transition:all .18s;width:100%;">
         <div style="width:32px;height:32px;border-radius:8px;
                     background:<?php echo $md['color']; ?>18;
                     display:flex;align-items:center;justify-content:center;flex-shrink:0;">
@@ -1323,10 +1332,18 @@ require 'layout.php';
                      line-height:1.3;letter-spacing:0.01em;">
           <?php echo $md['label']; ?>
         </span>
+        <?php if ($disabled): ?>
+        <span style="font-size:9px;font-weight:600;color:#94a3b8;
+                     background:#f1f5f9;border-radius:100px;padding:1px 7px;
+                     letter-spacing:0.04em;margin-top:1px;">
+          Coming Soon
+        </span>
+        <?php endif; ?>
       </button>
       <?php endforeach; ?>
     </div>
 
+    <?php /* HIDDEN: Request Equipment shortcut — uncomment to re-enable
     <!-- Request equipment shortcut (AFSMD only) -->
     <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
                 color:var(--g500);margin-bottom:10px;">Or add a Request</div>
@@ -1350,6 +1367,7 @@ require 'layout.php';
         <div style="font-size:10px;color:#5eaaa3;font-weight:500;margin-top:1px;">Admin &amp; Facilities</div>
       </div>
     </button>
+    */ ?>
   </div>
 </div>
 
