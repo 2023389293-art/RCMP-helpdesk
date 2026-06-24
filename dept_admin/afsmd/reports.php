@@ -25,6 +25,7 @@ $slaRawReport = $conn->query("
         c.ticket_id, c.status, c.priority,
         c.created_at, c.sla_start_at, c.resolved_at,
         c.first_response_at,
+        c.assigned_to,
         (SELECT MIN(l.changed_at)
          FROM ticket_logs l
          WHERE l.ticket_id = c.ticket_id
@@ -89,6 +90,12 @@ $allTickets = $conn->query("
         0 AS is_breached,
         NULL AS resolution_hours,
         s.full_name AS assigned_staff_name,
+        c.submitter_type,
+        c.submitter_id,
+        c.submitter_name,
+        c.submitter_email,
+        sub_s.full_name AS submitter_staff_name,
+        sub_s.email     AS submitter_staff_email,
         /* Fallback: get first response from ticket_logs if first_response_at is NULL */
         (SELECT MIN(l.changed_at)
          FROM ticket_logs l
@@ -98,11 +105,13 @@ $allTickets = $conn->query("
         ) AS first_log_response_at
     FROM complaints c
     JOIN categories cat ON cat.category_id = c.category_id
-    LEFT JOIN staff s ON s.staff_id = c.assigned_to
+    LEFT JOIN staff s    ON s.staff_id    = c.assigned_to
+    LEFT JOIN staff sub_s ON sub_s.staff_id = c.submitter_id
     WHERE c.dept_id = 1
     GROUP BY c.ticket_id, c.title, cat.category_name, c.status,
              c.priority, c.created_at, c.sla_start_at, c.resolved_at,
-             c.first_response_at, s.full_name
+             c.first_response_at, s.full_name, c.submitter_type, c.submitter_id,
+             c.submitter_name, c.submitter_email, sub_s.full_name, sub_s.email
     ORDER BY c.created_at DESC
 ")->fetch_all(MYSQLI_ASSOC);
 
@@ -151,6 +160,16 @@ foreach ($allTickets as &$t) {
         $elapsedMins = workingMinutesBetween($from, $now);
         $t['is_breached'] = ($elapsedMins >= SLA_WORK_HOURS * 60) ? 1 : 0;
     }
+// ── Resolve submitter name/email based on type ────────────────────────
+    if (($t['submitter_type'] ?? '') === 'staff') {
+        $t['submitter_name']  = $t['submitter_staff_name']  ?? null;
+        $t['submitter_email'] = $t['submitter_staff_email'] ?? null;
+    } else {
+        $t['submitter_name']  = !empty($t['submitter_name'])  ? decryptField($t['submitter_name'])  : null;
+        $t['submitter_email'] = !empty($t['submitter_email']) ? decryptField($t['submitter_email']) : null;
+    }
+    // ── Always hide submitter name — email only ────────────────────────
+    $t['submitter_name'] = null;
 }
 unset($t);
 
@@ -185,6 +204,7 @@ $staffDateWhere = $days
 
 $staffActivity = $conn->query("
     SELECT
+        s.staff_id,
         s.full_name,
         s.staff_code,
         s.role,
@@ -217,7 +237,30 @@ $staffActivity = $conn->query("
     ORDER BY resolved DESC, tickets_handled DESC
 ")->fetch_all(MYSQLI_ASSOC);
 
-
+/* ── Per-staff SLA respond stats ── */
+$staffRespondStats = [];
+foreach ($slaRawReport as $slaRow) {
+    $staffId = $slaRow['assigned_to'] ?? null;
+    if (!$staffId) continue;
+    if (!isset($staffRespondStats[$staffId])) {
+        $staffRespondStats[$staffId] = ['total' => 0, 'in_sla' => 0];
+    }
+    $staffRespondStats[$staffId]['total']++;
+    $respondTs = null;
+    if (!empty($slaRow['first_response_at'])) {
+        $respondTs = $slaRow['first_response_at'];
+    } elseif (!empty($slaRow['first_log_response_at'])) {
+        $respondTs = $slaRow['first_log_response_at'];
+    }
+    $from = new DateTime($slaRow['created_at'], new DateTimeZone(SLA_TZ));
+    if (!empty($respondTs)) {
+        $to   = new DateTime($respondTs, new DateTimeZone(SLA_TZ));
+        $mins = workingMinutesBetween($from, $to);
+        if ($mins <= SLA_WORK_HOURS * 60) {
+            $staffRespondStats[$staffId]['in_sla']++;
+        }
+    }
+}
 /* ══════════════════════════════════════════════
    TAB 3 — CATEGORY
 ══════════════════════════════════════════════ */
@@ -714,18 +757,18 @@ function ratingLabelText(int $r): string {
           <thead>
   <tr>
     <th onclick="sortTable(0)">Ticket ID <span class="sort-icon">⇅</span></th>
-    <th onclick="sortTable(2)">Category <span class="sort-icon">⇅</span></th>
-    <th onclick="sortTable(3)">Status <span class="sort-icon">⇅</span></th>
-    <th onclick="sortTable(4)">Priority <span class="sort-icon">⇅</span></th>
-    <th onclick="sortTable(5)">Date Submitted <span class="sort-icon">⇅</span></th>
-    <th onclick="sortTable(6)">Assigned To <span class="sort-icon">⇅</span></th>
-    <th onclick="sortTable(7)" title="Working hours (Mon-Fri 08:00-17:00 only). Format: Xd Yh or Zh Wm">
+    <th onclick="sortTable(1)">Category <span class="sort-icon">⇅</span></th>
+    <th onclick="sortTable(2)">Status <span class="sort-icon">⇅</span></th>
+    <th onclick="sortTable(3)">Priority <span class="sort-icon">⇅</span></th>
+    <th onclick="sortTable(4)">Closed By <span class="sort-icon">⇅</span></th>
+    <th onclick="sortTable(5)">Complaint By <span class="sort-icon">⇅</span></th>
+    <th onclick="sortTable(6)" title="Working hours (Mon-Fri 08:00-17:00 only). Format: Xd Yh or Zh Wm">
         Resolution Time <span class="col-hint">⏱</span>
     </th>
-    <th onclick="sortTable(8)" title="Working hours from ticket open until first staff response (in-progress or closed)">
+    <th onclick="sortTable(7)" title="Working hours from ticket open until first staff response (in-progress or closed)">
         Respond Time <span class="col-hint">⏱</span>
     </th>
-    <th>SLA</th>
+    <th onclick="sortTable(8)">SLA <span class="sort-icon">⇅</span></th>
   </tr>
 </thead>
           <tbody id="ticketTableBody">
@@ -789,7 +832,8 @@ if ($resH === null || $t['status'] !== 'closed') {
     data-firstresponse-raw="<?= $resH ?? 9999 ?>"
     data-sla="<?= $t['is_breached'] ? 'Breached' : 'OK' ?>"
     data-respondtime="<?= $respFmt ?>"
-    data-respondtime-raw="<?= $respH ?? 9999 ?>">
+    data-respondtime-raw="<?= $respH ?? 9999 ?>"
+    data-complaintby="<?= htmlspecialchars($t['submitter_email'] ?? '—') ?>">
   <td><span class="ticket-id"><?= htmlspecialchars($t['ticket_id']) ?></span></td>
   <td><?= htmlspecialchars($catShort) ?></td>
   <td><span class="status-pill sp-<?= str_replace(' ','_',$t['status']) ?>"><?= ucfirst(str_replace('_',' ',$t['status'])) ?></span></td>
@@ -802,12 +846,18 @@ if ($resH === null || $t['status'] !== 'closed') {
       <?= ucfirst($t['priority']) ?>
     </span>
   </td>
-  <td><?= date('d M Y', strtotime($t['created_at'])) ?></td>
   <td>
     <?php if ($assignedName): ?>
       <span class="assigned-staff-pill"><?= htmlspecialchars($assignedName) ?></span>
     <?php else: ?>
       <span style="color:#94a3b8;font-size:.75rem;font-style:italic;">Unassigned</span>
+    <?php endif; ?>
+  </td>
+  <td style="font-size:.82rem;color:#334155;">
+    <?php if (!empty($t['submitter_email'])): ?>
+      <?= htmlspecialchars($t['submitter_email']) ?>
+    <?php else: ?>
+      <span style="color:#94a3b8;">—</span>
     <?php endif; ?>
   </td>
   <td>
@@ -961,7 +1011,6 @@ if ($resH === null || $t['status'] !== 'closed') {
         </div>
         <div class="chart-legend-group">
           <span class="legend-pill"><span class="legend-dot" style="background:#16A34A"></span>Resolved (Closed)</span>
-          <span class="legend-pill"><span class="legend-dot" style="background:#6366F1"></span>Tickets Assigned</span>
         </div>
       </div>
       <div id="staffChartWrap" style="position:relative; min-height:<?= max(200, count($staffActivity) * 90) ?>px;">
@@ -990,7 +1039,6 @@ if ($resH === null || $t['status'] !== 'closed') {
             <tr>
               <th onclick="sortStaffTable(0)">Rank <span class="sort-icon">⇅</span></th>
               <th onclick="sortStaffTable(1)">Staff Name <span class="sort-icon">⇅</span></th>
-              <th onclick="sortStaffTable(2)">Staff Code <span class="sort-icon">⇅</span></th>
               <th>Role</th>
               <th onclick="sortStaffTable(3)">
                 Tickets Assigned
@@ -1004,31 +1052,47 @@ if ($resH === null || $t['status'] !== 'closed') {
                 <span class="col-rate-note">Closed ÷ Assigned × 100%</span>
                 <span class="sort-icon">⇅</span>
               </th>
+              <th onclick="sortStaffTable(7)">
+                Respond Rate
+                <span class="col-rate-note">Responded ≤8 working hrs ÷ Assigned × 100%</span>
+                <span class="sort-icon">⇅</span>
+              </th>
             </tr>
           </thead>
           <tbody id="staffTableBody">
             <?php if (empty($staffActivity)): ?>
             <tr><td colspan="8" class="empty-state">No staff activity found.</td></tr>
             <?php else: foreach ($staffActivity as $i => $s):
-              $handled  = (int)$s['tickets_handled'];
-              $resolved = (int)$s['resolved'];
-              $inProg   = (int)$s['in_progress_count'];
-              $openCnt  = (int)$s['open_count'];
-              $rate     = $handled > 0 ? round($resolved / $handled * 100, 1) : 0;
-              $rateCol  = $rate >= 70 ? '#16A34A' : ($rate >= 40 ? '#F97316' : '#DC2626');
+              $handled    = (int)$s['tickets_handled'];
+              $resolved   = (int)$s['resolved'];
+              $inProg     = (int)$s['in_progress_count'];
+              $openCnt    = (int)$s['open_count'];
+              $rate       = $handled > 0 ? round($resolved / $handled * 100, 1) : 0;
+              $rateCol    = $rate >= 70 ? '#16A34A' : ($rate >= 40 ? '#F97316' : '#DC2626');
+              $staffId    = (int)$s['staff_id'];
+              $rStats     = $staffRespondStats[$staffId] ?? ['total' => 0, 'in_sla' => 0];
+              $respondRate = $rStats['total'] > 0
+                  ? round($rStats['in_sla'] / $rStats['total'] * 100, 1)
+                  : null;
+              $respondRateCol = $respondRate === null ? '#94a3b8'
+                  : ($respondRate >= 70 ? '#16A34A' : ($respondRate >= 40 ? '#F97316' : '#DC2626'));
+              $respondRateInSla = $rStats['in_sla'];
+              $respondRateTotal = $rStats['total'];
             ?>
             <tr data-name="<?= htmlspecialchars($s['full_name']) ?>"
-    data-code="<?= htmlspecialchars($s['staff_code']) ?>"
-    data-role="<?= htmlspecialchars($s['role']) ?>"
-    data-handled="<?= $handled ?>"
+                data-code="<?= htmlspecialchars($s['staff_code']) ?>"
+                data-role="<?= htmlspecialchars($s['role']) ?>"
+                data-handled="<?= $handled ?>"
                 data-resolved="<?= $resolved ?>"
                 data-inprog="<?= $inProg ?>"
                 data-open="<?= $openCnt ?>"
                 data-rate="<?= $rate ?>"
-data-rank="<?= $i+1 ?>">
+                data-respondrate="<?= $respondRate ?? '' ?>"
+                data-respondrate-insla="<?= $respondRateInSla ?>"
+                data-respondrate-total="<?= $respondRateTotal ?>"
+                data-rank="<?= $i+1 ?>">
               <td style="font-weight:700;color:#64748b;font-size:.88rem;"><?= $i+1 ?></td>
               <td style="font-weight:600;color:#0f172a;"><?= htmlspecialchars($s['full_name']) ?></td>
-              <td><span class="ticket-id"><?= htmlspecialchars($s['staff_code']) ?></span></td>
               <td>
                 <?php if ($s['role'] === 'admin'): ?>
                   <span style="font-size:.72rem;font-weight:700;color:#574476;background:#F3F0F9;padding:2px 9px;border-radius:99px;border:1px solid #D4C8E8;">Admin</span>
@@ -1074,6 +1138,21 @@ data-rank="<?= $i+1 ?>">
                       <div class="perf-bar-fill" style="width:<?= $rate ?>%;background:<?= $rateCol ?>;"></div>
                     </div>
                     <span style="font-size:.73rem;font-weight:700;color:<?= $rateCol ?>;"><?= $rate ?>%</span>
+                  </div>
+                <?php else: ?>
+                  <span style="color:#94a3b8;font-size:.72rem;">—</span>
+                <?php endif; ?>
+              </td>
+              <td>
+                <?php if ($respondRate !== null): ?>
+                  <div style="display:flex;flex-direction:column;gap:3px;">
+                    <div style="display:flex;align-items:center;gap:.5rem;">
+                      <div class="perf-bar-bg">
+                        <div class="perf-bar-fill" style="width:<?= $respondRate ?>%;background:<?= $respondRateCol ?>;"></div>
+                      </div>
+                      <span style="font-size:.73rem;font-weight:700;color:<?= $respondRateCol ?>;"><?= $respondRate ?>%</span>
+                    </div>
+                    <span style="font-size:.65rem;color:#94a3b8;"><?= $respondRateInSla ?>/<?= $respondRateTotal ?> within SLA</span>
                   </div>
                 <?php else: ?>
                   <span style="color:#94a3b8;font-size:.72rem;">—</span>
@@ -1707,17 +1786,20 @@ window.TICKET_DATA = {
   avgHours: <?= $avgHours ? (float)$avgHours : 'null' ?>
 };
 </script>
-<script src="js/tickets_report.js"></script>
+<script src="js/tickets_reportt.js"></script>
 <?php endif; ?>
 
 <?php if ($activeTab === 'staff'): ?>
 <script>
 window.STAFF_DATA = {
   period: '<?= $days ?? 'all' ?>',
-  staff: <?= json_encode(array_map(function($s) {
+  staff: <?= json_encode(array_map(function($s) use ($staffRespondStats) {
     $handled  = (int)$s['tickets_handled'];
     $resolved = (int)$s['resolved'];
     $rate     = $handled > 0 ? round($resolved / $handled * 100, 1) : 0;
+    $sId    = (int)$s['staff_id'];
+    $rSt    = $staffRespondStats[$sId] ?? ['total' => 0, 'in_sla' => 0];
+    $rRate  = $rSt['total'] > 0 ? round($rSt['in_sla'] / $rSt['total'] * 100, 1) : null;
     return [
       'full_name'        => $s['full_name'],
       'staff_code'       => $s['staff_code'],
@@ -1727,12 +1809,15 @@ window.STAFF_DATA = {
       'in_progress_count'=> (int)$s['in_progress_count'],
       'open_count'       => (int)$s['open_count'],
       'resolution_rate'  => $rate,
+      'respond_rate'     => $rRate,
+      'respond_in_sla'   => $rSt['in_sla'],
+      'respond_total'    => $rSt['total'],
       'avg_resolution_h' => $s['avg_resolution_h'],
     ];
   }, $staffActivity)) ?>
 };
 </script>
-<script src="js/staff-reports.js"></script>
+<script src="js/staff_reportt.js"></script>
 <?php endif; ?>
 
 <?php if ($activeTab === 'feedback'): ?>

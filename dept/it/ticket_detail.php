@@ -198,7 +198,8 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
       <tr><td style="border-left:3px solid #22C55E;background:#F0FDF4;padding:16px 20px;border-radius:0 4px 4px 0;">
         <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#166534;">Your Feedback Matters</p>
-        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
+        <p style="margin:0 0 4px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
+        <p style="margin:0 0 12px;font-size:12px;color:#6b7280;line-height:1.6;">&#9888;&#65039; Please submit your feedback <strong>within 8 working hours</strong> of this email. If no feedback is submitted within this time, a rating of <strong>5 out of 5</strong> will be <strong>automatically recorded</strong> on your behalf.</p>
         <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#16A34A;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
       </td></tr>
     </table>
@@ -428,7 +429,7 @@ HTML;
 
             // ── PDPA: wipe personal data from complaints table once closed ──
             if ($newStatus === 'closed' && $oldStatus !== 'closed') {
-                $wipe = $conn->prepare("UPDATE complaints SET submitter_email = NULL, submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = ?");
+                $wipe = $conn->prepare("UPDATE complaints SET submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = ?");
                 if ($wipe) {
                     $wipe->bind_param("si", $ticketId, $deptId);
                     $wipe->execute();
@@ -506,12 +507,12 @@ $submitter = null;
 if ($ticket) {
     $type = $ticket['submitter_type'] ?? 'user';
     if ($type === 'user') {
-    $userEmail = !empty($ticket['submitter_email']) ? decryptField($ticket['submitter_email']) : '—';
-    $userNameDisplay = !empty($ticket['submitter_name']) ? decryptField($ticket['submitter_name']) : '—';
-    $submitter = [
-        'name'  => $userNameDisplay,
-        'email' => $userEmail,
-    ];
+        $userEmail = !empty($ticket['submitter_email']) ? decryptField($ticket['submitter_email']) : '—';
+        $userNameDisplay = !empty($ticket['submitter_name']) ? decryptField($ticket['submitter_name']) : '—';
+        $submitter = [
+            'name'  => $userNameDisplay,
+            'email' => $userEmail,
+        ];
     } else {
         $s2 = $conn->prepare("SELECT full_name AS name, email FROM staff WHERE staff_id = ? LIMIT 1");
         if ($s2) {
@@ -1017,30 +1018,28 @@ $pageSubtitle = 'Information Technology Department';
             <div class="ti-divider"></div>
 
             <!-- Submitted by -->
-            <?php if (strtolower($ticket['status']) !== 'closed'): ?>
             <div class="ti-section-label">
               <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               Submitted By
             </div>
             <div class="ti-submitter-grid">
+              <?php if (strtolower($ticket['status']) !== 'closed'): ?>
               <div class="ti-submitter-cell">
                 <div class="ti-submitter-lbl">Name</div>
-                <div class="ti-submitter-val">
-    <?php echo htmlspecialchars($submitter['name'] ?? '—'); ?>
-</div>
+                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['name'] ?? '—'); ?></div>
               </div>
-              <div class="ti-submitter-cell">
+              <?php endif; ?>
+              <div class="ti-submitter-cell" <?php echo $isClosed ? 'style="border-right:none"' : ''; ?>>
                 <div class="ti-submitter-lbl">Email</div>
-                <div class="ti-submitter-val">
-    <?php echo htmlspecialchars($submitter['email'] ?? '—'); ?>
-</div>
+                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['email'] ?? '—'); ?></div>
               </div>
+              <?php if (strtolower($ticket['status']) !== 'closed'): ?>
               <div class="ti-submitter-cell" style="border-right:none">
                 <div class="ti-submitter-lbl">Phone</div>
                 <div class="ti-submitter-val">+60 <?php echo htmlspecialchars(decryptField($ticket['phone']??'')?:'—'); ?></div>
               </div>
+              <?php endif; ?>
             </div>
-            <?php endif; ?>
 
           </div>
         </div>

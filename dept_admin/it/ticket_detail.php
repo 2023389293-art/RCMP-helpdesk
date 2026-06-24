@@ -266,15 +266,15 @@ if ($logStmt2) {
 
                     $feedbackSection = '';
                     if ($newStatus === 'closed') {
-                        $feedbackSection = <<<FBHTML
-                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-                          <tr><td style="border-left:3px solid #22C55E;background:#F0FDF4;padding:16px 20px;border-radius:0 4px 4px 0;">
-                            <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#166534;">Your Feedback Matters</p>
-                            <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
-                            <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#16A34A;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
-                          </td></tr>
-                        </table>
-FBHTML;
+                        $feedbackSection = '
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+  <tr><td style="border-left:3px solid #059669;background:#ecfdf5;padding:16px 20px;border-radius:0 4px 4px 0;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#065f46;">Your Feedback Matters</p>
+    <p style="margin:0 0 4px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
+    <p style="margin:0 0 12px;font-size:12px;color:#6b7280;line-height:1.6;">&#9888;&#65039; Please submit your feedback <strong>within 8 working hours</strong> of this email. If no feedback is submitted within this time, a rating of <strong>5 out of 5</strong> will be <strong>automatically recorded</strong> on your behalf.</p>
+    <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#059669;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
+  </td></tr>
+</table>';
                     }
 
                     $htmlBody = <<<HTML
@@ -322,7 +322,7 @@ FBHTML;
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
   <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
     <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
-    <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details of this ticket.</p>
+    <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view full details or reply to this ticket.</p>
     <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
   </td></tr>
 </table>
@@ -360,7 +360,7 @@ HTML;
 
             // ── PDPA: wipe personal data from complaints table once closed ──
             if ($newStatus === 'closed' && $oldStatus !== 'closed') {
-                $wipe = $conn->prepare("UPDATE complaints SET submitter_email = NULL, submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = 4");
+                $wipe = $conn->prepare("UPDATE complaints SET submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = 4");
                 if ($wipe) {
                     $wipe->bind_param("s", $ticketId);
                     $wipe->execute();
@@ -789,26 +789,28 @@ function ratingColors(int $rating): array {
 
            <div class="ti-divider"></div>
 
-<?php if (strtolower($ticket['status']) !== 'closed'): ?>
 <div class="ti-section-label">
   <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
   Submitted By
 </div>
 <div class="ti-submitter-grid">
+  <?php if (!$isClosed): ?>
   <div class="ti-submitter-cell">
     <div class="ti-submitter-lbl">Name</div>
     <div class="ti-submitter-val"><?= htmlspecialchars($submitter['name'] ?? '—') ?></div>
   </div>
-  <div class="ti-submitter-cell">
+  <?php endif; ?>
+  <div class="ti-submitter-cell" <?= $isClosed ? 'style="border-right:none"' : '' ?>>
     <div class="ti-submitter-lbl">Email</div>
     <div class="ti-submitter-val"><?= htmlspecialchars($submitter['email'] ?? '—') ?></div>
   </div>
+  <?php if (!$isClosed): ?>
   <div class="ti-submitter-cell" style="border-right:none">
     <div class="ti-submitter-lbl">Phone</div>
     <div class="ti-submitter-val">+60 <?= htmlspecialchars(decryptField($ticket['phone'] ?? '') ?: '—') ?></div>
   </div>
+  <?php endif; ?>
 </div>
-<?php endif; ?>
           </div>
         </div><!-- /.ticket-info-card -->
 

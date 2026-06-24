@@ -1,5 +1,5 @@
 /* =============================================================
-   staff-report.js  —  Afsmd Dept Admin · Staff Activity Tab
+   staff-report.js  —  Maintenance Dept Admin · Staff Activity Tab
    + Custom date range filter (matches Tickets tab behaviour) 
    ============================================================= */
 
@@ -223,8 +223,7 @@
 
     const wrapEl = document.getElementById('staffChartWrap');
     if (wrapEl) {
-      const needed = Math.max(200, data.length * (44 * 2 + 24) + 60);
-      wrapEl.style.minHeight = needed + 'px';
+      wrapEl.style.minHeight = '340px';
     }
 
     const names    = data.map(s => s.full_name);
@@ -234,37 +233,34 @@
     if (staffChartInst) staffChartInst.destroy();
 
     staffChartInst = new Chart(ctx.getContext('2d'), {
-      type: 'bar',
+      type: 'line',
       data: {
         labels: names,
         datasets: [
           {
             label: 'Resolved (Closed)',
             data: resolved,
-            backgroundColor: 'rgba(22,163,74,0.85)',
-            borderRadius: { topRight: 10, bottomRight: 10, topLeft: 0, bottomLeft: 0 },
-            borderSkipped: false,
-            barThickness: 22,
-          },
-          {
-            label: 'Tickets Assigned',
-            data: handled,
-            backgroundColor: 'rgba(99,102,241,0.55)',
-            borderRadius: { topRight: 10, bottomRight: 10, topLeft: 0, bottomLeft: 0 },
-            borderSkipped: false,
-            barThickness: 22,
+            borderColor: 'rgba(22,163,74,1)',
+            backgroundColor: 'rgba(22,163,74,0.15)',
+            pointBackgroundColor: 'rgba(22,163,74,1)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            borderWidth: 2.5,
+            tension: 0.35,
+            fill: true,
           }
         ]
       },
       options: {
-        indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
-        layout: { padding: { top: 8, bottom: 8, left: 4, right: 24 } },
+        layout: { padding: { top: 16, bottom: 8, left: 8, right: 16 } },
         plugins: {
           legend: {
             position: 'top', align: 'end',
-            labels: { font: { size: 12, weight: '600' }, padding: 20, usePointStyle: true, pointStyle: 'rectRounded' }
+            labels: { font: { size: 12, weight: '600' }, padding: 20, usePointStyle: true, pointStyle: 'circle' }
           },
           tooltip: {
             backgroundColor: 'rgba(15,23,42,.96)',
@@ -274,15 +270,16 @@
               title: items => data[items[0].dataIndex]?.full_name || items[0].label,
               label: item  => {
                 const d = data[item.dataIndex];
-                if (!d) return `  ${item.dataset.label}: ${item.parsed.x}`;
-                if (item.datasetIndex === 0) {
-                  const rate = d.tickets_handled > 0
-                    ? Math.round(d.resolved / d.tickets_handled * 100) : 0;
-                  return [`  Resolved: ${item.parsed.x}`, `  Resolution Rate: ${rate}%`];
-                }
+                if (!d) return `  Resolved: ${item.parsed.y}`;
+                const rate = d.tickets_handled > 0
+                  ? Math.round(d.resolved / d.tickets_handled * 100) : 0;
+                const rr = d.respond_rate !== null && d.respond_rate !== undefined
+                  ? d.respond_rate + '%' : '—';
                 return [
-                  `  Tickets Assigned: ${item.parsed.x}`,
-                  `  Open: ${d.open_count}  |  In Progress: ${d.in_progress_count}  |  Closed: ${d.resolved}`
+                  `  Resolved: ${item.parsed.y}`,
+                  `  Tickets Assigned: ${d.tickets_handled}`,
+                  `  Resolution Rate: ${rate}%`,
+                  `  Respond Rate (SLA): ${rr}`
                 ];
               }
             }
@@ -290,15 +287,15 @@
         },
         scales: {
           x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: { font: { size: 11, weight: '600' }, color: '#334155', autoSkip: false, maxRotation: 35, minRotation: 0 }
+          },
+          y: {
             beginAtZero: true,
             grid: { color: 'rgba(226,232,240,.55)', drawBorder: false },
             border: { display: false },
             ticks: { precision: 0, stepSize: 1, font: { size: 11 }, color: '#94a3b8', padding: 6 }
-          },
-          y: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: { font: { size: 13, weight: '600' }, color: '#334155', padding: 12 }
           }
         }
       }
@@ -374,7 +371,7 @@
      SORT
   ══════════════════════════════════════════════ */
   window.sortStaffTable = function (col) {
-    const keys = ['rank', 'name', 'code', 'handled', 'resolved', 'inprog', 'rate'];
+    const keys = ['rank', 'name', 'code', 'handled', 'resolved', 'inprog', 'rate', 'respondrate'];
     const key  = keys[col];
     staffSortDir[key] = !staffSortDir[key];
 
@@ -408,18 +405,21 @@
   window.staffDownloadCSV = function () {
     const rows  = staffActiveRows.length ? staffActiveRows : getAllStaffRows();
     const label = getStaffPeriodLabel().replace(/\s+/g, '-').replace(/[→]/g, 'to').toLowerCase();
-    const lines = [['No','Staff Name','Staff Code','Role','Tickets Assigned','Closed','In Progress','Open','Resolution Rate (%)'].join(',')];
-rows.forEach(r => {
-  lines.push([
-    r.dataset.rank,
-    `"${(r.dataset.name  || '').replace(/"/g,'""')}"`,
-    r.dataset.code,
-    r.dataset.role || '—',
-    r.dataset.handled,
+    const lines = [['No','Staff Name','Staff Code','Role','Tickets Assigned','Closed','In Progress','Open','Resolution Rate (%)','Respond Rate (%)','Responded in SLA','Total Assigned'].join(',')];
+    rows.forEach(r => {
+      lines.push([
+        r.dataset.rank,
+        `"${(r.dataset.name  || '').replace(/"/g,'""')}"`,
+        r.dataset.code,
+        r.dataset.role || '—',
+        r.dataset.handled,
         r.dataset.resolved,
         r.dataset.inprog,
         r.dataset.open,
-        r.dataset.rate
+        r.dataset.rate,
+        r.dataset.respondrate || '—',
+        r.dataset.respondrateInsla || 0,
+        r.dataset.respondrateTotal || 0
       ].join(','));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -457,7 +457,7 @@ rows.forEach(r => {
 
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
-    doc.text('UniKL Help Desk — Administration & Facilities Management Department | Staff Activity Report', 36, 10);
+    doc.text('UniKL Help Desk — Maintenance Department Staff Activity Report', 36, 10);
     doc.setFontSize(8); doc.setFont('helvetica', 'normal');
     doc.text('Generated: ' + new Date().toLocaleString(), 36, 16);
 
@@ -487,34 +487,43 @@ rows.forEach(r => {
       startY: 42,
       margin: { left: 14, right: 14 },
       tableWidth: 'auto',
-      head: [['No','Staff Name','Staff Code','Role','Assigned','Closed','In Progress','Open','Resolution Rate']],
-body: rows.map(r => [
-  r.dataset.rank, r.dataset.name, r.dataset.code,
-  r.dataset.role || '—',
-  r.dataset.handled, r.dataset.resolved, r.dataset.inprog, r.dataset.open,
-  r.dataset.rate ? r.dataset.rate + '%' : '—'
-]),
+      head: [['No','Staff Name','Staff Code','Role','Assigned','Closed','In Progress','Open','Resolution Rate','Respond Rate']],
+      body: rows.map(r => [
+        r.dataset.rank, r.dataset.name, r.dataset.code,
+        r.dataset.role || '—',
+        r.dataset.handled, r.dataset.resolved, r.dataset.inprog, r.dataset.open,
+        r.dataset.rate        ? r.dataset.rate        + '%' : '—',
+        r.dataset.respondrate ? r.dataset.respondrate + '%' + ` (${r.dataset.respondrateInsla||0}/${r.dataset.respondrateTotal||0})` : '—'
+      ]),
       styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
       headStyles: { fillColor: [87, 68, 118], textColor: 255, fontStyle: 'bold', fontSize: 8 },
       alternateRowStyles: { fillColor: [248, 247, 252] },
       columnStyles: {
-  0: { cellWidth: 12 },   // No
-  1: { cellWidth: 65 },   // Staff Name
-  2: { cellWidth: 28 },   // Staff Code
-  3: { cellWidth: 18 },   // Role
-  4: { cellWidth: 22 },   // Assigned
-  5: { cellWidth: 22 },   // Closed
-  6: { cellWidth: 28 },   // In Progress
-  7: { cellWidth: 16 },   // Open
-  8: { cellWidth: 36 },   // Resolution Rate
-},
+        0: { cellWidth: 10 },   // No
+        1: { cellWidth: 52 },   // Staff Name
+        2: { cellWidth: 22 },   // Staff Code
+        3: { cellWidth: 14 },   // Role
+        4: { cellWidth: 18 },   // Assigned
+        5: { cellWidth: 18 },   // Closed
+        6: { cellWidth: 22 },   // In Progress
+        7: { cellWidth: 14 },   // Open
+        8: { cellWidth: 28 },   // Resolution Rate
+        9: { cellWidth: 36 },   // Respond Rate
+      },
       didParseCell: data => {
         if (data.section === 'body') {
           if (data.column.index === 4) { data.cell.styles.textColor = [99,102,241];  data.cell.styles.fontStyle = 'bold'; }
-if (data.column.index === 5) { data.cell.styles.textColor = [22,163,74];   data.cell.styles.fontStyle = 'bold'; }
-if (data.column.index === 6) { data.cell.styles.textColor = [99,102,241]; }
-if (data.column.index === 7) { data.cell.styles.textColor = [245,158,11]; }
-if (data.column.index === 8) {
+          if (data.column.index === 5) { data.cell.styles.textColor = [22,163,74];   data.cell.styles.fontStyle = 'bold'; }
+          if (data.column.index === 6) { data.cell.styles.textColor = [99,102,241]; }
+          if (data.column.index === 7) { data.cell.styles.textColor = [245,158,11]; }
+          if (data.column.index === 8) {
+            const rate = parseFloat(data.cell.raw);
+            if (!isNaN(rate)) {
+              data.cell.styles.textColor = rate >= 70 ? [22,163,74] : (rate >= 40 ? [249,115,22] : [220,38,38]);
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+          if (data.column.index === 9) {
             const rate = parseFloat(data.cell.raw);
             if (!isNaN(rate)) {
               data.cell.styles.textColor = rate >= 70 ? [22,163,74] : (rate >= 40 ? [249,115,22] : [220,38,38]);
@@ -529,7 +538,7 @@ if (data.column.index === 8) {
     for (let i = 1; i <= pc; i++) {
       doc.setPage(i);
       doc.setFontSize(7); doc.setTextColor(148, 163, 184);
-      doc.text(`Page ${i} of ${pc} — UniKL Help Desk — AFSMD`, 14, 200);
+      doc.text(`Page ${i} of ${pc} — UniKL Help Desk Maintenance Dept`, 14, 200);
     }
 
     doc.save(`staff-activity-${label.replace(/[\s→]+/g, '-').toLowerCase()}.pdf`);

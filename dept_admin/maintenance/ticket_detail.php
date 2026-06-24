@@ -266,6 +266,19 @@ if ($logStmt2) {
                         $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
                         $statFg  = $newStatus==='closed' ? '#059669' : ($newStatus==='in_progress' ? '#1D4ED8' : '#D97706');
 
+                        $feedbackBlock = '';
+                        if ($newStatus === 'closed') {
+                            $feedbackBlock = '
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+  <tr><td style="border-left:3px solid #059669;background:#ecfdf5;padding:16px 20px;border-radius:0 4px 4px 0;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#065f46;">Your Feedback Matters</p>
+    <p style="margin:0 0 4px;font-size:14px;color:#374151;line-height:1.75;">Your ticket has been resolved. We would appreciate it if you could take a moment to rate your experience so we can continue to improve our service.</p>
+    <p style="margin:0 0 12px;font-size:12px;color:#6b7280;line-height:1.6;">&#9888;&#65039; Please submit your feedback <strong>within 8 working hours</strong> of this email. If no feedback is submitted within this time, a rating of <strong>5 out of 5</strong> will be <strong>automatically recorded</strong> on your behalf.</p>
+    <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#059669;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Give Feedback</a>
+  </td></tr>
+</table>';
+                        }
+
                         $htmlBody = <<<HTML
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background-color:#ffffff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
@@ -307,6 +320,7 @@ if ($logStmt2) {
       <tr><td style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Message from {$escapedFrom}</span></td></tr>
       <tr><td style="padding:16px 18px;background:#f7f8fa;font-size:14px;color:#374151;line-height:1.75;">{$escapedMsg}</td></tr>
     </table>
+{$feedbackBlock}
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
   <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
     <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Note</p>
@@ -348,7 +362,7 @@ HTML;
 
             // ── PDPA: wipe personal data from complaints table once closed ──
             if ($newStatus === 'closed' && $oldStatus !== 'closed') {
-                $wipe = $conn->prepare("UPDATE complaints SET submitter_email = NULL, submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = 2");
+                $wipe = $conn->prepare("UPDATE complaints SET submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = 2");
                 if ($wipe) {
                     $wipe->bind_param("s", $ticketId);
                     $wipe->execute();
@@ -775,26 +789,28 @@ function ratingColors(int $rating): array {
 
             <div class="ti-divider"></div>
 
-<?php if (strtolower($ticket['status']) !== 'closed'): ?>
 <div class="ti-section-label">
   <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
   Submitted By
 </div>
 <div class="ti-submitter-grid">
+  <?php if (!$isClosed): ?>
   <div class="ti-submitter-cell">
     <div class="ti-submitter-lbl">Name</div>
     <div class="ti-submitter-val"><?= htmlspecialchars($submitter['name'] ?? '—') ?></div>
   </div>
-  <div class="ti-submitter-cell">
+  <?php endif; ?>
+  <div class="ti-submitter-cell" <?= $isClosed ? 'style="border-right:none"' : '' ?>>
     <div class="ti-submitter-lbl">Email</div>
     <div class="ti-submitter-val"><?= htmlspecialchars($submitter['email'] ?? '—') ?></div>
   </div>
+  <?php if (!$isClosed): ?>
   <div class="ti-submitter-cell" style="border-right:none">
     <div class="ti-submitter-lbl">Phone</div>
     <div class="ti-submitter-val">+60 <?= htmlspecialchars(decryptField($ticket['phone'] ?? '') ?: '—') ?></div>
   </div>
+  <?php endif; ?>
 </div>
-<?php endif; ?>
           </div>
         </div><!-- /.ticket-info-card -->
 

@@ -1,5 +1,5 @@
 /* =============================================================
-   tickets-report.js  —  IT Dept Admin · Tickets Tab 
+   tickets-report.js  —  Maintenance Dept Admin · Tickets Tab 
    ============================================================= */
  
    
@@ -384,7 +384,7 @@ push('In Progress', prog,   '#3503aa', showProg);
   }
 
   window.sortTable = function (col) {
-    const keys = ['id', 'category', 'status', 'priority', 'submitted', 'assigned', 'firstresponse-raw', 'sla', 'respondtime-raw'];
+    const keys = ['id', 'category', 'status', 'priority', 'assigned', 'complaintby', 'firstresponse-raw', 'respondtime-raw', 'sla'];
     const key  = keys[col];
     sortDir[key] = !sortDir[key];
 
@@ -419,7 +419,7 @@ push('In Progress', prog,   '#3503aa', showProg);
   ══════════════════════════════════════════════ */
 window.downloadCSV = function () {
     const rows  = activeRows.length ? activeRows : getAllRows();
-    const lines = [['Ticket ID', 'Category', 'Status', 'Priority', 'Date Submitted', 'Assigned To', 'Resolution Time', 'Respond Time', 'SLA'].join(',')];
+    const lines = [['Ticket ID', 'Category', 'Status', 'Priority', 'Closed By', 'Complaint By', 'Resolution Time', 'Respond Time', 'SLA'].join(',')];
     rows.forEach(r => {
       const d = r.dataset;
       lines.push([
@@ -427,8 +427,8 @@ window.downloadCSV = function () {
         `"${(d.category || '').replace(/"/g, '""')}"`,
         d.status,
         d.priority,
-        d.submitted,
         `"${(d.assigned || '—').replace(/"/g, '""')}"`,
+        `"${(d.complaintby || '—').replace(/"/g, '""')}"`,
         d.firstresponse,
         d.respondtime,
         d.sla
@@ -470,7 +470,7 @@ window.downloadCSV = function () {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text('UniKL Help Desk — IT Department Ticket Report', 36, 10);
+    doc.text('UniKL Help Desk — Maintenance Department Ticket Report', 36, 10);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.text('Generated: ' + new Date().toLocaleString(), 36, 16);
@@ -499,7 +499,7 @@ window.downloadCSV = function () {
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
     doc.text(
-      `Total: ${total}  |  Open: ${open}  |  In Progress: ${prog}  |  Closed: ${closed}  |  SLA Breached: ${breach}  |  Avg Resolution: ${DATA.avgHours ? DATA.avgHours + 'h' : '—'}`,
+      `Total: ${total}  |  Open: ${open}  |  In Progress: ${prog}  |  Closed: ${closed}  |  SLA Breached: ${breach}`,
       14, 36
     );
 
@@ -509,8 +509,8 @@ window.downloadCSV = function () {
       r.dataset.category,
       r.dataset.status,
       r.dataset.priority,
-      r.dataset.submitted,
       r.dataset.assigned || '—',
+      r.dataset.complaintby || '—',
       r.dataset.firstresponse,
       r.dataset.respondtime,
       r.dataset.sla
@@ -520,19 +520,19 @@ window.downloadCSV = function () {
       startY: 42,
       margin: { left: 14, right: 14 },
       tableWidth: 'auto',
-      head: [['Ticket ID', 'Category', 'Status', 'Priority', 'Date Submitted', 'Assigned To', 'Resolution Time', 'Respond Time', 'SLA']],
+      head: [['Ticket ID', 'Category', 'Status', 'Priority', 'Closed By', 'Complaint By', 'Resolution Time', 'Respond Time', 'SLA']],
       body,
       styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
       headStyles: { fillColor: [87, 68, 118], textColor: 255, fontStyle: 'bold', fontSize: 8 },
       alternateRowStyles: { fillColor: [248, 247, 252] },
       // ── UPDATED: wider columns to take advantage of landscape width ──
       columnStyles: {
-        0: { cellWidth: 38 },  // Ticket ID
-        1: { cellWidth: 36 },  // Category
-        2: { cellWidth: 22 },  // Status
-        3: { cellWidth: 20 },  // Priority
-        4: { cellWidth: 24 },  // Date Submitted
-        5: { cellWidth: 40 },  // Assigned To
+        0: { cellWidth: 32 },  // Ticket ID
+        1: { cellWidth: 30 },  // Category
+        2: { cellWidth: 20 },  // Status
+        3: { cellWidth: 18 },  // Priority
+        4: { cellWidth: 34 },  // Closed By
+        5: { cellWidth: 34 },  // Complaint By
         6: { cellWidth: 22 },  // Resolution Time
         7: { cellWidth: 20 },  // Respond Time
         8: { cellWidth: 16 },  // SLA
@@ -562,7 +562,7 @@ window.downloadCSV = function () {
       doc.setFontSize(7);
       doc.setTextColor(148, 163, 184);
       // A4 landscape height = 210mm
-      doc.text(`Page ${i} of ${pc} — UniKL Help Desk IT Dept`, 14, 200);
+      doc.text(`Page ${i} of ${pc} — UniKL Help Desk Maintenance Dept`, 14, 200);
     }
 
     doc.save(`ticket-report-${getPeriodLabel().replace(/\s+/g, '-').toLowerCase()}.pdf`);
