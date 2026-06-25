@@ -60,14 +60,18 @@ foreach ($slaRawReport as $slaRow) {
     }
 }
 
-/* ── Per-staff SLA respond stats ── */
+/* ── Per-staff avg respond time ── */
 $staffRespondStats = [];
 foreach ($slaRawReport as $slaRow) {
     $staffId = $slaRow['assigned_to'] ?? null;
     if (!$staffId) continue;
 
     if (!isset($staffRespondStats[$staffId])) {
-        $staffRespondStats[$staffId] = ['total' => 0, 'in_sla' => 0];
+        $staffRespondStats[$staffId] = [
+            'total'              => 0,
+            'responded_count'    => 0,
+            'total_respond_mins' => 0,
+        ];
     }
     $staffRespondStats[$staffId]['total']++;
 
@@ -78,13 +82,12 @@ foreach ($slaRawReport as $slaRow) {
         $respondTs = $slaRow['first_log_response_at'];
     }
 
-    $from = new DateTime($slaRow['created_at'], new DateTimeZone(SLA_TZ));
     if (!empty($respondTs)) {
-        $to   = new DateTime($respondTs, new DateTimeZone(SLA_TZ));
+        $from = new DateTime($slaRow['created_at'], new DateTimeZone(SLA_TZ));
+        $to   = new DateTime($respondTs,            new DateTimeZone(SLA_TZ));
         $mins = workingMinutesBetween($from, $to);
-        if ($mins <= SLA_WORK_HOURS * 60) {
-            $staffRespondStats[$staffId]['in_sla']++;
-        }
+        $staffRespondStats[$staffId]['total_respond_mins'] += $mins;
+        $staffRespondStats[$staffId]['responded_count']++;
     }
 }
 
@@ -407,6 +410,9 @@ function ratingLabelText(int $r): string {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
   <style>
+    .filter-panel, .fb2-filter-panel {
+  margin-top: 1.25rem;
+}
     /* ── Resolution Rate column: inline formula note ── */
     .col-rate-note {
       display: block;
@@ -616,6 +622,62 @@ function ratingLabelText(int $r): string {
   <?php if ($activeTab === 'tickets'): ?>
   <div class="tab-panel" id="tab-tickets">
 
+    
+
+  <!-- ── KPI ROW ── -->
+<div class="chart-kpi-row kpi-above-chart">
+  <div class="chart-kpi-box">
+    <div class="chart-kpi-val" id="ckpi-total">—</div>
+    <div class="chart-kpi-lbl">Total</div>
+  </div>
+  <div class="chart-kpi-box" style="background:#EFF6FF;border-top-color:#4338ca;">
+    <div class="chart-kpi-val" id="ckpi-open" style="color:#4338ca;">—</div>
+    <div class="chart-kpi-lbl" style="color:#4338ca;">Open</div>
+  </div>
+  <div class="chart-kpi-box" style="background:#EEF2FF;border-top-color:#6366f1;">
+    <div class="chart-kpi-val" id="ckpi-prog" style="color:#6366f1;">—</div>
+    <div class="chart-kpi-lbl" style="color:#6366f1;">In Progress</div>
+  </div>
+  <div class="chart-kpi-box" style="background:#F0FDF4;border-top-color:#16A34A;">
+    <div class="chart-kpi-val" id="ckpi-closed" style="color:#16A34A;">—</div>
+    <div class="chart-kpi-lbl" style="color:#16A34A;">Closed</div>
+  </div>
+  <div class="chart-kpi-box" style="background:#FEF2F2;border-top-color:#DC2626;">
+    <div class="chart-kpi-val" id="ckpi-high" style="color:#DC2626;">—</div>
+    <div class="chart-kpi-lbl" style="color:#DC2626;">High Priority</div>
+  </div>
+  <div class="chart-kpi-box" style="background:#FFF5F5;border-top-color:#DC2626;border-color:#FECACA;">
+    <div class="chart-kpi-val" style="color:#DC2626;"><?= $breaches ?></div>
+    <div class="chart-kpi-lbl" style="color:#DC2626;">SLA Breached</div>
+  </div>
+</div>
+
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <h2 class="chart-title">Ticket Status &amp; Priority</h2>
+          <div class="chart-subtitle-text" id="chartSubtitleText">Loading…</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
+          <div class="chart-legend-group">
+            <span class="legend-section-label">STATUS</span>
+<span class="legend-pill"><span class="legend-dot" style="background:#DC2626"></span>Open</span>
+<span class="legend-pill"><span class="legend-dot" style="background:#16A34A"></span>Closed</span>
+<span class="legend-pill"><span class="legend-dot" style="background:#3503aa"></span>In Progress</span>
+          </div>
+          <div class="chart-legend-group">
+            <span class="legend-section-label">PRIORITY</span>
+            <span class="legend-pill"><span class="legend-dot" style="background:#e64545"></span>High</span>
+            <span class="legend-pill"><span class="legend-dot" style="background:#e48a36"></span>Medium</span>
+            <span class="legend-pill"><span class="legend-dot" style="background:#93c5fd"></span>Low</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="ticketsBarChart"></canvas>
+      </div>
+    </div>
+
     <div class="filter-panel">
       <div class="filter-panel-title">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 .8 1.6L14 12.4V20a1 1 0 0 1-1.45.9l-4-2A1 1 0 0 1 8 18v-5.6L3.2 5.6A1 1 0 0 1 3 4z"/></svg>
@@ -689,60 +751,6 @@ function ratingLabelText(int $r): string {
         </div>
       </div>
       <div id="activeFilterSummary" class="active-filter-summary" style="display:none;"></div>
-    </div>
-
-  <!-- ── KPI ROW ── -->
-<div class="chart-kpi-row kpi-above-chart">
-  <div class="chart-kpi-box">
-    <div class="chart-kpi-val" id="ckpi-total">—</div>
-    <div class="chart-kpi-lbl">Total</div>
-  </div>
-  <div class="chart-kpi-box" style="background:#EFF6FF;border-top-color:#4338ca;">
-    <div class="chart-kpi-val" id="ckpi-open" style="color:#4338ca;">—</div>
-    <div class="chart-kpi-lbl" style="color:#4338ca;">Open</div>
-  </div>
-  <div class="chart-kpi-box" style="background:#EEF2FF;border-top-color:#6366f1;">
-    <div class="chart-kpi-val" id="ckpi-prog" style="color:#6366f1;">—</div>
-    <div class="chart-kpi-lbl" style="color:#6366f1;">In Progress</div>
-  </div>
-  <div class="chart-kpi-box" style="background:#F0FDF4;border-top-color:#16A34A;">
-    <div class="chart-kpi-val" id="ckpi-closed" style="color:#16A34A;">—</div>
-    <div class="chart-kpi-lbl" style="color:#16A34A;">Closed</div>
-  </div>
-  <div class="chart-kpi-box" style="background:#FEF2F2;border-top-color:#DC2626;">
-    <div class="chart-kpi-val" id="ckpi-high" style="color:#DC2626;">—</div>
-    <div class="chart-kpi-lbl" style="color:#DC2626;">High Priority</div>
-  </div>
-  <div class="chart-kpi-box" style="background:#FFF5F5;border-top-color:#DC2626;border-color:#FECACA;">
-    <div class="chart-kpi-val" style="color:#DC2626;"><?= $breaches ?></div>
-    <div class="chart-kpi-lbl" style="color:#DC2626;">SLA Breached</div>
-  </div>
-</div>
-
-    <div class="chart-card">
-      <div class="chart-card-header">
-        <div>
-          <h2 class="chart-title">Ticket Status &amp; Priority</h2>
-          <div class="chart-subtitle-text" id="chartSubtitleText">Loading…</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
-          <div class="chart-legend-group">
-            <span class="legend-section-label">STATUS</span>
-<span class="legend-pill"><span class="legend-dot" style="background:#DC2626"></span>Open</span>
-<span class="legend-pill"><span class="legend-dot" style="background:#16A34A"></span>Closed</span>
-<span class="legend-pill"><span class="legend-dot" style="background:#3503aa"></span>In Progress</span>
-          </div>
-          <div class="chart-legend-group">
-            <span class="legend-section-label">PRIORITY</span>
-            <span class="legend-pill"><span class="legend-dot" style="background:#e64545"></span>High</span>
-            <span class="legend-pill"><span class="legend-dot" style="background:#e48a36"></span>Medium</span>
-            <span class="legend-pill"><span class="legend-dot" style="background:#93c5fd"></span>Low</span>
-          </div>
-        </div>
-      </div>
-      <div class="chart-canvas-wrap">
-        <canvas id="ticketsBarChart"></canvas>
-      </div>
     </div>
 
     <div class="table-card">
@@ -938,6 +946,46 @@ if ($resH === null || $t['status'] !== 'closed') {
   <?php if ($activeTab === 'staff'): ?>
   <div class="tab-panel" id="tab-staff">
 
+    
+
+    <!-- ── KPI ROW ── -->
+    <div class="chart-kpi-row kpi-above-chart">
+      <div class="chart-kpi-box">
+        <div class="chart-kpi-val" id="skpi-staff">—</div>
+        <div class="chart-kpi-lbl">Total Staff</div>
+      </div>
+      <div class="chart-kpi-box" style="background:#F0FDF4;border-top-color:#16A34A;">
+        <div class="chart-kpi-val" id="skpi-resolved" style="color:#16A34A;">—</div>
+        <div class="chart-kpi-lbl" style="color:#16A34A;">Total Resolved</div>
+      </div>
+      <div class="chart-kpi-box" style="background:#EEF2FF;border-top-color:#6366F1;">
+        <div class="chart-kpi-val" id="skpi-actions" style="color:#6366F1;">—</div>
+        <div class="chart-kpi-lbl" style="color:#6366F1;">Tickets Assigned</div>
+      </div>
+      <div class="chart-kpi-box" style="background:#EFF6FF;border-top-color:#0EA5E9;">
+        <div class="chart-kpi-val" id="skpi-avg-respond" style="color:#0EA5E9;">—</div>
+        <div class="chart-kpi-lbl" style="color:#0EA5E9;">Avg Respond Time</div>
+        <div style="font-size:.60rem;color:#94a3b8;margin-top:4px;line-height:1.4;">
+          Total working hrs all tickets ÷ total tickets responded
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <h2 class="chart-title">Staff Performance Overview</h2>
+          <div class="chart-subtitle-text" id="staffChartSubtitle">Showing all staff activity</div>
+        </div>
+        <div class="chart-legend-group">
+          <span class="legend-pill"><span class="legend-dot" style="background:#16A34A"></span>Resolved (Closed)</span>
+        </div>
+      </div>
+      <div id="staffChartWrap" style="position:relative; min-height:340px;">
+        <canvas id="staffChart"></canvas>
+      </div>
+    </div>
+
     <div class="filter-panel">
       <div class="filter-panel-title">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 .8 1.6L14 12.4V20a1 1 0 0 1-1.45.9l-4-2A1 1 0 0 1 8 18v-5.6L3.2 5.6A1 1 0 0 1 3 4z"/></svg>
@@ -947,7 +995,7 @@ if ($resH === null || $t['status'] !== 'closed') {
         <div class="filter-group">
           <span class="filter-group-label">Analysis Period</span>
           <div class="period-select-wrap">
-            <svg class="period-select-icon" viewBox="0 0 24 24">...</svg>
+            <svg class="period-select-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <select class="filter-select period-select" id="staffFilterPeriod">
               <option value="7">Last 7 days</option>
               <option value="30" selected>Last 30 days</option>
@@ -991,41 +1039,6 @@ if ($resH === null || $t['status'] !== 'closed') {
       <div id="staffActiveFilterSummary" class="active-filter-summary"></div>
     </div>
 
-    <!-- ── KPI ROW ── -->
-    <div class="chart-kpi-row kpi-above-chart">
-      <div class="chart-kpi-box">
-        <div class="chart-kpi-val" id="skpi-staff">—</div>
-        <div class="chart-kpi-lbl">Total Staff</div>
-      </div>
-      <div class="chart-kpi-box" style="background:#F0FDF4;border-top-color:#16A34A;">
-        <div class="chart-kpi-val" id="skpi-resolved" style="color:#16A34A;">—</div>
-        <div class="chart-kpi-lbl" style="color:#16A34A;">Total Resolved</div>
-      </div>
-      <div class="chart-kpi-box" style="background:#EEF2FF;border-top-color:#6366F1;">
-        <div class="chart-kpi-val" id="skpi-actions" style="color:#6366F1;">—</div>
-        <div class="chart-kpi-lbl" style="color:#6366F1;">Tickets Assigned</div>
-      </div>
-      <div class="chart-kpi-box" style="background:#F8F7FC;border-top-color:#574476;">
-        <div class="chart-kpi-val" id="skpi-avg-resolved" style="color:#574476;">—</div>
-        <div class="chart-kpi-lbl" style="color:#574476;">Avg Resolved / Staff</div>
-      </div>
-    </div>
-
-    <div class="chart-card">
-      <div class="chart-card-header">
-        <div>
-          <h2 class="chart-title">Staff Performance Overview</h2>
-          <div class="chart-subtitle-text" id="staffChartSubtitle">Showing all staff activity</div>
-        </div>
-        <div class="chart-legend-group">
-          <span class="legend-pill"><span class="legend-dot" style="background:#16A34A"></span>Resolved (Closed)</span>
-        </div>
-      </div>
-      <div id="staffChartWrap" style="position:relative; min-height:340px;">
-        <canvas id="staffChart"></canvas>
-      </div>
-    </div>
-
     <div class="table-card">
       <div class="table-card-header">
         <h2 class="table-title">Staff Activity</h2>
@@ -1061,8 +1074,8 @@ if ($resH === null || $t['status'] !== 'closed') {
                 <span class="sort-icon">⇅</span>
               </th>
               <th onclick="sortStaffTable(7)">
-                Respond Rate
-                <span class="col-rate-note">Responded ≤8 working hrs ÷ Assigned × 100%</span>
+                Avg Respond Time
+                <span class="col-rate-note">Working hrs from open → first response</span>
                 <span class="sort-icon">⇅</span>
               </th>
             </tr>
@@ -1080,14 +1093,22 @@ if ($resH === null || $t['status'] !== 'closed') {
             ?>
             <?php
               $staffId    = (int)$s['staff_id'];
-              $rStats     = $staffRespondStats[$staffId] ?? ['total' => 0, 'in_sla' => 0];
-              $respondRate = $rStats['total'] > 0
-                  ? round($rStats['in_sla'] / $rStats['total'] * 100, 1)
+              $rStats     = $staffRespondStats[$staffId] ?? ['responded_count' => 0, 'total_respond_mins' => 0];
+              $avgRespondH = $rStats['responded_count'] > 0
+                  ? round($rStats['total_respond_mins'] / $rStats['responded_count'] / 60, 1)
                   : null;
-              $respondRateCol = $respondRate === null ? '#94a3b8'
-                  : ($respondRate >= 70 ? '#16A34A' : ($respondRate >= 40 ? '#F97316' : '#DC2626'));
-              $respondRateInSla = $rStats['in_sla'];
-              $respondRateTotal = $rStats['total'];
+              $avgRespondCol = $avgRespondH === null ? '#94a3b8'
+                  : ($avgRespondH <= 2 ? '#16A34A' : ($avgRespondH <= 6 ? '#F97316' : '#DC2626'));
+              if ($avgRespondH === null) {
+                  $avgRespondFmt = '—';
+              } elseif ($avgRespondH < 1) {
+                  $mins = (int)round($avgRespondH * 60);
+                  $avgRespondFmt = ($mins === 0 ? '< 1m' : $mins . 'm');
+              } else {
+                  $wholeH = (int)floor($avgRespondH);
+                  $remMin = (int)round(($avgRespondH - $wholeH) * 60);
+                  $avgRespondFmt = $remMin > 0 ? $wholeH . 'h ' . $remMin . 'm' : $wholeH . 'h';
+              }
             ?>
             <tr data-name="<?= htmlspecialchars($s['full_name']) ?>"
     data-code="<?= htmlspecialchars($s['staff_code']) ?>"
@@ -1097,9 +1118,8 @@ if ($resH === null || $t['status'] !== 'closed') {
                 data-inprog="<?= $inProg ?>"
                 data-open="<?= $openCnt ?>"
                 data-rate="<?= $rate ?>"
-                data-respondrate="<?= $respondRate ?? '' ?>"
-                data-respondrate-insla="<?= $respondRateInSla ?>"
-                data-respondrate-total="<?= $respondRateTotal ?>"
+                data-avgrespond="<?= $avgRespondH ?? '' ?>"
+                data-avgrespond-fmt="<?= htmlspecialchars($avgRespondFmt) ?>"
 data-rank="<?= $i+1 ?>">
               <td style="font-weight:700;color:#64748b;font-size:.88rem;"><?= $i+1 ?></td>
               <td style="font-weight:600;color:#0f172a;"><?= htmlspecialchars($s['full_name']) ?></td>
@@ -1154,15 +1174,12 @@ data-rank="<?= $i+1 ?>">
                 <?php endif; ?>
               </td>
               <td>
-                <?php if ($respondRate !== null): ?>
+                <?php if ($avgRespondH !== null): ?>
                   <div style="display:flex;flex-direction:column;gap:3px;">
-                    <div style="display:flex;align-items:center;gap:.5rem;">
-                      <div class="perf-bar-bg">
-                        <div class="perf-bar-fill" style="width:<?= $respondRate ?>%;background:<?= $respondRateCol ?>;"></div>
-                      </div>
-                      <span style="font-size:.73rem;font-weight:700;color:<?= $respondRateCol ?>;"><?= $respondRate ?>%</span>
-                    </div>
-                    <span style="font-size:.65rem;color:#94a3b8;"><?= $respondRateInSla ?>/<?= $respondRateTotal ?> within SLA</span>
+                    <span class="fr-badge <?= $avgRespondH <= 2 ? 'fr-fast' : ($avgRespondH <= 6 ? 'fr-ok' : 'fr-slow') ?>">
+                      ⏱ <?= $avgRespondFmt ?>
+                    </span>
+                    <span style="font-size:.65rem;color:#94a3b8;"><?= $rStats['responded_count'] ?> ticket<?= $rStats['responded_count'] != 1 ? 's' : '' ?> responded</span>
                   </div>
                 <?php else: ?>
                   <span style="color:#94a3b8;font-size:.72rem;">—</span>
@@ -1203,10 +1220,9 @@ data-rank="<?= $i+1 ?>">
         <div class="ss-note">
           <span class="ss-note-icon">⏱</span>
           <span>
-              <strong>Respond Rate</strong> — percentage of assigned tickets where the staff member's first response
-              (moving the ticket to in-progress or closed) happened within <strong>8 working hours</strong> of ticket submission.
-              Formula: <code>Responded ≤8 working hrs ÷ Tickets Assigned × 100%</code>.
-              Tickets with no response yet still count toward the total but not the "in SLA" count.
+              <strong>Avg Respond Time</strong> — average working hours from ticket submission until the staff member's
+              first response (moved to in-progress or closed). Only tickets that have been responded to are counted.
+              Working hours: Mon–Fri 08:00–17:00. ≤2h is fast, 2–6h is moderate, &gt;6h is slow.
           </span>
         </div>
         <div class="ss-note">
@@ -1265,6 +1281,58 @@ data-rank="<?= $i+1 ?>">
     $faceCount = [5 => $fiveS, 4 => $fourS, 3 => $threeS, 2 => $twoS, 1 => $oneS];
   ?>
   <div class="tab-panel" id="tab-feedback">
+
+
+    <!-- ══════════════════════════════════════════════
+         KPI ROW — big number top, face icon + label at bottom
+    ══════════════════════════════════════════════ -->
+    <div class="chart-kpi-row kpi-above-chart fb-kpi-row">
+
+      <!-- Total (no face) -->
+      <div class="chart-kpi-box">
+        <div class="chart-kpi-val"><?= $totF ?></div>
+        <div class="chart-kpi-lbl">Total Feedback</div>
+      </div>
+
+      <!-- Per-rating KPI: number on top, face icon BESIDE label text at bottom -->
+      <?php foreach ([5,4,3,2,1] as $starVal):
+        $fc = $faceColors[$starVal];
+      ?>
+      <div class="chart-kpi-box" style="background:<?= $fc['bg'] ?>;border-top-color:<?= $fc['val'] ?>;">
+        <div class="chart-kpi-val" style="color:<?= $fc['val'] ?>;"><?= $faceCount[$starVal] ?></div>
+        <div class="chart-kpi-lbl" style="color:<?= $fc['val'] ?>;">
+          <?= feedbackFaceSvg($starVal, 14) ?>&nbsp;<?= $starVal ?>&nbsp;<?= $faceLabels[$starVal] ?>
+        </div>
+      </div>
+      <?php endforeach; ?>
+
+    </div>
+
+    <!-- ── Rating Distribution Chart ── -->
+    <div class="fb2-chart-card">
+      <div class="fb2-chart-header">
+        <div>
+          <h2 class="fb2-chart-title">Rating Distribution Overview</h2>
+          <p class="fb2-chart-sub">
+            Breakdown of all feedback responses by rating ·
+            <?= $days ? 'Last '.$days.' days' : 'All time' ?>
+          </p>
+        </div>
+        <div class="fb2-chart-legend">
+          <?php foreach ([5,4,3,2,1] as $sv):
+            $fc = $faceColors[$sv]; ?>
+          <span class="fb2-legend-item">
+            <?= feedbackFaceSvg($sv, 13) ?>
+            <?= $sv ?> <?= $faceLabels[$sv] ?>
+          </span>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <div class="fb2-chart-wrap">
+        <canvas id="fbRatingChart" role="img" aria-label="Horizontal bar chart showing feedback rating distribution"></canvas>
+      </div>
+      
+    </div>
 
     <!-- ── Filters ── -->
     <div class="fb2-filter-panel">
@@ -1346,57 +1414,6 @@ data-rank="<?= $i+1 ?>">
         </div>
       </div>
       <div id="fbActiveFilters" class="fb2-active-filters"></div>
-    </div>
-
-    <!-- ══════════════════════════════════════════════
-         KPI ROW — big number top, face icon + label at bottom
-    ══════════════════════════════════════════════ -->
-    <div class="chart-kpi-row kpi-above-chart fb-kpi-row">
-
-      <!-- Total (no face) -->
-      <div class="chart-kpi-box">
-        <div class="chart-kpi-val"><?= $totF ?></div>
-        <div class="chart-kpi-lbl">Total Feedback</div>
-      </div>
-
-      <!-- Per-rating KPI: number on top, face icon BESIDE label text at bottom -->
-      <?php foreach ([5,4,3,2,1] as $starVal):
-        $fc = $faceColors[$starVal];
-      ?>
-      <div class="chart-kpi-box" style="background:<?= $fc['bg'] ?>;border-top-color:<?= $fc['val'] ?>;">
-        <div class="chart-kpi-val" style="color:<?= $fc['val'] ?>;"><?= $faceCount[$starVal] ?></div>
-        <div class="chart-kpi-lbl" style="color:<?= $fc['val'] ?>;">
-          <?= feedbackFaceSvg($starVal, 14) ?>&nbsp;<?= $starVal ?>&nbsp;<?= $faceLabels[$starVal] ?>
-        </div>
-      </div>
-      <?php endforeach; ?>
-
-    </div>
-
-    <!-- ── Rating Distribution Chart ── -->
-    <div class="fb2-chart-card">
-      <div class="fb2-chart-header">
-        <div>
-          <h2 class="fb2-chart-title">Rating Distribution Overview</h2>
-          <p class="fb2-chart-sub">
-            Breakdown of all feedback responses by rating ·
-            <?= $days ? 'Last '.$days.' days' : 'All time' ?>
-          </p>
-        </div>
-        <div class="fb2-chart-legend">
-          <?php foreach ([5,4,3,2,1] as $sv):
-            $fc = $faceColors[$sv]; ?>
-          <span class="fb2-legend-item">
-            <?= feedbackFaceSvg($sv, 13) ?>
-            <?= $sv ?> <?= $faceLabels[$sv] ?>
-          </span>
-          <?php endforeach; ?>
-        </div>
-      </div>
-      <div class="fb2-chart-wrap">
-        <canvas id="fbRatingChart" role="img" aria-label="Horizontal bar chart showing feedback rating distribution"></canvas>
-      </div>
-      
     </div>
 
     <!-- ── Feedback Table ── -->
@@ -1564,55 +1581,7 @@ data-rank="<?= $i+1 ?>">
       $rateColor = $overallRate >= 70 ? '#16A34A' : ($overallRate >= 40 ? '#F97316' : '#DC2626');
     ?>
 
-    <div class="filter-panel">
-      <div class="filter-panel-title">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 .8 1.6L14 12.4V20a1 1 0 0 1-1.45.9l-4-2A1 1 0 0 1 8 18v-5.6L3.2 5.6A1 1 0 0 1 3 4z"/></svg>
-        Chart &amp; Table Filters
-      </div>
-      <div class="filter-panel-row">
-        <div class="filter-group">
-          <span class="filter-group-label">Analysis Period</span>
-          <div class="period-select-wrap">
-            <svg class="period-select-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <select class="filter-select period-select" id="catPeriodSelect">
-  <option value="7"   <?= $catRange==='7'   ?'selected':'' ?>>Last 7 days</option>
-  <option value="30"  <?= $catRange==='30'  ?'selected':'' ?>>Last 30 days</option>
-  <option value="60"  <?= $catRange==='60'  ?'selected':'' ?>>Last 60 days</option>
-  <option value="90"  <?= $catRange==='90'  ?'selected':'' ?>>Last 90 days</option>
-  <option value="180" <?= $catRange==='180' ?'selected':'' ?>>Last 6 months</option>
-  <option value="365" <?= $catRange==='365' ?'selected':'' ?>>Last year</option>
-  <option value="all" <?= $catRange==='all' ?'selected':'' ?>>All time</option>
-  <option value="custom">Custom date range</option>
-</select>
-          </div>
-        </div>
-        <div class="filter-group custom-range-group" id="catCustomRangeFrom" style="display:none;">
-          <span class="filter-group-label">From</span>
-          <input type="date" class="filter-date-input" id="catCustomDateFrom"/>
-        </div>
-        <div class="filter-group custom-range-group" id="catCustomRangeTo" style="display:none;">
-          <span class="filter-group-label">To</span>
-          <input type="date" class="filter-date-input" id="catCustomDateTo"/>
-        </div>
-
-        <div class="filter-group">
-          <span class="filter-group-label">Status</span>
-          <select class="filter-select" id="catFilterStatus">
-            <option value="all">All Statuses</option>
-            <option value="open">Has Open Tickets</option>
-            <option value="closed">Has Closed Tickets</option>
-          </select>
-        </div>
-        <div class="filter-group" style="justify-content:flex-end;">
-          <span class="filter-group-label">&nbsp;</span>
-          <button class="filter-reset-btn" id="catFilterResetBtn">
-            <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
-            Reset Filters
-          </button>
-        </div>
-      </div>
-      <div id="catActiveFilterSummary" class="active-filter-summary" style="display:none;"></div>
-    </div>
+    
 
     <?php
   // Kira Rate by Tickets
@@ -1692,6 +1661,56 @@ $rateByCategory = count($catRates) > 0
       <div id="catChartWrap" style="position:relative; min-height:<?= max(200, count($categoryStats) * 52 + 80) ?>px;">
         <canvas id="categoryChart"></canvas>
       </div>
+    </div>
+
+    <div class="filter-panel">
+      <div class="filter-panel-title">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 .8 1.6L14 12.4V20a1 1 0 0 1-1.45.9l-4-2A1 1 0 0 1 8 18v-5.6L3.2 5.6A1 1 0 0 1 3 4z"/></svg>
+        Chart &amp; Table Filters
+      </div>
+      <div class="filter-panel-row">
+        <div class="filter-group">
+          <span class="filter-group-label">Analysis Period</span>
+          <div class="period-select-wrap">
+            <svg class="period-select-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <select class="filter-select period-select" id="catPeriodSelect">
+  <option value="7"   <?= $catRange==='7'   ?'selected':'' ?>>Last 7 days</option>
+  <option value="30"  <?= $catRange==='30'  ?'selected':'' ?>>Last 30 days</option>
+  <option value="60"  <?= $catRange==='60'  ?'selected':'' ?>>Last 60 days</option>
+  <option value="90"  <?= $catRange==='90'  ?'selected':'' ?>>Last 90 days</option>
+  <option value="180" <?= $catRange==='180' ?'selected':'' ?>>Last 6 months</option>
+  <option value="365" <?= $catRange==='365' ?'selected':'' ?>>Last year</option>
+  <option value="all" <?= $catRange==='all' ?'selected':'' ?>>All time</option>
+  <option value="custom">Custom date range</option>
+</select>
+          </div>
+        </div>
+        <div class="filter-group custom-range-group" id="catCustomRangeFrom" style="display:none;">
+          <span class="filter-group-label">From</span>
+          <input type="date" class="filter-date-input" id="catCustomDateFrom"/>
+        </div>
+        <div class="filter-group custom-range-group" id="catCustomRangeTo" style="display:none;">
+          <span class="filter-group-label">To</span>
+          <input type="date" class="filter-date-input" id="catCustomDateTo"/>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-group-label">Status</span>
+          <select class="filter-select" id="catFilterStatus">
+            <option value="all">All Statuses</option>
+            <option value="open">Has Open Tickets</option>
+            <option value="closed">Has Closed Tickets</option>
+          </select>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <span class="filter-group-label">&nbsp;</span>
+          <button class="filter-reset-btn" id="catFilterResetBtn">
+            <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+            Reset Filters
+          </button>
+        </div>
+      </div>
+      <div id="catActiveFilterSummary" class="active-filter-summary" style="display:none;"></div>
     </div>
 
     <div class="table-card">
@@ -1841,8 +1860,7 @@ window.STAFF_DATA = {
     $resolved = (int)$s['resolved'];
     $rate     = $handled > 0 ? round($resolved / $handled * 100, 1) : 0;
     $sId    = (int)$s['staff_id'];
-    $rSt    = $staffRespondStats[$sId] ?? ['total' => 0, 'in_sla' => 0];
-    $rRate  = $rSt['total'] > 0 ? round($rSt['in_sla'] / $rSt['total'] * 100, 1) : null;
+    $rSt    = $staffRespondStats[$sId] ?? ['responded_count' => 0, 'total_respond_mins' => 0];
     return [
       'full_name'        => $s['full_name'],
       'staff_code'       => $s['staff_code'],
@@ -1852,15 +1870,16 @@ window.STAFF_DATA = {
       'in_progress_count'=> (int)$s['in_progress_count'],
       'open_count'       => (int)$s['open_count'],
       'resolution_rate'  => $rate,
-      'respond_rate'     => $rRate,
-      'respond_in_sla'   => $rSt['in_sla'],
-      'respond_total'    => $rSt['total'],
+      'avg_respond_h'    => $rSt['responded_count'] > 0
+          ? round($rSt['total_respond_mins'] / $rSt['responded_count'] / 60, 1)
+          : null,
+      'responded_count'  => $rSt['responded_count'],
       'avg_resolution_h' => $s['avg_resolution_h'],
     ];
   }, $staffActivity)) ?>
 };
 </script>
-<script src="js/staff_reportt.js"></script>
+<script src="js/staff_report.js"></script>
 <?php endif; ?>
 
 <?php if ($activeTab === 'feedback'): ?>

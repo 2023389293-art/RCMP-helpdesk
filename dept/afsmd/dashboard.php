@@ -244,11 +244,14 @@ $recentTickets = [];
 $stmt = $conn->prepare(
     "SELECT c.ticket_id, c.title, c.status, c.priority, c.my_department,
             c.created_at, c.assigned_to,
+            c.submitter_type, c.submitter_id, c.submitter_email,
             s.full_name AS handled_by,
             s.staff_code AS handled_by_code,
+            st.email AS staff_submitter_email,
             cat.category_name
      FROM complaints c
      LEFT JOIN staff s ON s.staff_id = c.assigned_to
+     LEFT JOIN staff st ON c.submitter_type = 'staff' AND c.submitter_id = st.staff_id
      LEFT JOIN categories cat ON cat.category_id = c.category_id
      WHERE c.dept_id = ? AND c.status != 'closed'
      ORDER BY c.created_at DESC"
@@ -256,7 +259,18 @@ $stmt = $conn->prepare(
 $stmt->bind_param("i", $deptId);
 $stmt->execute();
 $res = $stmt->get_result();
-while ($row = $res->fetch_assoc()) $recentTickets[] = $row;
+while ($row = $res->fetch_assoc()) {
+    if (($row['submitter_type'] ?? '') === 'staff') {
+        $row['complainant_email'] = !empty($row['staff_submitter_email'])
+            ? $row['staff_submitter_email']
+            : '—';
+    } else {
+        $row['complainant_email'] = !empty($row['submitter_email'])
+            ? (decryptField($row['submitter_email']) ?: '—')
+            : '—';
+    }
+    $recentTickets[] = $row;
+}
 $stmt->close();
 
 // ── Helper: staff initials (same logic as tickets.php) ───────────────────────
@@ -645,10 +659,12 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
   .tab-count { font-size: 10px; padding: 1px 5px; }
 
   /* Table: hide less important columns */
-  table thead th:nth-child(4),
-  table tbody td:nth-child(4) { display: none; } /* Priority */
+  table thead th:nth-child(3),
+  table tbody td:nth-child(3) { display: none; } /* Complaint By */
   table thead th:nth-child(5),
-  table tbody td:nth-child(5) { display: none; } /* Category */
+  table tbody td:nth-child(5) { display: none; } /* Priority */
+  table thead th:nth-child(6),
+  table tbody td:nth-child(6) { display: none; } /* Category */
 
   /* Table font smaller */
   table { font-size: 12px; }
@@ -1033,6 +1049,7 @@ const cx=80, cy=80, r=68;
             <tr>
   <th>Ticket ID</th>
   <th>From Department</th>
+  <th>Complaint By</th>
   <th>Status</th>
   <th>Priority</th>
   <th>Category</th>
@@ -1041,7 +1058,7 @@ const cx=80, cy=80, r=68;
           </thead>
           <tbody>
             <?php if (empty($recentTickets)): ?>
-            <tr><td colspan="6">
+            <tr><td colspan="7">
               <div class="empty">
                 <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
                 No active tickets at the moment.
@@ -1081,6 +1098,14 @@ const cx=80, cy=80, r=68;
                     <?php echo date('d M Y, H:i', strtotime($t['created_at'])); ?>
                   </span>
                 </div>
+              </td>
+
+              <!-- Complaint By -->
+              <td>
+                <span style="font-size:13px;color:var(--g700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;display:block;"
+                      title="<?php echo htmlspecialchars($t['complainant_email'] ?? '—'); ?>">
+                  <?php echo htmlspecialchars($t['complainant_email'] ?? '—'); ?>
+                </span>
               </td>
 
               <!-- Status -->

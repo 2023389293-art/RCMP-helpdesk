@@ -273,13 +273,19 @@
                 if (!d) return `  Resolved: ${item.parsed.y}`;
                 const rate = d.tickets_handled > 0
                   ? Math.round(d.resolved / d.tickets_handled * 100) : 0;
-                const rr = d.respond_rate !== null && d.respond_rate !== undefined
-                  ? d.respond_rate + '%' : '—';
+                let rr = '—';
+                if (d.avg_respond_h !== null && d.avg_respond_h !== undefined) {
+                  const h = Math.floor(d.avg_respond_h);
+                  const m = Math.round((d.avg_respond_h - h) * 60);
+                  rr = d.avg_respond_h < 1
+                    ? (Math.round(d.avg_respond_h * 60) === 0 ? '< 1m' : Math.round(d.avg_respond_h * 60) + 'm')
+                    : (m > 0 ? h + 'h ' + m + 'm' : h + 'h');
+                }
                 return [
                   `  Resolved: ${item.parsed.y}`,
                   `  Tickets Assigned: ${d.tickets_handled}`,
                   `  Resolution Rate: ${rate}%`,
-                  `  Respond Rate (SLA): ${rr}`
+                  `  Avg Respond Time: ${rr}`
                 ];
               }
             }
@@ -305,10 +311,27 @@
     const totalHandled  = data.reduce((s, d) => s + d.tickets_handled, 0);
     const avgResolved   = data.length ? Math.round(totalResolved / data.length * 10) / 10 : 0;
     const setK = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    setK('skpi-staff',        data.length);
-    setK('skpi-resolved',     totalResolved);
-    setK('skpi-actions',      totalHandled);
-    setK('skpi-avg-resolved', avgResolved);
+    setK('skpi-staff',    data.length);
+    setK('skpi-resolved', totalResolved);
+    setK('skpi-actions',  totalHandled);
+    // Avg Respond Time KPI — grand average across all responded tickets
+    const totalRespondMins    = data.reduce((s, d) => s + ((d.avg_respond_h || 0) * (d.responded_count || 0)), 0);
+    const totalRespondedCount = data.reduce((s, d) => s + (d.responded_count || 0), 0);
+    const avgRespondH = totalRespondedCount > 0
+      ? Math.round(totalRespondMins / totalRespondedCount * 10) / 10
+      : null;
+    let avgRespondFmt = '—';
+    if (avgRespondH !== null) {
+      if (avgRespondH < 1) {
+        const mins = Math.round(avgRespondH * 60);
+        avgRespondFmt = mins === 0 ? '< 1m' : mins + 'm';
+      } else {
+        const h = Math.floor(avgRespondH);
+        const m = Math.round((avgRespondH - h) * 60);
+        avgRespondFmt = m > 0 ? h + 'h ' + m + 'm' : h + 'h';
+      }
+    }
+    setK('skpi-avg-respond', avgRespondFmt);
   }
 
   /* ══════════════════════════════════════════════
@@ -371,7 +394,7 @@
      SORT
   ══════════════════════════════════════════════ */
   window.sortStaffTable = function (col) {
-    const keys = ['rank', 'name', 'role', 'handled', 'resolved', 'inprog', 'rate', 'respondrate'];
+    const keys = ['rank', 'name', 'code', 'handled', 'resolved', 'inprog', 'rate', 'avgrespond'];
     const key  = keys[col];
     staffSortDir[key] = !staffSortDir[key];
 
@@ -405,20 +428,18 @@
   window.staffDownloadCSV = function () {
     const rows  = staffActiveRows.length ? staffActiveRows : getAllStaffRows();
     const label = getStaffPeriodLabel().replace(/\s+/g, '-').replace(/[→]/g, 'to').toLowerCase();
-    const lines = [['No','Staff Name','Role','Tickets Assigned','Closed','In Progress','Open','Resolution Rate (%)','Respond Rate (%)','Responded in SLA','Total Assigned'].join(',')];
+    const lines = [['No','Staff Name','Role','Tickets Assigned','Closed','In Progress','Open','Resolution Rate (%)','Avg Respond Time'].join(',')];
     rows.forEach(r => {
       lines.push([
         r.dataset.rank,
-        `"${(r.dataset.name  || '').replace(/"/g,'""')}"`,
+        `"${(r.dataset.name || '').replace(/"/g,'""')}"`,
         r.dataset.role || '—',
         r.dataset.handled,
         r.dataset.resolved,
         r.dataset.inprog,
         r.dataset.open,
         r.dataset.rate,
-        r.dataset.respondrate || '—',
-        r.dataset.respondrateInsla || 0,
-        r.dataset.respondrateTotal || 0
+        r.dataset.avgrespondFmt || '—',
       ].join(','));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -486,13 +507,13 @@
       startY: 42,
       margin: { left: 14, right: 14 },
       tableWidth: 'auto',
-      head: [['No','Staff Name','Role','Assigned','Closed','In Progress','Open','Resolution Rate','Respond Rate']],
+      head: [['No','Staff Name','Role','Assigned','Closed','In Progress','Open','Resolution Rate','Avg Respond Time']],
       body: rows.map(r => [
         r.dataset.rank, r.dataset.name,
         r.dataset.role || '—',
         r.dataset.handled, r.dataset.resolved, r.dataset.inprog, r.dataset.open,
-        r.dataset.rate        ? r.dataset.rate        + '%' : '—',
-        r.dataset.respondrate ? r.dataset.respondrate + '%' + ` (${r.dataset.respondrateInsla||0}/${r.dataset.respondrateTotal||0})` : '—'
+        r.dataset.rate ? r.dataset.rate + '%' : '—',
+        r.dataset.avgrespondFmt || '—'
       ]),
       styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
       headStyles: { fillColor: [87, 68, 118], textColor: 255, fontStyle: 'bold', fontSize: 8 },
@@ -522,9 +543,11 @@ if (data.column.index === 7) {
   }
 }
 if (data.column.index === 8) {
-  const rate = parseFloat(data.cell.raw);
-  if (!isNaN(rate)) {
-    data.cell.styles.textColor = rate >= 70 ? [22,163,74] : (rate >= 40 ? [249,115,22] : [220,38,38]);
+  // Avg Respond Time — color by speed (≤2h fast, ≤6h moderate, >6h slow)
+  const raw = data.cell.raw || '';
+  const h = parseFloat(raw);
+  if (!isNaN(h)) {
+    data.cell.styles.textColor = h <= 2 ? [22,163,74] : (h <= 6 ? [249,115,22] : [220,38,38]);
     data.cell.styles.fontStyle = 'bold';
   }
 }

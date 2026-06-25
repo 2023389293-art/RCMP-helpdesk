@@ -89,11 +89,14 @@ if ($filterStatus === 'all') {
     "SELECT complaints.ticket_id, complaints.title, complaints.status,
             complaints.priority, complaints.my_department,
             complaints.created_at, complaints.updated_at,
+            complaints.submitter_type, complaints.submitter_email,
             s.staff_id AS assigned_staff_id,
             s.full_name AS assigned_staff_name,
+            st.email AS staff_submitter_email,
             cat.category_name
      FROM complaints
      LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+     LEFT JOIN staff st ON complaints.submitter_type = 'staff' AND complaints.submitter_id = st.staff_id
      LEFT JOIN categories cat ON cat.category_id = complaints.category_id
      WHERE complaints.dept_id = ? $extraWhere
      GROUP BY complaints.ticket_id
@@ -106,11 +109,14 @@ if ($filterStatus === 'all') {
     "SELECT complaints.ticket_id, complaints.title, complaints.status,
             complaints.priority, complaints.my_department,
             complaints.created_at, complaints.updated_at,
+            complaints.submitter_type, complaints.submitter_email,
             s.staff_id AS assigned_staff_id,
             s.full_name AS assigned_staff_name,
+            st.email AS staff_submitter_email,
             cat.category_name
      FROM complaints
      LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+     LEFT JOIN staff st ON complaints.submitter_type = 'staff' AND complaints.submitter_id = st.staff_id
      LEFT JOIN categories cat ON cat.category_id = complaints.category_id
      WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere
      GROUP BY complaints.ticket_id
@@ -123,6 +129,20 @@ $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) $tickets[] = $row;
 $stmt->close();
+
+// Resolve complainant email per ticket
+foreach ($tickets as &$t) {
+    if (($t['submitter_type'] ?? '') === 'staff') {
+        $t['complainant_email'] = !empty($t['staff_submitter_email'])
+            ? $t['staff_submitter_email']
+            : '—';
+    } else {
+        $t['complainant_email'] = !empty($t['submitter_email'])
+            ? (decryptField($t['submitter_email']) ?: '—')
+            : '—';
+    }
+}
+unset($t);
 
 if ($filterStatus === 'open') { $activeNav = 'tickets-open'; }
 elseif ($filterStatus === 'in_progress') { $activeNav = 'tickets-inprogress'; }
@@ -223,13 +243,14 @@ function staffInitials(string $name): string {
     tbody td{padding:11px 12px;color:var(--g700);vertical-align:middle;overflow:hidden;}
 
     /* ── Column widths ── */
-    col.col-id       { width: 16%; }
-    col.col-dept     { width: 16%; }
-    col.col-status   { width: 9%;  }
-    col.col-priority { width: 8%;  }
-    col.col-category { width: 14%; }
-    col.col-assigned { width: 16%; }
-    col.col-action   { width: 8%;  }
+    col.col-id        { width: 13%; }
+col.col-dept      { width: 14%; }
+col.col-status    { width: 9%;  }
+col.col-priority  { width: 8%;  }
+col.col-category  { width: 12%; }
+col.col-complaint { width: 14%; }
+col.col-assigned  { width: 14%; }
+col.col-action    { width: 8%;  }
 
     /* ── Ticket ID ── */
     .tid-link{font-weight:600;color:var(--accent);font-size:13px;text-decoration:none;font-family:monospace;letter-spacing:.03em;background:#EFF6FF;padding:3px 8px;border-radius:5px;white-space:nowrap;display:inline-block;max-width:100%;overflow:visible;}
@@ -263,6 +284,7 @@ function staffInitials(string $name): string {
     .staff-avatar-sm{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#001f5c,#1a56db);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
     .assigned-name{font-size:13px;color:var(--g700);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .unassigned-tag{font-size:13px;color:#9CA3AF;font-style:italic;}
+.complaint-email{font-size:12px;color:var(--g700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:100%;}
 
     /* ── Category text ── */
     .cat-badge{display:inline-block;font-size:14px;font-weight:500;color:var(--g700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;vertical-align:middle;}
@@ -350,7 +372,9 @@ function staffInitials(string $name): string {
   thead th:nth-child(5),
   tbody td:nth-child(5),
   thead th:nth-child(6),
-  tbody td:nth-child(6) { display: none; }
+  tbody td:nth-child(6),
+  thead th:nth-child(7),
+  tbody td:nth-child(7) { display: none; }
 
   /* Tighten remaining column padding */
   thead th,
@@ -483,6 +507,7 @@ function staffInitials(string $name): string {
         <colgroup>
           <col class="col-id">
           <col class="col-dept">
+          <col class="col-complaint">
           <col class="col-status">
           <col class="col-priority">
           <col class="col-category">
@@ -492,6 +517,7 @@ function staffInitials(string $name): string {
         <thead><tr>
           <th>Ticket ID</th>
           <th>From Department</th>
+          <th>Complaint By</th>
           <th>Status</th>
           <th>Priority</th>
           <th>Category</th>
@@ -500,7 +526,7 @@ function staffInitials(string $name): string {
         </tr></thead>
         <tbody id="ticket-tbody">
           <?php if (empty($tickets)): ?>
-          <tr><td colspan="7"><div class="empty">
+          <tr><td colspan="8"><div class="empty">
             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
             <h3>No tickets found</h3><p>No complaints match your current filter.</p>
           </div></td></tr>
@@ -519,6 +545,7 @@ else { $flagFill = '#64748b'; }
               data-title="<?php echo strtolower(htmlspecialchars($t['title'])); ?>"
               data-dept="<?php echo strtolower(htmlspecialchars($t['my_department']??'')); ?>"
               data-cat="<?php echo strtolower(htmlspecialchars($t['category_name']??'')); ?>"
+              data-email="<?php echo strtolower(htmlspecialchars($t['complainant_email']??'')); ?>"
               style="<?php echo $isHighOpen ? 'background:#FFFAFA;' : ''; ?>">
 
             <!-- Ticket ID -->
@@ -540,6 +567,13 @@ else { $flagFill = '#64748b'; }
                   <?php echo date('d M Y, H:i', strtotime($t['created_at'])); ?>
                 </span>
               </div>
+            </td>
+
+            <!-- Complaint By -->
+            <td>
+              <span class="complaint-email" title="<?php echo htmlspecialchars($t['complainant_email'] ?? '—'); ?>">
+                <?php echo htmlspecialchars($t['complainant_email'] ?? '—'); ?>
+              </span>
             </td>
 
             <!-- Status -->
@@ -572,6 +606,8 @@ else { $flagFill = '#64748b'; }
               <?php else: ?><span style="font-size:12px;color:#9CA3AF;font-style:italic;">—</span><?php endif; ?>
             </td>
 
+            
+
             <!-- Assigned To -->
             <td>
               <?php if (!empty($t['assigned_staff_name'])): ?>
@@ -594,7 +630,7 @@ else { $flagFill = '#64748b'; }
 
           </tr>
           <?php endforeach; ?>
-          <tr id="no-search-row"><td colspan="7"><div class="empty">
+          <tr id="no-search-row"><td colspan="8"><div class="empty">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <h3>No results</h3><p>No tickets match your search.</p>
           </div></td></tr>
@@ -631,7 +667,7 @@ else { $flagFill = '#64748b'; }
   input.addEventListener('input', function(){
     var q = this.value.trim().toLowerCase(), visible = 0;
     tbody.querySelectorAll('tr[data-id]').forEach(function(row){
-      var match = !q || row.dataset.id.includes(q) || row.dataset.title.includes(q) || row.dataset.dept.includes(q) || row.dataset.cat.includes(q);
+      var match = !q || row.dataset.id.includes(q) || row.dataset.title.includes(q) || row.dataset.dept.includes(q) || row.dataset.cat.includes(q) || (row.dataset.email||'').includes(q);
       row.style.display = match ? '' : 'none';
       if (match) visible++;
     });

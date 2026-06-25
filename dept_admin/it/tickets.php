@@ -1,6 +1,7 @@
 <?php
 // dept_admin/it/tickets.php
 require '_layout.php';
+require_once __DIR__ . '/../../db_connect.php';
 
 
 
@@ -49,6 +50,8 @@ $sql = "
            cat.category_name,
            COALESCE(c.submitter_name, st.full_name, 'Unknown') AS submitter_name,
            c.submitter_type,
+           c.submitter_email,
+           st.email       AS staff_submitter_email,
            c.my_department,
            c.description,
            ast.full_name  AS assigned_staff_name
@@ -66,6 +69,20 @@ $allTypes  = $types . 'ii';
 $stmt->bind_param($allTypes, ...$allParams);
 $stmt->execute();
 $tickets = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// ── Resolve "Complaint By" email per row ──
+foreach ($tickets as &$t) {
+    if (($t['submitter_type'] ?? '') === 'staff') {
+        $t['complainant_email'] = !empty($t['staff_submitter_email'])
+            ? $t['staff_submitter_email']
+            : '—';
+    } else {
+        $t['complainant_email'] = !empty($t['submitter_email'])
+            ? (decryptField($t['submitter_email']) ?: '—')
+            : '—';
+    }
+}
+unset($t);
 
 $cats = $conn->query("SELECT category_id, category_name FROM categories WHERE dept_id = 4 ORDER BY category_name")->fetch_all(MYSQLI_ASSOC);
 
@@ -193,6 +210,18 @@ button.ticket-kpi-card {
       max-width: 150px;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .td-complainant {
+      max-width: 170px;
+    }
+    .complainant-email {
+      font-size: 12px;
+      color: var(--gray-700, #374151);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 165px;
+      display: block;
     }
     /* ── TICKET ID: allow wrap so full ID is always visible ── */
 .ticket-id {
@@ -532,10 +561,12 @@ button.ticket-kpi-card {
 
 .data-table thead th:nth-child(3),
 .data-table thead th:nth-child(4),
-.data-table thead th:nth-child(6),
+.data-table thead th:nth-child(5),
+.data-table thead th:nth-child(7),
 .data-table tbody td:nth-child(3),
 .data-table tbody td:nth-child(4),
-.data-table tbody td:nth-child(6) { display: none; }
+.data-table tbody td:nth-child(5),
+.data-table tbody td:nth-child(7) { display: none; }
 
       .card.no-pad {
   overflow-x: auto;
@@ -675,6 +706,7 @@ button.ticket-kpi-card {
         <tr>
           <th>Ticket ID</th>
           <th>Submitted By</th>
+          <th>Complaint By</th>
           <th>Category</th>
           <th>Priority</th>
           <th>Status</th>
@@ -684,7 +716,7 @@ button.ticket-kpi-card {
       </thead>
       <tbody>
         <?php if (empty($tickets)): ?>
-        <tr><td colspan="7" class="empty-row">No tickets match your filters.</td></tr>
+        <tr><td colspan="8" class="empty-row">No tickets match your filters.</td></tr>
         <?php else: foreach ($tickets as $t): ?>
         <tr class="ticket-row">
 
@@ -693,8 +725,6 @@ button.ticket-kpi-card {
             <span class="ticket-id"><?= htmlspecialchars($t['ticket_id']) ?></span>
           </td>
 
-          
-
           <!-- Submitted By: department name + date/time below -->
           <td class="td-submitted-by">
             <span class="dept-name" title="<?= htmlspecialchars($t['my_department'] ?? '') ?>">
@@ -702,6 +732,13 @@ button.ticket-kpi-card {
             </span>
             <span class="submitted-datetime">
               <?= date('d M Y, g:ia', strtotime($t['created_at'])) ?>
+            </span>
+          </td>
+
+          <!-- Complaint By: submitter email -->
+          <td class="td-complainant">
+            <span class="complainant-email" title="<?= htmlspecialchars($t['complainant_email']) ?>">
+              <?= htmlspecialchars($t['complainant_email']) ?>
             </span>
           </td>
 
