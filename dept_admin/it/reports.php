@@ -1,5 +1,5 @@
 <?php
-// dept_admin/it/reports.php 
+// dept_admin/it/reports.php
 require '_layout.php';
 
 require_once __DIR__ . '/../../sla_helper.php';
@@ -130,6 +130,8 @@ $allTickets = $conn->query("
         c.submitter_email,
         sub_s.full_name AS submitter_staff_name,
         sub_s.email     AS submitter_staff_email,
+        closer.closed_by_name AS closed_by_name,
+        closer.changed_by_id  AS closed_by_id,
         /* Fallback: get first response from ticket_logs if first_response_at is NULL */
         (SELECT MIN(l.changed_at)
          FROM ticket_logs l
@@ -141,11 +143,25 @@ $allTickets = $conn->query("
     JOIN categories cat ON cat.category_id = c.category_id
     LEFT JOIN staff s    ON s.staff_id    = c.assigned_to
     LEFT JOIN staff sub_s ON sub_s.staff_id = c.submitter_id
+    LEFT JOIN (
+        SELECT l.ticket_id, l.changed_by_id, l.changed_by AS closed_by_name
+        FROM ticket_logs l
+        WHERE l.new_status = 'closed'
+          AND l.field_changed = 'status'
+          AND l.changed_at = (
+              SELECT MAX(l2.changed_at)
+              FROM ticket_logs l2
+              WHERE l2.ticket_id = l.ticket_id
+                AND l2.new_status = 'closed'
+                AND l2.field_changed = 'status'
+          )
+    ) closer ON closer.ticket_id = c.ticket_id
     WHERE c.dept_id = 4
     GROUP BY c.ticket_id, c.title, cat.category_name, c.status,
              c.priority, c.created_at, c.sla_start_at, c.resolved_at,
              c.first_response_at, s.full_name, c.submitter_type, c.submitter_id,
-             c.submitter_name, c.submitter_email, sub_s.full_name, sub_s.email
+             c.submitter_name, c.submitter_email, sub_s.full_name, sub_s.email,
+             closer.closed_by_name, closer.changed_by_id
     ORDER BY c.created_at DESC
 ")->fetch_all(MYSQLI_ASSOC);
 
@@ -204,6 +220,23 @@ foreach ($allTickets as &$t) {
         // User/external submitter — decrypt PDPA fields
         $t['submitter_name']  = !empty($t['submitter_name'])  ? decryptField($t['submitter_name'])  : null;
         $t['submitter_email'] = !empty($t['submitter_email']) ? decryptField($t['submitter_email']) : null;
+    }
+
+    // ── Resolve Closed By ─────────────────────────────────────────────────
+    // closed_by_id = 0 means vendor (changed_by stored as name string in logs)
+    if ($t['status'] === 'closed' && !empty($t['closed_by_name'])) {
+        $closedById = (int)($t['closed_by_id'] ?? -1);
+        if ($closedById === 0) {
+            // Vendor closed it — name is already in closed_by_name (e.g. "TM One")
+            $t['closed_by_display'] = '🏢 ' . $t['closed_by_name'];
+            $t['closed_by_type']    = 'vendor';
+        } else {
+            $t['closed_by_display'] = $t['closed_by_name'];
+            $t['closed_by_type']    = 'staff';
+        }
+    } else {
+        $t['closed_by_display'] = null;
+        $t['closed_by_type']    = null;
     }
 
     // ── Always hide submitter name in this report — email only ────────────
@@ -275,6 +308,85 @@ $staffActivity = $conn->query("
     ORDER BY resolved DESC, tickets_handled DESC
 ")->fetch_all(MYSQLI_ASSOC);
 
+/* ══════════════════════════════════════════════
+   TAB — VENDOR ACTIVITY
+══════════════════════════════════════════════ */
+$vendorDateWhere = $days
+    ? "AND c.created_at >= DATE_SUB(NOW(), INTERVAL {$days} DAY)"
+    : '';
+
+$vendorActivity = $conn->query("
+    SELECT
+        v.vendor_id,
+        v.company_name,
+        (SELECT vs.full_name
+         FROM vendor_staff vs
+         WHERE vs.vendor_id = v.vendor_id
+         ORDER BY vs.is_primary DESC, vs.staff_id ASC
+         LIMIT 1) AS pic_name,
+        v.status AS vendor_status,
+        COUNT(c.ticket_id)            AS tickets_handled,
+        SUM(c.status = 'closed')      AS resolved,
+        SUM(c.status = 'in_progress') AS in_progress_count,
+        SUM(c.status = 'open')        AS open_count
+    FROM vendors v
+    JOIN vendor_departments vd
+         ON vd.vendor_id = v.vendor_id
+        AND vd.dept_id = 4
+    LEFT JOIN complaints c
+           ON c.assigned_vendor_id = v.vendor_id
+          AND c.dept_id = 4
+          $vendorDateWhere
+    GROUP BY v.vendor_id, v.company_name, v.status
+    ORDER BY resolved DESC, tickets_handled DESC
+")->fetch_all(MYSQLI_ASSOC);
+
+/* Raw per-ticket rows (vendor-assigned only) — used for Avg Respond Time */
+$slaRawReportVendor = $conn->query("
+    SELECT
+        c.ticket_id, c.status, c.priority,
+        c.created_at, c.first_response_at,
+        c.assigned_vendor_id,
+        (SELECT MIN(l.changed_at)
+         FROM ticket_logs l
+         WHERE l.ticket_id = c.ticket_id
+           AND l.new_status IN ('in_progress','closed')
+           AND l.old_status = 'open'
+        ) AS first_log_response_at
+    FROM complaints c
+    WHERE c.dept_id = 4
+      AND c.assigned_vendor_id IS NOT NULL
+")->fetch_all(MYSQLI_ASSOC);
+
+$vendorRespondStats = [];
+foreach ($slaRawReportVendor as $slaRow) {
+    $vId = $slaRow['assigned_vendor_id'] ?? null;
+    if (!$vId) continue;
+
+    if (!isset($vendorRespondStats[$vId])) {
+        $vendorRespondStats[$vId] = [
+            'total'              => 0,
+            'responded_count'    => 0,
+            'total_respond_mins' => 0,
+        ];
+    }
+    $vendorRespondStats[$vId]['total']++;
+
+    $respondTs = null;
+    if (!empty($slaRow['first_response_at'])) {
+        $respondTs = $slaRow['first_response_at'];
+    } elseif (!empty($slaRow['first_log_response_at'])) {
+        $respondTs = $slaRow['first_log_response_at'];
+    }
+
+    if (!empty($respondTs)) {
+        $from = new DateTime($slaRow['created_at'], new DateTimeZone(SLA_TZ));
+        $to   = new DateTime($respondTs,            new DateTimeZone(SLA_TZ));
+        $mins = workingMinutesBetween($from, $to);
+        $vendorRespondStats[$vId]['total_respond_mins'] += $mins;
+        $vendorRespondStats[$vId]['responded_count']++;
+    }
+}
 
 /* ══════════════════════════════════════════════
    TAB 3 — CATEGORY
@@ -315,6 +427,16 @@ $topIssues = $conn->query("
 ")->fetch_all(MYSQLI_ASSOC);
 
 
+/* ── Closed tickets count (for feedback coverage KPI) ── */
+$totalClosedTickets = $conn->query("
+    SELECT COUNT(*) AS total_closed
+    FROM complaints c
+    WHERE c.dept_id = 4
+      AND c.status = 'closed'
+    " . ($days ? "AND c.created_at >= DATE_SUB(NOW(), INTERVAL {$days} DAY)" : '') . "
+")->fetch_assoc()['total_closed'] ?? 0;
+$totalClosedTickets = (int)$totalClosedTickets;
+
 /* ══════════════════════════════════════════════
    TAB 4 — FEEDBACK
 ══════════════════════════════════════════════ */
@@ -338,7 +460,9 @@ $feedbackList = $conn->query("
         c.submitter_type,
         c.my_department     AS submitted_by_dept,
         cat.category_name,
-        COALESCE(ast.full_name, 'Unassigned') AS assigned_staff_name
+        COALESCE(ast.full_name, 'Unassigned') AS assigned_staff_name,
+        c.assigned_vendor_id,
+        c.assigned_vendor_name
     FROM ticket_feedback f
     JOIN complaints c   ON c.ticket_id   = f.ticket_id
     JOIN categories cat ON cat.category_id = c.category_id
@@ -347,6 +471,21 @@ $feedbackList = $conn->query("
     " . ($days ? "AND f.created_at >= DATE_SUB(NOW(), INTERVAL {$days} DAY)" : '') . "
     ORDER BY f.created_at DESC
 ")->fetch_all(MYSQLI_ASSOC);
+
+/* Resolve assigned display: vendor takes priority over staff */
+foreach ($feedbackList as &$fb) {
+    if (!empty($fb['assigned_vendor_name'])) {
+        $fb['assigned_display']      = '🏢 ' . $fb['assigned_vendor_name'];
+        $fb['assigned_display_type'] = 'vendor';
+    } elseif (!empty($fb['assigned_staff_name']) && $fb['assigned_staff_name'] !== 'Unassigned') {
+        $fb['assigned_display']      = $fb['assigned_staff_name'];
+        $fb['assigned_display_type'] = 'staff';
+    } else {
+        $fb['assigned_display']      = 'Unassigned';
+        $fb['assigned_display_type'] = 'none';
+    }
+}
+unset($fb);
 
 /* ══════════════════════════════════════════════
    FACE EMOJI SVG HELPER
@@ -406,7 +545,7 @@ function ratingLabelText(int $r): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>IT Admin — Reports | UniKL Help Desk</title>
   <?php include '_head_assets.php'; ?>
-  <link rel="stylesheet" href="css/tickets-report.css"/>
+  <link rel="stylesheet" href="css/ticket_report.css"/>
   <link rel="stylesheet" href="css/reports-tabs.css"/>
   <link rel="stylesheet" href="css/feedback.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -577,6 +716,10 @@ function ratingLabelText(int $r): string {
 .fb-face-row:hover .fb-face-item.fb-face-active svg {
   transform: scale(1.35);
 }
+
+#tab-feedback .chart-kpi-row.fb-kpi-row {
+  grid-template-columns: repeat(3, 1fr);
+}
   </style>
 </head>
 <body>
@@ -602,6 +745,10 @@ function ratingLabelText(int $r): string {
     <a href="?tab=staff&range=<?= $range ?>" class="section-tab <?= $activeTab==='staff'?'active':'' ?>">
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Staff Activity
+    </a>
+    <a href="?tab=vendors&range=<?= $range ?>" class="section-tab <?= $activeTab==='vendors'?'active':'' ?>">
+      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><line x1="2" y1="11" x2="22" y2="11"/></svg>
+      Vendor Activity
     </a>
     <a href="?tab=feedback&range=<?= $range ?>" class="section-tab <?= $activeTab==='feedback'?'active':'' ?>">
       <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -677,9 +824,9 @@ function ratingLabelText(int $r): string {
           </div>
         </div>
       </div>
-      <div class="chart-canvas-wrap">
-        <canvas id="ticketsBarChart"></canvas>
-      </div>
+      <div class="chart-canvas-wrap" id="ticketsChartWrap">
+  <canvas id="ticketsBarChart"></canvas>
+</div>
     </div>
 
     <div class="filter-panel">
@@ -731,18 +878,18 @@ function ratingLabelText(int $r): string {
   </select>
 </div>
 <div class="filter-group">
-  <span class="filter-group-label">Assigned To</span>
+  <span class="filter-group-label">Closed By</span>
   <select class="filter-select" id="filterStaff">
-    <option value="all">All Staff</option>
+    <option value="all">All</option>
     <?php
-      // Collect unique assigned staff names from allTickets
-      $uniqueStaff = array_unique(array_filter(
-        array_column($allTickets, 'assigned_staff_name')
+      // Collect unique closed_by_display values from allTickets
+      $uniqueClosedBy = array_unique(array_filter(
+        array_column($allTickets, 'closed_by_display')
       ));
-      sort($uniqueStaff);
-      foreach ($uniqueStaff as $sName):
+      sort($uniqueClosedBy);
+      foreach ($uniqueClosedBy as $cName):
     ?>
-    <option value="<?= htmlspecialchars($sName) ?>"><?= htmlspecialchars($sName) ?></option>
+    <option value="<?= htmlspecialchars($cName) ?>"><?= htmlspecialchars($cName) ?></option>
     <?php endforeach; ?>
   </select>
 </div>
@@ -839,7 +986,7 @@ if ($resH === null || $t['status'] !== 'closed') {
     $resClass = $days <= 3 ? 'fr-warn' : 'fr-slow'; // amber if ≤3 days, red if >3 days
 }
             ?>
-            <?php $assignedName = $t['assigned_staff_name'] ?? null; ?>
+            
 <tr data-id="<?= htmlspecialchars($t['ticket_id']) ?>"
     data-title="<?= htmlspecialchars($t['title']) ?>"
     data-category="<?= htmlspecialchars($catShort) ?>"
@@ -847,7 +994,8 @@ if ($resH === null || $t['status'] !== 'closed') {
     data-priority="<?= $t['priority'] ?>"
     data-submitted="<?= date('d M Y', strtotime($t['created_at'])) ?>"
     data-submitted-ts="<?= strtotime($t['created_at']) ?>"
-    data-assigned="<?= htmlspecialchars($assignedName ?? '—') ?>"
+    data-assigned="<?= htmlspecialchars($t['closed_by_display'] ?? '—') ?>"
+    data-assigned-type="<?= htmlspecialchars($t['closed_by_type'] ?? '') ?>"
     data-firstresponse="<?= $resFmt ?>"
     data-firstresponse-raw="<?= $resH ?? 9999 ?>"
     data-sla="<?= $t['is_breached'] ? 'Breached' : 'OK' ?>"
@@ -867,10 +1015,18 @@ if ($resH === null || $t['status'] !== 'closed') {
     </span>
   </td>
   <td>
-    <?php if ($assignedName): ?>
-      <span class="assigned-staff-pill"><?= htmlspecialchars($assignedName) ?></span>
+    <?php if (!empty($t['closed_by_display'])): ?>
+      <?php if ($t['closed_by_type'] === 'vendor'): ?>
+        <span class="assigned-staff-pill" style="background:#F5F3FF;color:#7C3AED;border-color:#DDD6FE;">
+          <?= htmlspecialchars($t['closed_by_display']) ?>
+        </span>
+      <?php else: ?>
+        <span class="assigned-staff-pill"><?= htmlspecialchars($t['closed_by_display']) ?></span>
+      <?php endif; ?>
+    <?php elseif ($t['status'] !== 'closed'): ?>
+      <span style="color:#94a3b8;font-size:.75rem;font-style:italic;">—</span>
     <?php else: ?>
-      <span style="color:#94a3b8;font-size:.75rem;font-style:italic;">Unassigned</span>
+      <span style="color:#94a3b8;font-size:.75rem;font-style:italic;">Unknown</span>
     <?php endif; ?>
   </td>
   <td style="font-size:.82rem;color:#334155;">
@@ -1007,7 +1163,7 @@ if ($resH === null || $t['status'] !== 'closed') {
               <option value="180">Last 6 months</option>
               <option value="365">Last year</option>
               <option value="all">All time</option>
-              <option value="custom">Custom date range</option>  ← ADD THIS
+              <option value="custom">Custom date range</option>
             </select>
           </div>
         </div>
@@ -1241,6 +1397,279 @@ data-rank="<?= $i+1 ?>">
   </div><!-- /tab-staff -->
   <?php endif; ?>
 
+  <!-- ════════════════════════════════════════
+       TAB: VENDOR ACTIVITY
+  ════════════════════════════════════════ -->
+  <?php if ($activeTab === 'vendors'): ?>
+  <div class="tab-panel" id="tab-vendors">
+
+    <!-- ── KPI ROW ── -->
+    <div class="chart-kpi-row kpi-above-chart" style="grid-template-columns:repeat(4,1fr);">
+      <div class="chart-kpi-box">
+        <div class="chart-kpi-val" id="vkpi-vendors">—</div>
+        <div class="chart-kpi-lbl">Total Vendors</div>
+      </div>
+      <div class="chart-kpi-box" style="background:#F0FDF4;border-top-color:#16A34A;">
+        <div class="chart-kpi-val" id="vkpi-resolved" style="color:#16A34A;">—</div>
+        <div class="chart-kpi-lbl" style="color:#16A34A;">Total Resolved</div>
+      </div>
+      <div class="chart-kpi-box" style="background:#EEF2FF;border-top-color:#6366F1;">
+        <div class="chart-kpi-val" id="vkpi-actions" style="color:#6366F1;">—</div>
+        <div class="chart-kpi-lbl" style="color:#6366F1;">Tickets Assigned</div>
+      </div>
+      <div class="chart-kpi-box" style="background:#EFF6FF;border-top-color:#0EA5E9;">
+        <div class="chart-kpi-val" id="vkpi-avg-respond" style="color:#0EA5E9;">—</div>
+        <div class="chart-kpi-lbl" style="color:#0EA5E9;">Avg Respond Time</div>
+        <div style="font-size:.60rem;color:#94a3b8;margin-top:4px;line-height:1.4;">
+          Total working hrs all tickets ÷ total tickets responded
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <h2 class="chart-title">Vendor Performance Overview</h2>
+          <div class="chart-subtitle-text" id="vendorChartSubtitle">Showing all vendor activity</div>
+        </div>
+        <div class="chart-legend-group">
+          <span class="legend-pill"><span class="legend-dot" style="background:#16A34A"></span>Resolved (Closed)</span>
+        </div>
+      </div>
+      <div id="vendorChartWrap" style="position:relative; min-height:340px;">
+        <canvas id="vendorChart"></canvas>
+      </div>
+    </div>
+
+    <div class="filter-panel">
+      <div class="filter-panel-title">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 .8 1.6L14 12.4V20a1 1 0 0 1-1.45.9l-4-2A1 1 0 0 1 8 18v-5.6L3.2 5.6A1 1 0 0 1 3 4z"/></svg>
+        Chart &amp; Table Filters
+      </div>
+      <div class="filter-panel-row">
+        <div class="filter-group">
+          <span class="filter-group-label">Analysis Period</span>
+          <div class="period-select-wrap">
+            <svg class="period-select-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <select class="filter-select period-select" id="vendorFilterPeriod">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="60">Last 60 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="180">Last 6 months</option>
+              <option value="365">Last year</option>
+              <option value="all">All time</option>
+              <option value="custom">Custom date range</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-group custom-range-group" id="vendorCustomRangeFrom" style="display:none;">
+          <span class="filter-group-label">From</span>
+          <input type="date" class="filter-date-input" id="vendorCustomDateFrom"/>
+        </div>
+        <div class="filter-group custom-range-group" id="vendorCustomRangeTo" style="display:none;">
+          <span class="filter-group-label">To</span>
+          <input type="date" class="filter-date-input" id="vendorCustomDateTo"/>
+        </div>
+        <div class="filter-group">
+          <span class="filter-group-label">Vendor</span>
+          <select class="filter-select" id="vendorFilterName">
+            <option value="all">All Vendors</option>
+            <?php foreach ($vendorActivity as $v): ?>
+            <option value="<?= htmlspecialchars($v['company_name']) ?>">
+              <?= htmlspecialchars($v['company_name']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <span class="filter-group-label">&nbsp;</span>
+          <button class="filter-reset-btn" id="vendorFilterResetBtn">
+            <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+            Reset Filters
+          </button>
+        </div>
+      </div>
+      <div id="vendorActiveFilterSummary" class="active-filter-summary"></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-card-header">
+        <h2 class="table-title">🏢 Vendor Activity</h2>
+        <div class="table-actions">
+          <input type="text" class="tbl-search tbl-search-fb" id="vendorSearch" placeholder="Search vendors…"/>
+          <button class="dl-btn pdf" onclick="vendorDownloadPDF()">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Download PDF
+          </button>
+          <button class="dl-btn csv" onclick="vendorDownloadCSV()">
+            <svg viewBox="0 0 24 24"><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download CSV
+          </button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table" id="vendorTable">
+          <thead>
+            <tr>
+              <th onclick="sortVendorTable(0)">Rank <span class="sort-icon">⇅</span></th>
+              <th onclick="sortVendorTable(1)">Company Name <span class="sort-icon">⇅</span></th>
+              <th onclick="sortVendorTable(2)">PIC Name <span class="sort-icon">⇅</span></th>
+              <th onclick="sortVendorTable(3)">Account Status <span class="sort-icon">⇅</span></th>
+              <th onclick="sortVendorTable(4)">
+                Tickets Assigned
+                <span class="col-rate-note">via complaints.assigned_vendor_id</span>
+                <span class="sort-icon">⇅</span>
+              </th>
+              <th onclick="sortVendorTable(5)">Resolved (Closed) <span class="sort-icon">⇅</span></th>
+              <th onclick="sortVendorTable(6)">Status Breakdown <span class="sort-icon">⇅</span></th>
+              
+              <th onclick="sortVendorTable(7)">
+                Avg Respond Time
+                <span class="col-rate-note">Working hrs from open → first response</span>
+                <span class="sort-icon">⇅</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="vendorTableBody">
+            <?php if (empty($vendorActivity)): ?>
+            <tr><td colspan="8" class="empty-state">No vendor activity found.</td></tr>
+            <?php else: foreach ($vendorActivity as $i => $v):
+              $handled  = (int)$v['tickets_handled'];
+              $resolved = (int)$v['resolved'];
+              $inProg   = (int)$v['in_progress_count'];
+              $openCnt  = (int)$v['open_count'];
+              $rate     = $handled > 0 ? round($resolved / $handled * 100, 1) : 0;
+              $rateCol  = $rate >= 70 ? '#16A34A' : ($rate >= 40 ? '#F97316' : '#DC2626');
+
+              $vId         = (int)$v['vendor_id'];
+              $rStats      = $vendorRespondStats[$vId] ?? ['responded_count' => 0, 'total_respond_mins' => 0];
+              $avgRespondH = $rStats['responded_count'] > 0
+                  ? round($rStats['total_respond_mins'] / $rStats['responded_count'] / 60, 1)
+                  : null;
+              if ($avgRespondH === null) {
+                  $avgRespondFmt = '—';
+              } elseif ($avgRespondH < 1) {
+                  $mins = (int)round($avgRespondH * 60);
+                  $avgRespondFmt = ($mins === 0 ? '< 1m' : $mins . 'm');
+              } else {
+                  $wholeH = (int)floor($avgRespondH);
+                  $remMin = (int)round(($avgRespondH - $wholeH) * 60);
+                  $avgRespondFmt = $remMin > 0 ? $wholeH . 'h ' . $remMin . 'm' : $wholeH . 'h';
+              }
+
+              $vsBadge = [
+                  'active'    => ['bg' => '#F0FDF4', 'col' => '#16A34A', 'border' => '#BBF7D0', 'label' => 'Active'],
+                  'pending'   => ['bg' => '#FFF7ED', 'col' => '#C2410C', 'border' => '#FED7AA', 'label' => 'Pending'],
+                  'suspended' => ['bg' => '#FEF2F2', 'col' => '#DC2626', 'border' => '#FECACA', 'label' => 'Suspended'],
+              ];
+              $vs = $vsBadge[$v['vendor_status']] ?? ['bg' => '#F1F5F9', 'col' => '#64748b', 'border' => '#E2E8F0', 'label' => ucfirst($v['vendor_status'])];
+            ?>
+            <tr data-name="<?= htmlspecialchars($v['company_name']) ?>"
+                data-pic="<?= htmlspecialchars($v['pic_name'] ?? '') ?>"
+                data-status="<?= htmlspecialchars($v['vendor_status']) ?>"
+                data-handled="<?= $handled ?>"
+                data-resolved="<?= $resolved ?>"
+                data-inprog="<?= $inProg ?>"
+                data-open="<?= $openCnt ?>"
+                data-rate="<?= $rate ?>"
+                data-avgrespond="<?= $avgRespondH ?? '' ?>"
+                data-avgrespond-fmt="<?= htmlspecialchars($avgRespondFmt) ?>"
+                data-rank="<?= $i+1 ?>">
+              <td style="font-weight:700;color:#64748b;font-size:.88rem;"><?= $i+1 ?></td>
+              <td style="font-weight:600;color:#0f172a;">🏢 <?= htmlspecialchars($v['company_name']) ?></td>
+              <td style="font-size:.83rem;color:#475569;"><?= htmlspecialchars($v['pic_name'] ?? '—') ?></td>
+              <td>
+                <span style="font-size:.72rem;font-weight:700;color:<?= $vs['col'] ?>;background:<?= $vs['bg'] ?>;padding:2px 9px;border-radius:99px;border:1px solid <?= $vs['border'] ?>;">
+                  <?= $vs['label'] ?>
+                </span>
+              </td>
+              <td>
+                <?php if ($handled > 0): ?>
+                  <span style="font-weight:700;color:#6366F1;font-size:.95rem;"><?= $handled ?></span>
+                  <span style="font-size:.72rem;color:#94a3b8;margin-left:3px;">ticket<?= $handled != 1 ? 's' : '' ?></span>
+                <?php else: ?>
+                  <span class="staff-none-note">No tickets assigned</span>
+                <?php endif; ?>
+              </td>
+              <td>
+                <span style="font-weight:700;color:#16A34A;font-size:.95rem;"><?= $resolved ?></span>
+                <span style="font-size:.72rem;color:#94a3b8;margin-left:3px;">ticket<?= $resolved != 1 ? 's' : '' ?></span>
+              </td>
+              <td>
+                <div class="staff-status-wrap">
+                  <div class="staff-status-row">
+                    <span class="staff-status-dot" style="background:#16A34A;"></span>
+                    <span class="staff-status-val" style="color:#16A34A;"><?= $resolved ?></span>
+                    <span class="staff-status-label">closed</span>
+                  </div>
+                  <div class="staff-status-row">
+                    <span class="staff-status-dot" style="background:#6366F1;"></span>
+                    <span class="staff-status-val" style="color:#6366F1;"><?= $inProg ?></span>
+                    <span class="staff-status-label">in progress</span>
+                  </div>
+                  <div class="staff-status-row">
+                    <span class="staff-status-dot" style="background:#F59E0B;"></span>
+                    <span class="staff-status-val" style="color:#F59E0B;"><?= $openCnt ?></span>
+                    <span class="staff-status-label">open</span>
+                  </div>
+                </div>
+              </td>
+              
+              <td>
+                <?php if ($avgRespondH !== null): ?>
+                  <div style="display:flex;flex-direction:column;gap:3px;">
+                    <span class="fr-badge <?= $avgRespondH <= 2 ? 'fr-fast' : ($avgRespondH <= 6 ? 'fr-ok' : 'fr-slow') ?>">
+                      ⏱ <?= $avgRespondFmt ?>
+                    </span>
+                    <span style="font-size:.65rem;color:#94a3b8;"><?= $rStats['responded_count'] ?> ticket<?= $rStats['responded_count'] != 1 ? 's' : '' ?> responded</span>
+                  </div>
+                <?php else: ?>
+                  <span style="color:#94a3b8;font-size:.72rem;">—</span>
+                <?php endif; ?>
+              </td>
+            </tr>
+            <?php endforeach; endif; ?>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <div class="page-info" id="vendorPageInfo"></div>
+        <div class="page-btns" id="vendorPageBtns"></div>
+      </div>
+      <div class="summary-strip">
+        <div class="ss-item">Vendors Shown: <strong id="ss-vendor-total">...</strong></div>
+        <div class="ss-item">Total Assigned: <strong id="ss-vendor-actions">...</strong></div>
+        <div class="ss-item">Total Resolved: <strong id="ss-vendor-resolved">...</strong></div>
+        <div class="ss-item">Total In Progress: <strong id="ss-vendor-inprog">...</strong></div>
+        <div class="ss-item">Total Open: <strong id="ss-vendor-open">...</strong></div>
+        <div class="ss-note">
+          <span class="ss-note-icon">🏢</span>
+          <span>
+              <strong>Tickets Assigned</strong> — count of tickets where <code>complaints.assigned_vendor_id</code> points to this vendor,
+              within the selected period. Includes open, in-progress, and closed tickets.
+          </span>
+        </div>
+        
+        <div class="ss-note">
+          <span class="ss-note-icon">⏱</span>
+          <span>
+              <strong>Avg Respond Time</strong> — average working hours from ticket submission until the vendor's
+              first response (moved to in-progress or closed). Only tickets that have been responded to are counted.
+              Working hours: Mon–Fri 08:00–17:00. ≤2h is fast, 2–6h is moderate, &gt;6h is slow.
+          </span>
+        </div>
+        <div class="ss-note">
+          <span class="ss-note-icon">📊</span>
+          <span>
+              <strong>Status Breakdown</strong> — shows how many of the vendor's assigned tickets are currently
+              <strong>closed</strong>, <strong>in progress</strong>, or <strong>open</strong>, based on live ticket status.
+          </span>
+        </div>
+      </div>
+    </div>
+  </div><!-- /tab-vendors -->
+  <?php endif; ?>
 
   <!-- ════════════════════════════════════════
        TAB: FEEDBACK
@@ -1282,7 +1711,8 @@ $autoCount   = (int)array_sum(array_column(
         2 => 'Dissatisfied',
         1 => 'Very Dissatisfied',
     ];
-    $faceCount = [5 => $fiveS, 4 => $fourS, 3 => $threeS, 2 => $twoS, 1 => $oneS];
+    $faceCount   = [5 => $fiveS, 4 => $fourS, 3 => $threeS, 2 => $twoS, 1 => $oneS];
+    $pendingFb   = max(0, $totalClosedTickets - $totF);
   ?>
   <div class="tab-panel" id="tab-feedback">
 
@@ -1293,23 +1723,28 @@ $autoCount   = (int)array_sum(array_column(
     ══════════════════════════════════════════════ -->
     <div class="chart-kpi-row kpi-above-chart fb-kpi-row">
 
-      <!-- Total (no face) -->
-      <div class="chart-kpi-box">
-        <div class="chart-kpi-val"><?= $totF ?></div>
-        <div class="chart-kpi-lbl">Total Feedback</div>
-      </div>
+    <!-- Total Feedback -->
+  <div class="chart-kpi-box">
+    <div class="chart-kpi-val"><?= $totF ?></div>
+    <div class="chart-kpi-lbl">Total Feedback</div>
+  </div>
 
-      <!-- Per-rating KPI: number on top, face icon BESIDE label text at bottom -->
-      <?php foreach ([5,4,3,2,1] as $starVal):
-        $fc = $faceColors[$starVal];
-      ?>
-      <div class="chart-kpi-box" style="background:<?= $fc['bg'] ?>;border-top-color:<?= $fc['val'] ?>;">
-        <div class="chart-kpi-val" style="color:<?= $fc['val'] ?>;"><?= $faceCount[$starVal] ?></div>
-        <div class="chart-kpi-lbl" style="color:<?= $fc['val'] ?>;">
-          <?= feedbackFaceSvg($starVal, 14) ?>&nbsp;<?= $starVal ?>&nbsp;<?= $faceLabels[$starVal] ?>
-        </div>
-      </div>
-      <?php endforeach; ?>
+  <!-- Total Closed Tickets -->
+  <div class="chart-kpi-box" style="background:#F0FDF4;border-top-color:#16A34A;">
+    <div class="chart-kpi-val" style="color:#16A34A;"><?= $totalClosedTickets ?></div>
+    <div class="chart-kpi-lbl" style="color:#16A34A;">Closed Tickets</div>
+  </div>
+
+  <!-- Pending Feedback -->
+  <div class="chart-kpi-box" style="background:<?= $pendingFb > 0 ? '#FEF2F2' : '#F0FDF4' ?>;border-top-color:<?= $pendingFb > 0 ? '#DC2626' : '#16A34A' ?>;">
+    <div class="chart-kpi-val" style="color:<?= $pendingFb > 0 ? '#DC2626' : '#16A34A' ?>;"><?= $pendingFb ?></div>
+    <div class="chart-kpi-lbl" style="color:<?= $pendingFb > 0 ? '#DC2626' : '#16A34A' ?>;">
+      No Feedback Yet
+      <span style="display:block;font-size:.6rem;margin-top:2px;opacity:.7;">Closed but no feedback</span>
+    </div>
+  </div>
+
+      
 
     </div>
 
@@ -1403,6 +1838,33 @@ $autoCount   = (int)array_sum(array_column(
           </select>
         </div>
         <div class="fb2-filter-group">
+          <span class="fb2-filter-label">Handler Type</span>
+          <select class="fb2-filter-select" id="fbFilterHandlerType">
+            <option value="all">All</option>
+            <option value="staff">IT Staff / Admin</option>
+            <option value="vendor">Vendor</option>
+          </select>
+        </div>
+        <div class="fb2-filter-group">
+          <span class="fb2-filter-label">Assigned To</span>
+          <select class="fb2-filter-select" id="fbFilterAssigned">
+            <option value="all">All</option>
+            <?php
+              $assignedOptions = [];
+              foreach ($feedbackList as $fb2) {
+                  $key = $fb2['assigned_display'];
+                  if (!isset($assignedOptions[$key])) {
+                      $assignedOptions[$key] = $fb2['assigned_display_type'];
+                  }
+              }
+              ksort($assignedOptions);
+              foreach ($assignedOptions as $aName => $aType):
+            ?>
+            <option value="<?= htmlspecialchars($aName) ?>"><?= htmlspecialchars($aName) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="fb2-filter-group">
           <span class="fb2-filter-label">Submission Type</span>
           <select class="fb2-filter-select" id="fbFilterType">
             <option value="all">All Types</option>
@@ -1446,7 +1908,7 @@ $autoCount   = (int)array_sum(array_column(
           <thead>
             <tr>
               <th onclick="fbSortTable(0)">Ticket ID <span class="sort-icon">⇅</span></th>
-              <th onclick="fbSortTable(1)">Assigned Staff <span class="sort-icon">⇅</span></th>
+              <th onclick="fbSortTable(1)">Assigned <span class="sort-icon">⇅</span></th>
               <th onclick="fbSortTable(2)">Category <span class="sort-icon">⇅</span></th>
               <th onclick="fbSortTable(3)">Submitted By <span class="sort-icon">⇅</span></th>
               <th onclick="fbSortTable(4)">Rating <span class="sort-icon">⇅</span></th>
@@ -1479,7 +1941,8 @@ $autoCount   = (int)array_sum(array_column(
               $catShort  = explode(' / ', $fb['category_name'])[1] ?? $fb['category_name'];
             ?>
             <tr data-ticket-id="<?= htmlspecialchars($fb['ticket_id']) ?>"
-                data-assigned="<?= htmlspecialchars($fb['assigned_staff_name']) ?>"
+                data-assigned="<?= htmlspecialchars($fb['assigned_display']) ?>"
+data-assigned-type="<?= htmlspecialchars($fb['assigned_display_type']) ?>"
                 data-category="<?= htmlspecialchars($catShort) ?>"
                 data-submitted-by="<?= htmlspecialchars($fb['submitted_by_dept'] ?? '') ?>"
                 data-rating="<?= $r ?>"
@@ -1490,9 +1953,19 @@ $autoCount   = (int)array_sum(array_column(
                 data-date-ts="<?= strtotime($fb['created_at']) ?>"
                 data-type="<?= $typeLabel ?>">
               <td><span class="ticket-id"><?= htmlspecialchars($fb['ticket_id']) ?></span></td>
-              <td style="font-size:.82rem;font-weight:600;color:#334155;">
-                <?= htmlspecialchars($fb['assigned_staff_name']) ?>
-              </td>
+              <td style="font-size:.82rem;font-weight:600;">
+  <?php if ($fb['assigned_display_type'] === 'vendor'): ?>
+    <span style="color:#7C3AED;">
+      <?= htmlspecialchars($fb['assigned_display']) ?>
+    </span>
+  <?php elseif ($fb['assigned_display_type'] === 'staff'): ?>
+    <span style="color:#334155;">
+      <?= htmlspecialchars($fb['assigned_display']) ?>
+    </span>
+  <?php else: ?>
+    <span style="color:#94a3b8;font-style:italic;font-size:.75rem;">Unassigned</span>
+  <?php endif; ?>
+</td>
               <td style="font-size:.82rem;color:#475569;"><?= htmlspecialchars($catShort) ?></td>
               <td style="font-size:.82rem;color:#334155;"><?= htmlspecialchars($fb['submitted_by_dept'] ?? '—') ?></td>
               <td>
@@ -1539,8 +2012,15 @@ $autoCount   = (int)array_sum(array_column(
       </div>
 
       <div class="fb2-summary-strip">
-        <span>Total: <strong id="fbss-total"><?= count($feedbackList) ?></strong></span>
-        <span class="fb2-divider">|</span>
+  <span>Total: <strong id="fbss-total"><?= count($feedbackList) ?></strong></span>
+  <span class="fb2-divider">|</span>
+  <span style="color:#16A34A;">Closed Tickets: <strong><?= $totalClosedTickets ?></strong></span>
+  <span class="fb2-divider">|</span>
+  <span style="color:<?= $pendingFb > 0 ? '#DC2626' : '#16A34A' ?>;">
+    No Feedback Yet: <strong><?= $pendingFb ?></strong>
+    <span style="font-size:.70rem;font-weight:400;color:#94a3b8;">(<?= $totalClosedTickets ?> closed − <?= $totF ?> feedback)</span>
+  </span>
+  <span class="fb2-divider">|</span>
         <span style="color:#16A34A;">Positive: <strong id="fbss-pos"><?= $pos ?></strong>
           <span style="font-size:.70rem;font-weight:400;color:#94a3b8;">(Very Satisfied + Satisfied)</span>
         </span>
@@ -1845,7 +2325,8 @@ window.TICKET_DATA = {
       'is_breached'          => (int)$t['is_breached'],
       'resolution_hours'    => $t['resolution_hours'],
 'respond_hours'       => $t['respond_hours'] ?? null,
-'assigned_staff_name' => $t['assigned_staff_name'] ?? null,
+'closed_by_display' => $t['closed_by_display'] ?? null,
+'closed_by_type'    => $t['closed_by_type'] ?? null,
     ];
   }, $allTickets)) ?>,
   summary:  { total:<?= (int)$summary['total'] ?>, open:<?= (int)$summary['open'] ?>, in_progress:<?= (int)$summary['in_progress'] ?>, closed:<?= (int)$summary['closed'] ?> },
@@ -1853,7 +2334,7 @@ window.TICKET_DATA = {
   avgHours: <?= $avgHours ? (float)$avgHours : 'null' ?>
 };
 </script>
-<script src="js/tickets_reportt.js"></script>
+<script src="js/ticket_report.js"></script>
 <?php endif; ?>
 
 <?php if ($activeTab === 'staff'): ?>
@@ -1884,25 +2365,57 @@ window.STAFF_DATA = {
   }, $staffActivity)) ?>
 };
 </script>
-<script src="js/staff_reportss.js"></script>
+<script src="js/staff_report.js"></script>
+<?php endif; ?>
+
+<?php if ($activeTab === 'vendors'): ?>
+<script>
+window.VENDOR_DATA = {
+  period: '<?= $days ?? 'all' ?>',
+  vendors: <?= json_encode(array_map(function($v) use ($vendorRespondStats) {
+    $handled  = (int)$v['tickets_handled'];
+    $resolved = (int)$v['resolved'];
+    $rate     = $handled > 0 ? round($resolved / $handled * 100, 1) : 0;
+    $vId    = (int)$v['vendor_id'];
+    $rSt    = $vendorRespondStats[$vId] ?? ['responded_count' => 0, 'total_respond_mins' => 0];
+    return [
+      'company_name'      => $v['company_name'],
+      'pic_name'          => $v['pic_name'],
+      'vendor_status'     => $v['vendor_status'],
+      'tickets_handled'   => $handled,
+      'resolved'          => $resolved,
+      'in_progress_count' => (int)$v['in_progress_count'],
+      'open_count'        => (int)$v['open_count'],
+      'resolution_rate'   => $rate,
+      'avg_respond_h'     => $rSt['responded_count'] > 0
+          ? round($rSt['total_respond_mins'] / $rSt['responded_count'] / 60, 1)
+          : null,
+      'responded_count'   => $rSt['responded_count'],
+    ];
+  }, $vendorActivity)) ?>
+};
+</script>
+<script src="js/vendor_report.js"></script>
 <?php endif; ?>
 
 <?php if ($activeTab === 'feedback'): ?>
 <script>
 window.FEEDBACK_DATA = {
-  pos:         <?= $pos ?>,
-  neu:         <?= $neu ?>,
-  neg:         <?= $neg ?>,
-  totF:        <?= $totF ?>,
-  fiveS:       <?= $fiveS ?>,
-  fourS:       <?= $fourS ?>,
-  threeS:      <?= $threeS ?>,
-  twoS:        <?= $twoS ?>,
-  oneS:        <?= $oneS ?>,
-  periodLabel: <?= json_encode($days ? 'Last '.$days.' days' : 'All time') ?>
+  pos:               <?= $pos ?>,
+  neu:               <?= $neu ?>,
+  neg:               <?= $neg ?>,
+  totF:              <?= $totF ?>,
+  fiveS:             <?= $fiveS ?>,
+  fourS:             <?= $fourS ?>,
+  threeS:            <?= $threeS ?>,
+  twoS:              <?= $twoS ?>,
+  oneS:              <?= $oneS ?>,
+  totalClosed:       <?= $totalClosedTickets ?>,
+  pendingFeedback:   <?= max(0, $totalClosedTickets - $totF) ?>,
+  periodLabel:       <?= json_encode($days ? 'Last '.$days.' days' : 'All time') ?>
 };
 </script>
-<script src="js/feedbacks_report.js"></script>
+<script src="js/feedback_report.js"></script>
 <?php endif; ?>
 
 <?php if ($activeTab === 'category' && !empty($categoryStats)): ?>
@@ -1915,7 +2428,7 @@ window.CATEGORY_DATA = {
   periodLabel: <?= json_encode($catPeriodLabel) ?>
 };
 </script>
-<script src="js/category-report.js"></script>
+<script src="js/category_report.js"></script>
 <?php endif; ?>
 
 </body>

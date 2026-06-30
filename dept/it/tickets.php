@@ -90,12 +90,16 @@ if ($filterStatus === 'all') {
             complaints.priority, complaints.my_department,
             complaints.created_at, complaints.updated_at,
             complaints.submitter_type, complaints.submitter_email,
+            complaints.assigned_vendor_id,
+            complaints.assigned_vendor_name,
+            v.company_name AS assigned_vendor_company,
             s.staff_id AS assigned_staff_id,
             s.full_name AS assigned_staff_name,
             st.email AS staff_submitter_email,
             cat.category_name
      FROM complaints
      LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+     LEFT JOIN vendors v ON v.vendor_id = complaints.assigned_vendor_id
      LEFT JOIN staff st ON complaints.submitter_type = 'staff' AND complaints.submitter_id = st.staff_id
      LEFT JOIN categories cat ON cat.category_id = complaints.category_id
      WHERE complaints.dept_id = ? $extraWhere
@@ -110,12 +114,16 @@ if ($filterStatus === 'all') {
             complaints.priority, complaints.my_department,
             complaints.created_at, complaints.updated_at,
             complaints.submitter_type, complaints.submitter_email,
+            complaints.assigned_vendor_id,
+            complaints.assigned_vendor_name,
+            v.company_name AS assigned_vendor_company,
             s.staff_id AS assigned_staff_id,
             s.full_name AS assigned_staff_name,
             st.email AS staff_submitter_email,
             cat.category_name
      FROM complaints
      LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+     LEFT JOIN vendors v ON v.vendor_id = complaints.assigned_vendor_id
      LEFT JOIN staff st ON complaints.submitter_type = 'staff' AND complaints.submitter_id = st.staff_id
      LEFT JOIN categories cat ON cat.category_id = complaints.category_id
      WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere
@@ -610,7 +618,18 @@ else { $flagFill = '#64748b'; }
 
             <!-- Assigned To -->
             <td>
-              <?php if (!empty($t['assigned_staff_name'])): ?>
+              <?php if (!empty($t['assigned_vendor_name'])): 
+                $vendorDisplay = !empty($t['assigned_vendor_company']) ? $t['assigned_vendor_company'] : $t['assigned_vendor_name'];
+              ?>
+              <div class="assigned-cell">
+                <div class="staff-avatar-sm" style="background:linear-gradient(135deg,#5B21B6,#7C3AED);">
+                  <?php echo strtoupper(substr($vendorDisplay, 0, 1)); ?>
+                </div>
+                <span class="assigned-name" title="<?php echo htmlspecialchars($vendorDisplay); ?>" style="color:#7C3AED;">
+                  <?php echo htmlspecialchars($vendorDisplay); ?>
+                </span>
+              </div>
+              <?php elseif (!empty($t['assigned_staff_name'])): ?>
               <div class="assigned-cell">
                 <div class="staff-avatar-sm"><?php echo staffInitials($t['assigned_staff_name']); ?></div>
                 <span class="assigned-name" title="<?php echo htmlspecialchars($t['assigned_staff_name']); ?>"><?php echo htmlspecialchars($t['assigned_staff_name']); ?></span>

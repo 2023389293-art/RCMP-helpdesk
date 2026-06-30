@@ -252,7 +252,7 @@ function sendRequisitionEmail($conn, string $refNumber, string $userName, string
     $afsmdEmailStmt->execute();
     $afsmdEmailRow   = $afsmdEmailStmt->get_result()->fetch_assoc();
     $afsmdEmailStmt->close();
-    $afsmdGroupEmail = $afsmdEmailRow['dept_email'] ?? 'afsmd.rcmp@unikl.edu.my';
+    $afsmdGroupEmail = $afsmdEmailRow['dept_email'] ?? 'admin.rcmp@unikl.edu.my';
 
     $anySuccess = false;
 

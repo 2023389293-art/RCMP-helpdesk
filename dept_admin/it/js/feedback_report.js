@@ -24,6 +24,8 @@
   let filterSentiment = 'all';
   let filterDept      = 'all';
   let filterType      = 'all';
+let filterAssigned  = 'all';
+let filterHandlerType = 'all';
   let searchQuery     = '';
   let fbSortDir       = {};
 
@@ -145,12 +147,14 @@
      INIT
   ══════════════════════════════════════════════ */
   document.addEventListener('DOMContentLoaded', () => {
-    initChart();
     initFilters();
     activeRows = getFilteredRows();
     renderPage();
     updateSummary();
     updateFilterPills();
+    requestAnimationFrame(() => {
+      initChart();
+    });
   });
 
   /* ══════════════════════════════════════════════
@@ -189,6 +193,8 @@
     bind('fbFilterSentiment', v => { filterSentiment = v; });
     bind('fbFilterDept',      v => { filterDept      = v; });
     bind('fbFilterType',      v => { filterType      = v; });
+    bind('fbFilterAssigned',  v => { filterAssigned  = v; });
+    bind('fbFilterHandlerType', v => { filterHandlerType = v; });
 
     document.getElementById('fbSearch')?.addEventListener('input', e => {
       searchQuery = e.target.value.toLowerCase().trim();
@@ -196,10 +202,10 @@
     });
 
     document.getElementById('fbFilterResetBtn')?.addEventListener('click', () => {
-      filterPeriod = filterRating = filterSentiment = filterDept = filterType = 'all';
+      filterPeriod = filterRating = filterSentiment = filterDept = filterType = filterAssigned = filterHandlerType = 'all';
       searchQuery  = '';
       customDateFrom = customDateTo = null;
-      ['fbFilterPeriod','fbFilterRating','fbFilterSentiment','fbFilterDept','fbFilterType'].forEach(id => {
+      ['fbFilterPeriod','fbFilterRating','fbFilterSentiment','fbFilterDept','fbFilterType','fbFilterAssigned','fbFilterHandlerType'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = 'all';
       });
@@ -235,6 +241,8 @@
       if (filterRating    !== 'all' && r.dataset.rating    !== filterRating)    return false;
       if (filterSentiment !== 'all' && r.dataset.sentiment !== filterSentiment) return false;
       if (filterType      !== 'all' && r.dataset.type      !== filterType)       return false;
+      if (filterAssigned !== 'all' && r.dataset.assigned !== filterAssigned) return false;
+      if (filterHandlerType !== 'all' && r.dataset.assignedType !== filterHandlerType) return false;
       if (filterDept !== 'all') {
         const deptVal = (r.dataset.submittedBy || '').trim().toLowerCase();
         if (deptVal !== filterDept.toLowerCase()) return false;
@@ -242,7 +250,7 @@
       if (searchQuery) {
         const hay = [
           r.dataset.ticketId, r.dataset.title, r.dataset.submittedBy,
-          r.dataset.sentiment, r.dataset.comment, r.dataset.type,
+          r.dataset.assigned, r.dataset.sentiment, r.dataset.comment, r.dataset.type,
           r.dataset.rating, r.dataset.ratingLabel
         ].join(' ').toLowerCase();
         if (!hay.includes(searchQuery)) return false;
@@ -263,6 +271,8 @@
     if (filterSentiment !== 'all') parts.push(`Sentiment: <strong>${filterSentiment}</strong>`);
     if (filterDept      !== 'all') parts.push(`Dept/Faculty: <strong>${filterDept}</strong>`);
     if (filterType      !== 'all') parts.push(`Type: <strong>${filterType}</strong>`);
+    if (filterAssigned !== 'all') parts.push(`Assigned: <strong>${filterAssigned}</strong>`);
+    if (filterHandlerType !== 'all') parts.push(`Handler Type: <strong>${filterHandlerType === 'staff' ? 'IT Staff / Admin' : 'Vendor'}</strong>`);
     if (searchQuery)                parts.push(`Search: <strong>"${searchQuery}"</strong>`);
     el.innerHTML = parts.map(p => `<span class="filter-pill">${p}</span>`).join('');
     el.style.display = 'flex';
@@ -358,7 +368,7 @@
   window.fbDownloadCSV = function () {
     const rows = activeRows.length ? activeRows : getAllRows();
     const slug = getFbPeriodLabel().replace(/[\s→]+/g, '-').toLowerCase();
-    const lines = [['Ticket ID','Assigned Staff','Category','Submitted By','Rating','Rating Label','Sentiment','Comment','Date','Type'].join(',')];
+    const lines = [['Ticket ID','Assigned','Category','Submitted By','Rating','Rating Label','Sentiment','Comment','Date','Type'].join(',')];
     rows.forEach(r => {
       lines.push([
         r.dataset.ticketId,
@@ -427,6 +437,7 @@
       filterRating    !== 'all' ? `Rating: ${filterRating} stars - ${RATING_LABEL[parseInt(filterRating, 10)]}` : null,
       filterSentiment !== 'all' ? `Sentiment: ${filterSentiment}` : null,
       filterDept      !== 'all' ? `Dept: ${filterDept}` : null,
+      filterAssigned  !== 'all' ? `Assigned: ${filterAssigned}` : null,
       filterType      !== 'all' ? `Type: ${filterType}` : null,
       searchQuery     ? `Search: "${searchQuery}"` : null,
     ].filter(Boolean).join('   |   ');
@@ -465,7 +476,7 @@
       startY: 45,
       margin: { left: 14, right: 14 },
       tableWidth: 'auto',
-      head: [['Ticket ID', 'Assigned Staff', 'Category', 'Submitted By', 'Rating', 'Rating Label', 'Sentiment', 'Comment', 'Date', 'Type']],
+      head: [['Ticket ID', 'Assigned', 'Category', 'Submitted By', 'Rating', 'Rating Label', 'Sentiment', 'Comment', 'Date', 'Type']],
       body: rows.map(r => [
         r.dataset.ticketId,
         r.dataset.assigned,

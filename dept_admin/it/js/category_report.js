@@ -84,13 +84,15 @@
   ══════════════════════════════════════════════ */
   document.addEventListener('DOMContentLoaded', () => {
     initCatFilters();
-    renderCatChart(ALL_CATS);
-    updateCatKPIs(ALL_CATS);
-    catActiveRows = getCatRows();
-    renderCatPage();
-    updateCatSummary();
-    updateCatFilterPill();
-    updateResolutionCalc();
+    requestAnimationFrame(() => {
+      renderCatChart(ALL_CATS);
+      updateCatKPIs(ALL_CATS);
+      catActiveRows = getCatRows();
+      renderCatPage();
+      updateCatSummary();
+      updateCatFilterPill();
+      updateResolutionCalc();
+    });
   });
 
   /* ══════════════════════════════════════════════

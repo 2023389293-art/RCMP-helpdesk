@@ -131,7 +131,9 @@
       applyStaffFilters();
     });
 
-    applyStaffFilters();
+    requestAnimationFrame(() => {
+      applyStaffFilters();
+    });
   });
 
   /* ══════════════════════════════════════════════

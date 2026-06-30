@@ -85,12 +85,16 @@ if ($filterStatus === 'all') {
                 complaints.priority, complaints.my_department,
                 complaints.created_at, complaints.updated_at,
                 complaints.submitter_type, complaints.submitter_email,
+                complaints.assigned_vendor_id,
+                complaints.assigned_vendor_name,
+                v.company_name AS assigned_vendor_company,
                 s.staff_id AS assigned_staff_id,
                 s.full_name AS assigned_staff_name,
                 st.email AS staff_submitter_email,
                 cat.category_name
          FROM complaints
          LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+         LEFT JOIN vendors v ON v.vendor_id = complaints.assigned_vendor_id
          LEFT JOIN staff st ON complaints.submitter_type = 'staff' AND complaints.submitter_id = st.staff_id
          LEFT JOIN categories cat ON cat.category_id = complaints.category_id
          WHERE complaints.dept_id = ? $extraWhere
@@ -104,12 +108,16 @@ if ($filterStatus === 'all') {
                 complaints.priority, complaints.my_department,
                 complaints.created_at, complaints.updated_at,
                 complaints.submitter_type, complaints.submitter_email,
+                complaints.assigned_vendor_id,
+                complaints.assigned_vendor_name,
+                v.company_name AS assigned_vendor_company,
                 s.staff_id AS assigned_staff_id,
                 s.full_name AS assigned_staff_name,
                 st.email AS staff_submitter_email,
                 cat.category_name
          FROM complaints
          LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+         LEFT JOIN vendors v ON v.vendor_id = complaints.assigned_vendor_id
          LEFT JOIN staff st ON complaints.submitter_type = 'staff' AND complaints.submitter_id = st.staff_id
          LEFT JOIN categories cat ON cat.category_id = complaints.category_id
          WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere
@@ -319,6 +327,77 @@ col.col-action   { width: 8%;  }
     .pg-btn.active{background:var(--accent);border-color:var(--accent);color:white;}
     .pg-btn.disabled{opacity:.4;pointer-events:none;}
     #no-search-row{display:none;}
+
+/* ══════════════════════════════════════════════════
+   TICKETS — MOBILE RESPONSIVE
+   ══════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .adv-filter-bar-body { gap: 10px; }
+  .adv-filter-select,
+  .adv-filter-input    { min-width: 130px; }
+  .adv-filter-actions  { margin-left: 0; width: 100%; }
+  .btn-apply-filter,
+  .btn-reset-filter    { flex: 1; justify-content: center; }
+}
+
+@media (max-width: 640px) {
+  .filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    gap: 6px;
+  }
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .filter-tab { flex-shrink: 0; padding: 7px 12px; font-size: 13px; }
+
+  .adv-filter-bar-body { padding: 12px 14px; gap: 10px; }
+  .adv-filter-group    { width: 100%; }
+  .adv-filter-select,
+  .adv-filter-input    { width: 100%; min-width: unset; }
+  .adv-filter-actions  { width: 100%; margin-left: 0; }
+  .btn-apply-filter,
+  .btn-reset-filter    { flex: 1; justify-content: center; }
+  .adv-filter-bar-header { padding: 11px 14px; }
+
+  .active-chips { gap: 6px; }
+  .chip         { font-size: 11px; padding: 3px 8px; }
+
+  .toolbar       { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .toolbar-right { width: 100%; }
+  .search-wrap   { flex: 1; }
+  .search-input  { width: 100%; }
+  .perpage-select { flex-shrink: 0; }
+
+  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table     { table-layout: auto; min-width: 420px; }
+
+  thead th:nth-child(5),
+  tbody td:nth-child(5),
+  thead th:nth-child(6),
+  tbody td:nth-child(6),
+  thead th:nth-child(7),
+  tbody td:nth-child(7) { display: none; }
+
+  thead th,
+  tbody td { padding: 9px 8px; }
+
+  .tid-link { font-size: 11px; padding: 2px 6px; }
+  .dept-cell .dept-name     { font-size: 12px; }
+  .dept-cell .dept-datetime { font-size: 10px; }
+  .bdg { font-size: 11px; padding: 2px 6px; }
+
+  .priority-pill { font-size: 0; gap: 0; }
+  .priority-flag-icon { width: 16px; height: 16px; top: 0; }
+
+  .btn-view { padding: 5px 8px; font-size: 0; gap: 0; }
+  .btn-view svg { width: 14px; height: 14px; }
+
+  .pagination-bar { flex-direction: column; align-items: center; gap: 8px; }
+  .pg-btn         { padding: 6px 10px; font-size: 12px; min-width: 32px; }
+  .pg-info        { font-size: 12px; }
+}
   </style>
 </head>
 <body>
@@ -344,7 +423,7 @@ col.col-action   { width: 8%;  }
       <input type="hidden" name="per_page" value="<?php echo $perPage; ?>">
       <input type="hidden" name="page" value="1">
       <div class="adv-filter-group"><label>Priority</label>
-        <select name="priority" class="adv-filter-select" onchange="this.form.submit()">
+        <select name="priority" class="adv-filter-select">
           <option value="">All priorities</option>
           <option value="high" <?php echo $filterPriority==='high'?'selected':''; ?>>🔴 High</option>
           <option value="medium" <?php echo $filterPriority==='medium'?'selected':''; ?>>🟡 Medium</option>
@@ -352,22 +431,23 @@ col.col-action   { width: 8%;  }
         </select>
       </div>
       <div class="adv-filter-group"><label>From Department</label>
-        <select name="dept" class="adv-filter-select" onchange="this.form.submit()">
+        <select name="dept" class="adv-filter-select">
           <option value="">All departments</option>
           <?php foreach ($deptOptions as $d): ?><option value="<?php echo htmlspecialchars($d); ?>" <?php echo $filterDept===$d?'selected':''; ?>><?php echo htmlspecialchars($d); ?></option><?php endforeach; ?>
         </select>
       </div>
       <div class="adv-filter-group"><label>Category</label>
-        <select name="category" class="adv-filter-select" onchange="this.form.submit()">
+        <select name="category" class="adv-filter-select">
           <option value="">All categories</option>
           <?php foreach ($categoryOptions as $cat):
             $catShort = strpos($cat['category_name'],' / ') !== false ? trim(substr($cat['category_name'], strpos($cat['category_name'],' / ')+3)) : $cat['category_name'];
           ?><option value="<?php echo (int)$cat['category_id']; ?>" <?php echo $filterCategory==(string)$cat['category_id']?'selected':''; ?>><?php echo htmlspecialchars($catShort); ?></option><?php endforeach; ?>
         </select>
       </div>
-<div class="adv-filter-group"><label>Date From</label><input type="date" name="date_from" class="adv-filter-input" value="<?php echo htmlspecialchars($filterDateFrom); ?>" max="<?php echo date('Y-m-d'); ?>" onchange="this.form.submit()"></div>
-<div class="adv-filter-group"><label>Date To</label><input type="date" name="date_to" class="adv-filter-input" value="<?php echo htmlspecialchars($filterDateTo); ?>" max="<?php echo date('Y-m-d'); ?>" onchange="this.form.submit()"></div>
+<div class="adv-filter-group"><label>Date From</label><input type="date" name="date_from" class="adv-filter-input" value="<?php echo htmlspecialchars($filterDateFrom); ?>" max="<?php echo date('Y-m-d'); ?>"></div>
+<div class="adv-filter-group"><label>Date To</label><input type="date" name="date_to" class="adv-filter-input" value="<?php echo htmlspecialchars($filterDateTo); ?>" max="<?php echo date('Y-m-d'); ?>"></div>
       <div class="adv-filter-actions">
+        <button type="submit" class="btn-apply-filter">Apply Filters</button>
         <a href="tickets.php?status=<?php echo htmlspecialchars($filterStatus); ?>" class="btn-reset-filter">Reset</a>
       </div>
       </div><!-- /.adv-filter-bar-body -->
@@ -521,7 +601,18 @@ col.col-action   { width: 8%;  }
 
             <!-- Assigned To -->
             <td>
-              <?php if (!empty($t['assigned_staff_name'])): ?>
+              <?php if (!empty($t['assigned_vendor_name'])): 
+                $vendorDisplay = !empty($t['assigned_vendor_company']) ? $t['assigned_vendor_company'] : $t['assigned_vendor_name'];
+              ?>
+              <div class="assigned-cell">
+                <div class="staff-avatar-sm" style="background:linear-gradient(135deg,#5B21B6,#7C3AED);">
+                  <?php echo strtoupper(substr($vendorDisplay, 0, 1)); ?>
+                </div>
+                <span class="assigned-name" title="<?php echo htmlspecialchars($vendorDisplay); ?>" style="color:#7C3AED;">
+                  <?php echo htmlspecialchars($vendorDisplay); ?>
+                </span>
+              </div>
+              <?php elseif (!empty($t['assigned_staff_name'])): ?>
               <div class="assigned-cell">
                 <div class="staff-avatar-sm"><?php echo staffInitials($t['assigned_staff_name']); ?></div>
                 <span class="assigned-name" title="<?php echo htmlspecialchars($t['assigned_staff_name']); ?>"><?php echo htmlspecialchars($t['assigned_staff_name']); ?></span>

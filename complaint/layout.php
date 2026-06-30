@@ -1075,7 +1075,7 @@ var POPUP_API = '../new_reply_popup_api.php';
       <div class="fb-rating-desc" id="fbRatingDesc" style="color:#9299b0;">Click a face to rate</div>
 
       <label class="fb-comment-label" for="fbComment">
-        What could be improved? <span style="font-weight:400;color:#9299b0;">(optional)</span>
+        What could be improved? <span id="fbCommentNote" style="font-weight:400;color:#9299b0;">(optional)</span>
       </label>
       <textarea id="fbComment" class="fb-textarea" placeholder="Share any thoughts about the response time, staff helpfulness, or anything else…" maxlength="1000"></textarea>
 
@@ -1222,6 +1222,17 @@ var POPUP_API = '../new_reply_popup_api.php';
     scheduleNextPoll();
   }
 
+  function updateSubmitState() {
+    var needsComment = selectedRating >= 1 && selectedRating <= 3;
+    var hasComment   = commentEl.value.trim().length > 0;
+    submitBtn.disabled = (selectedRating < 1) || (needsComment && !hasComment);
+    var noteEl = document.getElementById('fbCommentNote');
+    if (noteEl) {
+      noteEl.textContent = needsComment ? '(required)' : '(optional)';
+      noteEl.style.color = needsComment ? '#DC2626' : '  #9299b0';
+    }
+  }
+
   function setRating(val) {
     selectedRating = val;
     document.querySelectorAll('.fb-emoji-btn').forEach(function (b) {
@@ -1229,7 +1240,7 @@ var POPUP_API = '../new_reply_popup_api.php';
     });
     ratingDesc.textContent = DESCS[val] || '';
     ratingDesc.style.color = COLORS[val] || '#9299b0';
-    submitBtn.disabled = false;
+    updateSubmitState();
   }
 
   document.querySelectorAll('.fb-emoji-btn').forEach(function (b) {
@@ -1238,9 +1249,15 @@ var POPUP_API = '../new_reply_popup_api.php';
     });
   });
 
+  commentEl.addEventListener('input', function () {
+    updateSubmitState();
+  });
+
   /* ── Submit ── */
   function submitFeedback() {
     if (!currentTicketId || selectedRating < 1) return;
+    var needsComment = selectedRating >= 1 && selectedRating <= 3;
+    if (needsComment && commentEl.value.trim().length === 0) return;
     clearCountdown();
 
     submitBtn.disabled    = true;
@@ -1304,6 +1321,7 @@ var POPUP_API = '../new_reply_popup_api.php';
         if (data.dismissed) { _dismissed = true; return; }
         if (!data.pending) return;
         if (!data.ticket_id) return;
+        if (window.__inlineFbActiveTicket && window.__inlineFbActiveTicket === data.ticket_id) return;
 
         var ticketId = data.ticket_id;
         var label    = ticketId;

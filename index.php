@@ -686,19 +686,33 @@ nav { padding: 0 16px; height: 60px; }
 
       <a href="staff_login.php" class="btn-icon-admin" data-tooltip="For Administration" aria-label="Admin Login">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <!-- head -->
           <circle cx="12" cy="6.5" r="3.5" fill="#FFFFFF"/>
-          <!-- suit body / shoulders -->
           <path d="M3 22 C3 16 6 13.5 9.5 13 L10.5 15 L12 13.8 L13.5 15 L14.5 13 C18 13.5 21 16 21 22 Z" fill="#FFFFFF"/>
-          <!-- shirt collar white gap -->
           <path d="M10.5 15 L12 13.8 L13.5 15 L12 22 Z" fill="#142845"/>
-          <!-- tie -->
           <path d="M11.3 15.2 L12 14.5 L12.7 15.2 L12.4 19.5 L12 20.2 L11.6 19.5 Z" fill="#D4A017"/>
-          <!-- gold badge -->
           <circle cx="18.5" cy="18.5" r="4" fill="#D4A017"/>
-          <!-- shield / operator mark -->
           <path d="M18.5 15.5 L16.2 16.5 L16.2 18.8 C16.2 20.1 17.2 21.2 18.5 21.5 C19.8 21.2 20.8 20.1 20.8 18.8 L20.8 16.5 Z" fill="#142845"/>
           <polyline points="17.3,18.5 18.2,19.4 19.9,17.4" fill="none" stroke="#D4A017" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+
+      <a href="vendor_login.php" class="btn-icon-admin" data-tooltip="For Vendor" aria-label="Vendor Login">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <!-- vendor bag / storefront icon -->
+          <!-- shop building -->
+          <rect x="3" y="11" width="18" height="10" rx="1" fill="none" stroke="#FFFFFF" stroke-width="1.4"/>
+          <!-- awning / roof -->
+          <path d="M2 7 L22 7 L20 11 L4 11 Z" fill="#FFFFFF"/>
+          <!-- top strip -->
+          <rect x="2" y="5" width="20" height="2" rx="0.5" fill="#D4A017"/>
+          <!-- door -->
+          <rect x="10" y="14" width="4" height="7" rx="0.5" fill="#D4A017"/>
+          <!-- left window -->
+          <rect x="4.5" y="13" width="3.5" height="3" rx="0.5" fill="#D4A017" opacity="0.85"/>
+          <!-- right window -->
+          <rect x="16" y="13" width="3.5" height="3" rx="0.5" fill="#D4A017" opacity="0.85"/>
+          <!-- door knob -->
+          <circle cx="13.2" cy="17.5" r="0.5" fill="#142845"/>
         </svg>
       </a>
     </div>
@@ -794,7 +808,7 @@ nav { padding: 0 16px; height: 60px; }
   <div class="manual-modal-overlay" id="userManualModal" onclick="if(event.target===this) closeUserManual()">
     <div class="manual-modal-content">
       <button class="manual-modal-close" onclick="closeUserManual()" aria-label="Close">&times;</button>
-      <img src="img/User Manual.png" alt="User Manual" />
+      <img src="img/User_Manual.png" alt="User Manual" />
     </div>
   </div>
 

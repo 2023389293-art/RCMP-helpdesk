@@ -1,0 +1,971 @@
+<?php
+// vendor_login.php — RUSH Vendor Portal (Register + Login)
+session_start();
+
+// ── Handle logout ──────────────────────────────────────────────────────────
+if (isset($_GET['logout'])) {
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $p['path'], $p['domain'], $p['secure'], $p['httponly']);
+    }
+    session_destroy();
+    header("Location: vendor_login.php");
+    exit;
+}
+
+// ── If already logged in as vendor, redirect ──────────────────────────────
+if (!empty($_SESSION['vendor_id'])) {
+    header("Location: vendorRCMP/dashboard.php");
+    exit;
+}
+
+require 'db_connect.php';
+require 'mail_helper.php';
+
+// ── Load PHPMailer for use in this file (only if not already loaded) ──────
+if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
+    require 'PHPMailer-master/src/Exception.php';
+    require 'PHPMailer-master/src/PHPMailer.php';
+    require 'PHPMailer-master/src/SMTP.php';
+}
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+$error        = '';
+$success      = '';
+$active_tab   = 'login'; // 'login' or 'register'
+
+// ── Read one-time success message from session (PRG pattern) ──
+if (!empty($_SESSION['reg_success'])) {
+    $success = $_SESSION['reg_success'];
+    unset($_SESSION['reg_success']);
+}
+
+// ── VENDOR REGISTRATION EMAIL ──────────────────────────────────────────────
+function sendVendorRegistrationEmail($conn, int $vendor_id, string $company_name, string $pic_name, string $vendor_email, string $vendor_phone, array $dept_ids): void
+{
+    if (empty($dept_ids)) return;
+
+    $currentYear = date('Y');
+    $currentDate = date('d F Y');
+
+    foreach ($dept_ids as $did) {
+        // Get department name and email
+        $deptStmt = $conn->prepare("SELECT dept_name, dept_email FROM departments WHERE dept_id = ? LIMIT 1");
+        $deptStmt->bind_param("i", $did);
+        $deptStmt->execute();
+        $deptRow = $deptStmt->get_result()->fetch_assoc();
+        $deptStmt->close();
+        if (!$deptRow) continue;
+
+        $deptName       = $deptRow['dept_name'];
+        $deptGroupEmail = $deptRow['dept_email'];
+
+        // Get all active staff in this department
+        $staffStmt = $conn->prepare("SELECT full_name, email FROM staff WHERE dept_id = ? AND status = 'active' AND (role = 'admin' OR role = 'hod')");
+        $staffStmt->bind_param("i", $did);
+        $staffStmt->execute();
+        $staffList = $staffStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $staffStmt->close();
+
+        if (empty($staffList)) {
+            error_log("[VendorMail] No admin/HOD staff found for dept_id={$did}");
+            continue;
+        }
+
+        $escapedCompany  = htmlspecialchars($company_name);
+        $escapedPIC      = htmlspecialchars($pic_name);
+        $escapedEmail    = htmlspecialchars($vendor_email);
+        $escapedPhone    = htmlspecialchars($vendor_phone);
+        $escapedDept     = htmlspecialchars($deptName);
+
+        $htmlBody = <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>UniKL RCMP — New Vendor Registration</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f2f5;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+        <tr><td style="background-color:#00327a;padding:0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="height:4px;background:linear-gradient(90deg,#e8b200 0%,#f5cc30 50%,#e8b200 100%);"></td></tr>
+          </table>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="padding:28px 40px 24px;">
+              <table cellpadding="0" cellspacing="0" border="0"><tr>
+                <td style="vertical-align:middle;padding-right:16px;">
+                  <div style="width:48px;height:48px;background-color:rgba(255,255,255,0.12);border-radius:4px;text-align:center;line-height:48px;"><span style="font-size:24px;">🏛️</span></div>
+                </td>
+                <td style="vertical-align:middle;">
+                  <div style="font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.55);margin-bottom:4px;">Universiti Kuala Lumpur</div>
+                  <div style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:0.01em;">RCMP Help Desk</div>
+                </td>
+              </tr></table>
+            </td></tr>
+          </table>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="height:1px;background-color:rgba(255,255,255,0.1);"></td></tr>
+          </table>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="padding:12px 40px 16px;background-color:#002660;">
+              <span style="font-size:12px;color:rgba(255,255,255,0.65);letter-spacing:0.06em;text-transform:uppercase;font-weight:500;">🏢 New Vendor Registration — Approval Required</span>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <tr><td style="background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;padding:14px 40px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="font-size:12px;color:#6b7280;font-weight:500;">Department</td>
+            <td align="right" style="font-size:13px;font-weight:700;color:#00327a;">{$escapedDept}</td>
+          </tr></table>
+        </td></tr>
+
+        <tr><td style="padding:36px 40px 0;">
+          <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">{$currentDate}</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#111827;font-weight:600;">Dear Administrator,</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">
+            A new vendor has registered on the UniKL RCMP Vendor Portal and has selected your department as one of the departments they serve. Please review the registration and approve or reject it via the admin portal.
+          </p>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:24px;">
+            <tr><td colspan="2" style="background-color:#00327a;padding:10px 18px;">
+              <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.85);">Vendor Details</span>
+            </td></tr>
+            <tr>
+              <td style="width:40%;padding:12px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Company Name</td>
+              <td style="padding:12px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;font-weight:600;">{$escapedCompany}</td>
+            </tr>
+            <tr>
+              <td style="width:40%;padding:12px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Person In Charge</td>
+              <td style="padding:12px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedPIC}</td>
+            </tr>
+            <tr>
+              <td style="width:40%;padding:12px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Email</td>
+              <td style="padding:12px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedEmail}</td>
+            </tr>
+            <tr>
+              <td style="width:40%;padding:12px 18px;background-color:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Phone</td>
+              <td style="padding:12px 18px;background-color:#ffffff;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedPhone}</td>
+            </tr>
+            <tr>
+              <td style="width:40%;padding:12px 18px;background-color:#f7f8fa;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Status</td>
+              <td style="padding:12px 18px;background-color:#ffffff;">
+                <span style="display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:#FEF3C7;color:#D97706;">Pending Approval</span>
+              </td>
+            </tr>
+          </table>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
+            <tr><td style="border-left:3px solid #e8b200;background-color:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
+              <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#92700a;">Action Required</p>
+              <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the admin portal to review this vendor registration and approve or reject it for your department.</p>
+              <a href="https://rush.rcmp.edu.my/" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
+            </td></tr>
+          </table>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
+            <tr><td style="height:1px;background-color:#e4e7ed;"></td></tr>
+          </table>
+
+          <p style="margin:0 0 4px;font-size:14px;color:#374151;">Yours sincerely,</p>
+          <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#00327a;">UniKL RCMP Help Desk Team</p>
+          <p style="margin:0 0 28px;font-size:12px;color:#9ca3af;">Universiti Kuala Lumpur</p>
+        </td></tr>
+
+        <tr><td style="background-color:#f7f8fa;border-top:1px solid #e4e7ed;padding:20px 40px;">
+          <p style="margin:0;font-size:11px;color:#9ca3af;">This is a system-generated notification. Please do not reply directly to this email. &copy; {$currentYear} Universiti Kuala Lumpur. All rights reserved.</p>
+        </td></tr>
+        <tr><td style="height:4px;background:linear-gradient(90deg,#e8b200 0%,#f5cc30 50%,#e8b200 100%);"></td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+HTML;
+
+        $plainBody =
+            "UNIKL RCMP — NEW VENDOR REGISTRATION\n" .
+            "======================================\n\n" .
+            "Company Name   : {$company_name}\n" .
+            "Person In Charge: {$pic_name}\n" .
+            "Email          : {$vendor_email}\n" .
+            "Phone          : {$vendor_phone}\n" .
+            "Department     : {$deptName}\n" .
+            "Status         : Pending Approval\n\n" .
+            "Please log in to https://rush.rcmp.edu.my/ to review and approve/reject this vendor.\n\n" .
+            "© {$currentYear} Universiti Kuala Lumpur.";
+
+
+        foreach ($staffList as $staff) {
+            $mail = new PHPMailer(true);
+            try {
+                $mail->isSMTP();
+                $mail->Host       = 'smtp.office365.com';
+                $mail->SMTPAuth   = true;
+                $mail->Username   = 'rush.rcmp@unikl.edu.my';
+                $mail->Password   = 'Rcmp@4321';
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                $mail->Port       = 587;
+                $mail->SMTPDebug  = 0;
+
+                $mail->setFrom('rush.rcmp@unikl.edu.my', 'UniKL RCMP Help Desk');
+                $mail->addAddress($deptGroupEmail, $deptName);
+                $mail->addBCC($staff['email'], $staff['full_name']);
+                $mail->isHTML(true);
+                $mail->CharSet = 'UTF-8';
+                $mail->Subject = "New Vendor Registration Pending Approval — {$company_name}";
+                $mail->Body    = $htmlBody;
+                $mail->AltBody = $plainBody;
+
+                $mail->send();
+                error_log("[VendorMail] SUCCESS -> {$staff['email']} for dept_id={$did}");
+            } catch (Exception $e) {
+                error_log("[VendorMail] FAILED -> {$staff['email']}: " . $mail->ErrorInfo);
+            }
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// REGISTER
+// ══════════════════════════════════════════════════════════════════════════
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'register') {
+    $active_tab   = 'register';
+    $company_name = trim($_POST['company_name'] ?? '');
+    $pic_name     = trim($_POST['pic_name']     ?? '');
+    $email        = trim($_POST['email']         ?? '');
+    $phone        = trim($_POST['phone']         ?? '');
+    $password     =       $_POST['password']     ?? '';
+    $confirm      =       $_POST['confirm']      ?? '';
+    $dept_ids     =       $_POST['dept_ids']     ?? [];  // checkboxes
+
+    if (empty($company_name) || empty($pic_name) || empty($email) || empty($phone) || empty($password)) {
+        $error = 'Please fill in all fields.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Please enter a valid email address.';
+    } elseif (!preg_match('/^\d{9,11}$/', preg_replace('/[\s\-]/', '', $phone))) {
+    $error = 'Phone number must contain only digits and be 9 to 11 digits long.';
+    } elseif (strlen($password) < 8) {
+        $error = 'Password must be at least 8 characters.';
+    } elseif (!preg_match('/[A-Z]/', $password)) {
+        $error = 'Password must contain at least one uppercase letter.';
+    } elseif (!preg_match('/[0-9]/', $password)) {
+        $error = 'Password must contain at least one number.';
+    } elseif ($password !== $confirm) {
+        $error = 'Passwords do not match.';
+    } elseif (empty($dept_ids)) {
+        $error = 'Please select at least one department you serve.';
+    } else {
+        // Sanitise dept_ids to integers
+        $dept_ids = array_map('intval', $dept_ids);
+        $dept_ids = array_filter($dept_ids);
+
+        // Check duplicate email
+        $chk = $conn->prepare("SELECT vendor_id FROM vendors WHERE email = ? LIMIT 1");
+        $chk->bind_param("s", $email);
+        $chk->execute();
+        $chk->store_result();
+
+        if ($chk->num_rows > 0) {
+            $error = 'An account with this email already exists.';
+        } else {
+            $hash = password_hash($password, PASSWORD_DEFAULT);
+            $ins  = $conn->prepare(
+                "INSERT INTO vendors (company_name, pic_name, email, phone, password_hash, status)
+                 VALUES (?, ?, ?, ?, ?, 'pending')"
+            );
+            $ins->bind_param("sssss", $company_name, $pic_name, $email, $phone, $hash);
+
+            if ($ins->execute()) {
+                $new_vendor_id = $conn->insert_id;
+
+                // Insert one row per selected department
+                $ins_dept = $conn->prepare(
+                    "INSERT IGNORE INTO vendor_departments (vendor_id, dept_id, status)
+                     VALUES (?, ?, 'pending')"
+                );
+                foreach ($dept_ids as $did) {
+                    $ins_dept->bind_param("ii", $new_vendor_id, $did);
+                    $ins_dept->execute();
+                }
+                $ins_dept->close();
+
+                // Send notification emails to each selected department
+                sendVendorRegistrationEmail($conn, $new_vendor_id, $company_name, $pic_name, $email, $phone, $dept_ids);
+
+                $_SESSION['reg_success'] = 'Registration submitted! Your account is pending approval from the relevant department(s). You will be able to log in once at least one department approves your account.';
+                header("Location: vendor_login.php");
+                exit;
+            } else {
+                $error = 'Registration failed. Please try again.';
+            }
+            $ins->close();
+        }
+        $chk->close();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LOGIN
+// ══════════════════════════════════════════════════════════════════════════
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'login') {
+    $active_tab = 'login';
+    $email      = trim($_POST['email']    ?? '');
+    $password   =       $_POST['password'] ?? '';
+
+    if (empty($email) || empty($password)) {
+        $error = 'Please fill in all fields.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Please enter a valid email address.';
+    } else {
+        $stmt = $conn->prepare(
+            "SELECT vendor_id, company_name, pic_name, email, phone, password_hash, status
+               FROM vendors WHERE email = ? LIMIT 1"
+        );
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $vendor = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$vendor || !password_verify($password, $vendor['password_hash'])) {
+            $error = 'Invalid email or password.';
+        } elseif ($vendor['status'] === 'suspended') {
+            $error = 'Your account has been suspended. Please contact ITD for assistance.';
+        } else {
+            // Check if at least one department has approved this vendor
+            $chk_dept = $conn->prepare(
+                "SELECT COUNT(*) FROM vendor_departments
+                  WHERE vendor_id = ? AND status = 'active'"
+            );
+            $chk_dept->bind_param("i", $vendor['vendor_id']);
+            $chk_dept->execute();
+            $chk_dept->bind_result($active_dept_count);
+            $chk_dept->fetch();
+            $chk_dept->close();
+
+            if ($active_dept_count === 0) {
+                $error = 'Your account is still awaiting approval. Please wait for a department administrator to approve your registration.';
+            } else {
+                // Active — create session
+                session_regenerate_id(true);
+            $_SESSION['vendor_id']      = $vendor['vendor_id'];
+            $_SESSION['vendor_name']    = $vendor['pic_name'];
+            $_SESSION['vendor_company'] = $vendor['company_name'];
+            $_SESSION['vendor_email']   = $vendor['email'];
+            $_SESSION['vendor_phone']   = $vendor['phone'];
+            header("Location: vendorRCMP/dashboard.php");
+            exit;
+            }  // end active_dept_count check
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vendor Portal | UniKL RCMP RUSH</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:        #1E3A5F;
+      --navy-dark:   #142845;
+      --navy-mid:    #2B4F7E;
+      --navy-light:  #E8EEF6;
+      --olive:       #5C6B35;
+      --gold:        #B8860B;
+      --gold-light:  #D4A017;
+      --page-bg:     #e8edf5;
+      --surface:     #FFFFFF;
+      --border:      #D8D3C8;
+      --text:        #1A2332;
+      --text-mid:    #3D4F63;
+      --text-muted:  #7A8899;
+      --error:       #C0392B;
+      --error-bg:    #FDF0EE;
+      --error-border:#E8C5C0;
+      --success:     #1B6E49;
+      --success-bg:  #EDF7F2;
+      --success-border:#A8D5BC;
+      --input-bg:    #FAFAF8;
+      --input-focus: #EBF1F8;
+    }
+
+    html, body { height: 100%; font-family: 'Source Sans 3', sans-serif; color: var(--text); }
+
+    /* ── GOV BANNER ── */
+    .gov-banner {
+      background: var(--navy-dark);
+      padding: 6px 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 2px solid var(--gold);
+    }
+    .gov-banner-left {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      font-size: 13px; color: rgba(255,255,255,0.75);
+      letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
+    }
+    .gov-banner-left span { color: var(--gold-light); }
+    .gov-banner-right { font-size: 13px; color: rgba(255,255,255,0.5); letter-spacing: 0.04em; }
+
+    /* ── NAV ── */
+    nav {
+      background: var(--surface);
+      border-bottom: 3px solid var(--navy);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+      padding: 0 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 96px;
+    }
+    .nav-brand { display: flex; align-items: center; gap: 16px; text-decoration: none; }
+    .nav-logo img { width: 100px; height: 100px; object-fit: contain; }
+    .nav-divider { width: 1px; height: 36px; background: var(--border); }
+    .nav-text-group { display: flex; flex-direction: column; }
+    .nav-org   { font-size: 16px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--olive); }
+    .nav-title { font-size: 19px; font-weight: 700; color: var(--navy-dark); letter-spacing: 0.01em; }
+    .nav-back {
+      font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em;
+      padding: 9px 22px; border-radius: 5px;
+      border: 1.5px solid var(--border); background: transparent; color: var(--text-mid);
+      text-decoration: none; display: inline-flex; align-items: center; gap: 7px;
+      transition: all 0.2s;
+    }
+    .nav-back:hover { border-color: var(--navy); color: var(--navy); background: var(--navy-light); }
+    .nav-back svg { width: 14px; height: 14px; }
+
+    /* ── MAIN ── */
+    .main {
+      min-height: calc(100vh - 38px - 96px);
+      background: var(--page-bg);
+      display: flex; align-items: center; justify-content: center;
+      padding: 48px 20px;
+      position: relative; overflow: hidden;
+    }
+    .main::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(30,58,95,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30,58,95,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── CARD ── */
+    .vendor-card {
+      position: relative; z-index: 2;
+      width: 100%; max-width: 500px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--gold);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 32px rgba(20,40,70,0.10), 0 1px 4px rgba(20,40,70,0.07);
+      animation: fadeUp 0.5s cubic-bezier(.22,1,.36,1) both;
+    }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+    .card-body { padding: 40px 44px 32px; }
+
+    /* ── CARD HEADER ── */
+    .card-header { text-align: center; margin-bottom: 28px; }
+    .card-logo {
+      display: inline-flex; align-items: center; gap: 14px;
+      margin-bottom: 18px;
+    }
+    .card-logo img { width: 80px; height: 80px; object-fit: contain; }
+    .card-logo-divider { width: 1px; height: 40px; background: var(--border); }
+    .card-logo-text { text-align: left; }
+    .card-logo-org  { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--olive); }
+    .card-logo-name { font-size: 16px; font-weight: 700; color: var(--navy-dark); line-height: 1.3; }
+
+    .card-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 26px; font-weight: 700;
+      color: var(--navy-dark); line-height: 1.2; margin-bottom: 6px;
+    }
+    .card-header h1 em { font-style: italic; color: var(--gold-light); }
+    .card-header p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ── TABS ── */
+    .tab-row {
+      display: flex;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .tab-btn {
+      flex: 1; padding: 10px 14px;
+      background: transparent; border: none;
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 13.5px; font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+    }
+    .tab-btn svg { width: 14px; height: 14px; }
+    .tab-btn:first-child { border-right: 1.5px solid var(--border); }
+    .tab-btn.active {
+      background: var(--navy);
+      color: #fff;
+    }
+    .tab-btn:not(.active):hover { background: var(--navy-light); color: var(--navy); }
+
+    /* ── TAB PANELS ── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── ALERTS ── */
+    .alert {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 11px 14px; border-radius: 6px;
+      margin-bottom: 18px; font-size: 13px; line-height: 1.5;
+      animation: fadeUp 0.3s ease both;
+    }
+    .alert svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:2; flex-shrink:0; margin-top:1px; }
+    .alert-error {
+      background: var(--error-bg); border: 1px solid var(--error-border);
+      border-left: 3px solid var(--error); color: var(--error);
+    }
+    .alert-success {
+      background: var(--success-bg); border: 1px solid var(--success-border);
+      border-left: 3px solid var(--success); color: var(--success);
+    }
+
+    /* ── FORM FIELDS ── */
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block; font-size: 12px; font-weight: 600;
+      color: var(--text-mid); margin-bottom: 6px; letter-spacing: 0.03em;
+    }
+    .input-wrap { position: relative; }
+    .input-icon {
+      position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+      pointer-events: none; color: #B0BAC8;
+    }
+    .input-icon svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:1.8; display:block; }
+    .field input {
+      width: 100%; padding: 11px 14px 11px 40px;
+      background: var(--input-bg); border: 1.5px solid var(--border); border-radius: 7px;
+      font-family: 'Source Sans 3', sans-serif; font-size: 14px; color: var(--text);
+      outline: none; transition: border-color .2s, background .2s, box-shadow .2s;
+    }
+    .field input::placeholder { color: #C0C7D0; }
+    .field input:focus {
+      border-color: var(--navy); background: var(--input-focus);
+      box-shadow: 0 0 0 3px rgba(30,58,95,0.10);
+    }
+    .pw-toggle {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); padding: 4px; display: flex; transition: color .2s;
+    }
+    .pw-toggle:hover { color: var(--navy); }
+    .pw-toggle svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:1.8; }
+
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* ── SUBMIT BUTTON ── */
+    .btn-submit {
+      width: 100%; padding: 13px 20px;
+      background: var(--gold); color: #fff;
+      border: none; border-radius: 7px;
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 3px 12px rgba(184,134,11,0.35);
+      margin-top: 4px;
+    }
+    .btn-submit:hover { background: var(--gold-light); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(184,134,11,0.40); }
+    .btn-submit:active { transform: translateY(0); }
+    .btn-submit svg { width: 15px; height: 15px; fill:none; stroke:currentColor; stroke-width:2.5; }
+
+    .btn-submit.navy {
+      background: var(--navy);
+      box-shadow: 0 3px 12px rgba(30,58,95,0.25);
+    }
+    .btn-submit.navy:hover { background: var(--navy-dark); box-shadow: 0 6px 20px rgba(30,58,95,0.30); }
+
+    /* ── HINT TEXT ── */
+    .field-hint { font-size: 11.5px; color: var(--text-muted); margin-top: 5px; line-height: 1.5; }
+
+    /* ── DIVIDER ── */
+    .card-divider { height: 1px; background: var(--border); margin-bottom: 22px; }
+
+    /* ── FOOTER ── */
+    .card-footer {
+      border-top: 1px solid var(--border);
+      padding: 15px 44px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      font-size: 12px; color: var(--text-muted);
+    }
+    .card-footer a { color: var(--navy); font-weight: 600; text-decoration: none; }
+    .card-footer a:hover { color: var(--gold); text-decoration: underline; }
+
+    /* ── PENDING BADGE ── */
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 100px;
+      font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+    }
+    .badge-gold { background: #FBF5E6; border: 1px solid #D4A017; color: var(--gold); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      .gov-banner { display: none; }
+      nav { padding: 0 16px; height: 60px; }
+      .nav-logo img { width: 44px; height: 44px; }
+      .nav-org { font-size: 10px; }
+      .nav-title { font-size: 12px; }
+      .nav-divider { display: none; }
+      .main { padding: 24px 12px; align-items: flex-start; padding-top: 32px; }
+      .card-body { padding: 28px 20px 22px; }
+      .card-footer { padding: 14px 20px; }
+      .field-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── GOV BANNER ── -->
+<div class="gov-banner">
+  <div class="gov-banner-left">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>UniKL Royal College of Medicine Perak</span>
+    <span style="color:rgba(255,255,255,0.25)">·</span>
+    <span>Vendor Portal</span>
+  </div>
+  <div class="gov-banner-right">Doc Ref: UniKL/RCMP/CD/ITD-01-01</div>
+</div>
+
+<!-- ── NAV ── -->
+<nav>
+  <a class="nav-brand" href="index.php">
+    <div class="nav-logo"><img src="img/RCMP.png" alt="UniKL RCMP Logo"/></div>
+    <div class="nav-divider"></div>
+    <div class="nav-text-group">
+      <span class="nav-org">UniKL RCMP</span>
+      <span class="nav-title">RUSH — Vendor Portal</span>
+    </div>
+  </a>
+  <a href="index.php" class="nav-back">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 5l-7 7 7 7"/></svg>
+    Back to Home
+  </a>
+</nav>
+
+<!-- ── MAIN ── -->
+<div class="main">
+  <div class="vendor-card">
+    <div class="card-body">
+
+      <!-- Header -->
+      <div class="card-header">
+        <div class="card-logo">
+          <img src="img/RCMP.png" alt="UniKL RCMP"/>
+          <div class="card-logo-divider"></div>
+          <div class="card-logo-text">
+            <div class="card-logo-org">UniKL RCMP</div>
+            <div class="card-logo-name">Vendor Portal</div>
+          </div>
+        </div>
+        <h1>Vendor <em>Access</em></h1>
+        <p>Register your company or sign in to manage assigned work orders.</p>
+      </div>
+
+      <div class="card-divider"></div>
+
+      <!-- Success message (shown after register) -->
+      <?php if ($success): ?>
+      <div class="alert alert-success">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        <?php echo htmlspecialchars($success); ?>
+      </div>
+      <?php endif; ?>
+
+      <!-- Tabs -->
+      <div class="tab-row">
+        <button class="tab-btn <?php echo $active_tab === 'login' ? 'active' : ''; ?>"
+                id="tab-login" onclick="switchTab('login')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Sign In
+        </button>
+        <button class="tab-btn <?php echo $active_tab === 'register' ? 'active' : ''; ?>"
+                id="tab-register" onclick="switchTab('register')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          Register
+        </button>
+      </div>
+
+      <!-- ── LOGIN PANEL ── -->
+      <div class="tab-panel <?php echo $active_tab === 'login' ? 'active' : ''; ?>" id="panel-login">
+
+        <?php if ($error && $active_tab === 'login'): ?>
+        <div class="alert alert-error">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <?php echo htmlspecialchars($error); ?>
+        </div>
+        <?php endif; ?>
+
+        <form method="POST" action="vendor_login.php">
+          <input type="hidden" name="action" value="login"/>
+
+          <div class="field">
+            <label for="login_email">Company Email</label>
+            <div class="input-wrap">
+              <div class="input-icon">
+                <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              </div>
+              <input type="email" id="login_email" name="email"
+                     placeholder="vendor@company.com"
+                     value="<?php echo $active_tab === 'login' ? htmlspecialchars($_POST['email'] ?? '') : ''; ?>"
+                     required autocomplete="email"/>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="login_password">Password</label>
+            <div class="input-wrap">
+              <div class="input-icon">
+                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <input type="password" id="login_password" name="password"
+                     placeholder="Enter your password"
+                     required autocomplete="current-password"/>
+              <button type="button" class="pw-toggle" onclick="togglePw('login_password', this)" aria-label="Show/hide password">
+                <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-submit navy">
+            Sign In
+            <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </form>
+
+        <p style="text-align:center;margin-top:16px;font-size:12.5px;color:var(--text-muted);">
+          Don't have an account?
+          <a href="#" onclick="switchTab('register');return false;" style="color:var(--navy);font-weight:600;">Register here →</a>
+        </p>
+      </div>
+
+      <!-- ── REGISTER PANEL ── -->
+      <div class="tab-panel <?php echo $active_tab === 'register' ? 'active' : ''; ?>" id="panel-register">
+
+        <?php if ($error && $active_tab === 'register'): ?>
+        <div class="alert alert-error">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <?php echo htmlspecialchars($error); ?>
+        </div>
+        <?php endif; ?>
+
+        <form method="POST" action="vendor_login.php">
+          <input type="hidden" name="action" value="register"/>
+
+          <div class="field">
+            <label for="company_name">Company Name <span style="color:var(--error)">*</span></label>
+            <div class="input-wrap">
+              <div class="input-icon">
+                <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+              </div>
+              <input type="text" id="company_name" name="company_name"
+                     placeholder="e.g. ABC Services Sdn Bhd"
+                     value="<?php echo $active_tab === 'register' ? htmlspecialchars($_POST['company_name'] ?? '') : ''; ?>"
+                     required/>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="pic_name">Person in Charge (PIC) Name <span style="color:var(--error)">*</span></label>
+            <div class="input-wrap">
+              <div class="input-icon">
+                <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <input type="text" id="pic_name" name="pic_name"
+                     placeholder="Full name of contact person"
+                     value="<?php echo $active_tab === 'register' ? htmlspecialchars($_POST['pic_name'] ?? '') : ''; ?>"
+                     required/>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="reg_email">Email Address <span style="color:var(--error)">*</span></label>
+              <div class="input-wrap">
+                <div class="input-icon">
+                  <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                </div>
+                <input type="email" id="reg_email" name="email"
+                       placeholder="vendor@company.com"
+                       value="<?php echo $active_tab === 'register' ? htmlspecialchars($_POST['email'] ?? '') : ''; ?>"
+                       required autocomplete="email"/>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="reg_phone">Phone Number <span style="color:var(--error)">*</span></label>
+              <div class="input-wrap">
+                <div class="input-icon">
+                  <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.37 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.4a16 16 0 0 0 6.29 6.29l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                </div>
+                <input type="tel" id="reg_phone" name="phone"
+                       placeholder="01XXXXXXXX"
+                       inputmode="numeric"
+                       pattern="[0-9]{9,11}"
+                       title="Phone number must be 9 to 11 digits (numbers only)"
+                       value="<?php echo $active_tab === 'register' ? htmlspecialchars($_POST['phone'] ?? '') : ''; ?>"
+                       required/>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="reg_password">Password <span style="color:var(--error)">*</span></label>
+              <div class="input-wrap">
+                <div class="input-icon">
+                  <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <input type="password" id="reg_password" name="password"
+                       placeholder="Min. 8 characters"
+                       required autocomplete="new-password"/>
+                <button type="button" class="pw-toggle" onclick="togglePw('reg_password', this)" aria-label="Show/hide password">
+                  <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="reg_confirm">Confirm Password <span style="color:var(--error)">*</span></label>
+              <div class="input-wrap">
+                <div class="input-icon">
+                  <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <input type="password" id="reg_confirm" name="confirm"
+                       placeholder="Re-enter password"
+                       required autocomplete="new-password"/>
+                <button type="button" class="pw-toggle" onclick="togglePw('reg_confirm', this)" aria-label="Show/hide password">
+                  <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Department checkboxes -->
+          <div class="field">
+            <label style="margin-bottom:10px;display:block;">
+              Departments You Serve <span style="color:var(--error)">*</span>
+            </label>
+            <?php
+              $depts_result = $conn->query("SELECT dept_id, dept_name FROM departments ORDER BY dept_name");
+              while ($d = $depts_result->fetch_assoc()):
+                $checked = (isset($_POST['dept_ids']) && in_array($d['dept_id'], (array)$_POST['dept_ids'])) ? 'checked' : '';
+            ?>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:400;color:var(--text);margin-bottom:8px;cursor:pointer;">
+              <input type="checkbox" name="dept_ids[]"
+                     value="<?php echo $d['dept_id']; ?>"
+                     <?php echo $checked; ?>
+                     style="width:15px;height:15px;accent-color:var(--navy);cursor:pointer;"/>
+              <?php echo htmlspecialchars($d['dept_name']); ?>
+            </label>
+            <?php endwhile; ?>
+          </div>
+
+          <p class="field-hint" style="margin-bottom:6px;">
+            🔒 Password must be at least 8 characters, include 1 uppercase letter and 1 number.
+          </p>
+          <p class="field-hint" style="margin-bottom:14px;">
+            ⚠️ After registration, your account will be reviewed before you can log in.
+            You will be notified once your account is activated.
+          </p>
+
+          <button type="submit" class="btn-submit">
+            Submit Registration
+            <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+        </form>
+
+        <p style="text-align:center;margin-top:16px;font-size:12.5px;color:var(--text-muted);">
+          Already have an account?
+          <a href="#" onclick="switchTab('login');return false;" style="color:var(--navy);font-weight:600;">Sign in →</a>
+        </p>
+      </div>
+
+    </div><!-- /card-body -->
+
+    <div class="card-footer">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Need help? Contact ITD Ext.&nbsp;<a href="#"><strong>142</strong></a>&nbsp;/&nbsp;<a href="#"><strong>140</strong></a>
+    </div>
+  </div><!-- /vendor-card -->
+</div><!-- /main -->
+
+<script>
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('panel-' + tab).classList.add('active');
+  }
+
+  function togglePw(inputId, btn) {
+    const input = document.getElementById(inputId);
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    const openEye  = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+    const shutEye  = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/>`;
+    btn.querySelector('svg').innerHTML = isHidden ? shutEye : openEye;
+  }
+
+  // Client-side password validation
+  const pw  = document.getElementById('reg_password');
+  const cfm = document.getElementById('reg_confirm');
+
+  function validatePassword() {
+    if (!pw.value) { pw.style.borderColor = ''; return; }
+    const ok = pw.value.length >= 8
+            && /[A-Z]/.test(pw.value)
+            && /[0-9]/.test(pw.value);
+    pw.style.borderColor = ok ? '#1B6E49' : '#C0392B';
+  }
+
+  function validateConfirm() {
+    if (!cfm.value) { cfm.style.borderColor = ''; return; }
+    cfm.style.borderColor = (pw.value === cfm.value) ? '#1B6E49' : '#C0392B';
+  }
+
+  if (pw)  pw.addEventListener('input',  validatePassword);
+  if (cfm) cfm.addEventListener('input', validateConfirm);
+
+  // Client-side phone: strip non-digits on blur, reject non-numeric on input
+  const phoneInput = document.getElementById('reg_phone');
+  if (phoneInput) {
+    phoneInput.addEventListener('input', () => {
+      phoneInput.value = phoneInput.value.replace(/[^\d]/g, '');
+    });
+    phoneInput.addEventListener('blur', () => {
+      const len = phoneInput.value.length;
+      phoneInput.style.borderColor = (len >= 9 && len <= 11) ? '#1B6E49' : '#C0392B';
+    });
+  }
+</script>
+
+</body>
+</html>

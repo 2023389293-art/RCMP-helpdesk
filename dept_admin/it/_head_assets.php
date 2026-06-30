@@ -56,24 +56,87 @@
     .dept-chip {
       display: inline-flex; align-items: center; gap: 6px;
       background: rgba(107,90,158,.3); border-color: rgba(200,190,230,.2); color: #C8B8E8;
-      padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+      padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
       color: var(--blue-mid); letter-spacing: .04em; text-transform: uppercase;
     }
 
     .sidebar-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
     .nav-section-label {
-      font-size: 9px; font-weight: 600; color: rgba(255,255,255,.25);
+      font-size: 11px; font-weight: 600; color: rgba(255,255,255,.25);
       letter-spacing: .1em; text-transform: uppercase; padding: 10px 10px 4px;
     }
     .nav-item {
       display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
-      font-size: 13px; font-weight: 500; color: rgba(255,255,255,.55);
+      font-size: 14px; font-weight: 500; color: rgba(255,255,255,.55);
       text-decoration: none; transition: background .15s, color .15s; position: relative;
     }
     .nav-item:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
     .nav-item.active { background: rgba(107,90,158,.4); }
     .nav-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; display: block; flex-shrink: 0; }
     .nav-pip { position: absolute; right: 10px; width: 6px; height: 6px; border-radius: 50%; background: #B8A8D8; }
+
+    /* ── SUBMENU ─────────────────────────────────────────────────── */
+    .nav-submenu {
+      display: flex; flex-direction: column; gap: 1px;
+      margin: 2px 0 4px 14px;
+      padding-left: 14px;
+      border-left: 1.5px solid rgba(255,255,255,.12);
+    }
+    .nav-subitem {
+      display: flex; align-items: center; gap: 9px;
+      padding: 7px 10px; border-radius: 6px;
+      font-size: 14px; font-weight: 500;
+      color: rgba(255,255,255,.45);
+      text-decoration: none;
+      transition: background .15s, color .15s;
+    }
+    .nav-subitem svg {
+      width: 13px; height: 13px; fill: none;
+      stroke: currentColor; stroke-width: 1.8;
+      flex-shrink: 0;
+    }
+    .nav-subitem:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.80); }
+    .nav-subitem.active { background: rgba(107,90,158,.35); color: #C8B8E8; font-weight: 600; }
+
+    /* ── COLLAPSIBLE NAV GROUP ─────────────────────────────────────── */
+.nav-group-toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  justify-content: flex-start;
+  color: rgba(255,255,255,.55);
+}
+.nav-group-toggle:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
+.nav-group-toggle.active { background: rgba(107,90,158,.4); }
+
+.nav-chevron {
+  width: 14px; height: 14px;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: transform .2s ease;
+}
+
+/* Submenu hidden by default */
+.nav-group-submenu {
+  display: none;
+}
+
+/* When group is open */
+.nav-group.open .nav-group-submenu {
+  display: flex;
+}
+.nav-group.open .nav-chevron {
+  transform: rotate(180deg);
+}
+
+/* Active state for Reports toggle when on reports page */
+.nav-group.open .nav-group-toggle {
+  color: rgba(255,255,255,.85);
+}
 
     .sidebar-footer {
       padding: 14px 16px; border-top: 1px solid rgba(255,255,255,.07);
@@ -84,8 +147,8 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 12px; font-weight: 700; color: var(--blue-mid); flex-shrink: 0;
     }
-    .user-n  { font-size: 12px; font-weight: 600; color: rgba(255,255,255,.85); }
-    .user-role { font-size: 10px; color: rgba(255,255,255,.35); }
+    .user-n  { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.85); }
+    .user-role { font-size: 11px; color: rgba(255,255,255,.35); }
     .btn-logout {
       display: flex; align-items: center; gap: 6px; width: 100%;
       padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,.1);
@@ -240,15 +303,15 @@
     .alert-success { background: #ECFDF5; color: #065F46; border: 1px solid rgba(6,95,70,.2); }
 
     /* ── MODAL ────────────────────────────────────────────────────── */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: center; justify-content: center; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); z-index: 200; align-items: center; justify-content: center; }
     .modal-overlay.open { display: flex; }
-    .modal { background: white; border-radius: 14px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2); animation: fadeUp .2s ease; }
+    .modal { background: white; border-radius: 14px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.10), 0 0 0 1.5px rgba(0,0,0,.07); animation: fadeUp .2s ease; }
     @keyframes fadeUp { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
     .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid var(--gray-200); }
     .modal-header h3 { font-size: 16px; font-weight: 600; }
     .modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--gray-500); line-height: 1; padding: 2px 6px; }
     .modal-form { padding: 20px 24px; }
-    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; border-top: 1px solid var(--gray-100); padding-top: 16px; }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; border-top: 1px solid var(--gray-100); padding: 16px 24px 24px; }
 
     /* ── FORM FIELDS (modal) ──────────────────────────────────────── */
     .field { margin-bottom: 16px; }

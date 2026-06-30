@@ -237,7 +237,16 @@
 }
 .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
 
-.chart-canvas-wrap { position: relative; height: 340px; }
+.chart-canvas-wrap {
+  position: relative;
+  height: 340px;
+  min-height: 280px;
+}
+#ticketsBarChart, #staffChart, #vendorChart, #categoryChart, #fbRatingChart {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
 
 /* ══════════════════════════════════════════════
    KPI ROW  ——  FORMAL WHITE RECTANGLE STYLE

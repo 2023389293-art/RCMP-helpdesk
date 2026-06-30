@@ -3,7 +3,7 @@
  /* ══ TOP: 3 KPI Status Cards ══ */
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
   margin-bottom: 20px;
 }
@@ -52,7 +52,7 @@
 
 /* Colored ring border per status */
 .si-open     { background: #FEF9EC; color: #D97706; border: 1px solid #FCD34D; }
-.si-progress { background: #ECFEFF; color: #0E7490; border: 1px solid #A5F3FC; }
+.si-progress { background: #EFF6FF; color: #2563EB; border: 1px solid #93C5FD; }
 .si-closed   { background: #ECFDF5; color: #059669; border: 1px solid #6EE7B7; }
 
 .stat-body { flex: 1; min-width: 0; }
@@ -315,12 +315,7 @@
 .tab-pane { display: none; padding: 16px 20px; }
 .tab-pane.active { display: block; }
 
-@media (max-width: 900px) {
-  .stats { grid-template-columns: repeat(2, 1fr) !important; }
-}
-@media (max-width: 600px) {
-  .stats { grid-template-columns: 1fr !important; }
-}
+
 
     /* ── Category badge (matches tickets.php) ── */
 .cat-badge {
@@ -333,4 +328,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+@media (max-width: 900px) {
+  .stats { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 600px) {
+  .stats { grid-template-columns: repeat(2, 1fr) !important; }
+  .stat { padding: 14px 12px; gap: 10px; }
+  .stat .num { font-size: 26px; }
+  .stat .lbl { font-size: 11px; }
+  .stat-icon { width: 34px; height: 34px; }
+  .stat-icon svg { width: 15px; height: 15px; }
 }

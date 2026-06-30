@@ -1,34 +1,33 @@
 <?php
-// dept/afsmd/ticket_detail.php 
-require_once __DIR__ . '/../auth_guard.php';
-if (isset($_GET['logout'])) { staffLogout(); }
-require_once __DIR__ . '/../../db_connect.php';
-require_once __DIR__ . '/../../assign_helper.php';
-require_once __DIR__ . '/../../sla_helper.php';
-require_once __DIR__ . '/../../graph_helper.php';
+// vendorRCMP/ticket_detail.php  
+session_start();
+if (empty($_SESSION['vendor_id'])) {
+    header("Location: ../vendor_login.php");
+    exit;
+}
+require_once __DIR__ . '/../db_connect.php';
+require_once __DIR__ . '/../sla_helper.php';
+require_once __DIR__ . '/../graph_helper.php'; // provides decryptField()
 
+$vendorId   = (int)$_SESSION['vendor_id'];
+$staffId    = 0;   // vendors have no staff_id
+$staffName  = !empty($_SESSION['vendor_pic'])
+    ? $_SESSION['vendor_pic'] . ' (' . ($_SESSION['vendor_company'] ?? 'Vendor') . ')'
+    : ($_SESSION['vendor_company'] ?? 'Vendor');
+$deptId     = 0;   // not used the same way, fetched from ticket
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
-require __DIR__ . '/../../PHPMailer-master/src/Exception.php';
-require __DIR__ . '/../../PHPMailer-master/src/PHPMailer.php';
-require __DIR__ . '/../../PHPMailer-master/src/SMTP.php';
+require __DIR__ . '/../PHPMailer-master/src/Exception.php';
+require __DIR__ . '/../PHPMailer-master/src/PHPMailer.php';
+require __DIR__ . '/../PHPMailer-master/src/SMTP.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
-
-$openCount = $closedCount = $inProgressCount = 0;
-$stmt = $conn->prepare("SELECT SUM(status='open') AS oc, SUM(status='in_progress') AS ipc, SUM(status='closed') AS cc FROM complaints WHERE dept_id = ?");
-$stmt->bind_param("i", $deptId); $stmt->execute();
-$counts = $stmt->get_result()->fetch_assoc(); $stmt->close();
-$openCount       = (int)($counts['oc']  ?? 0);
-$inProgressCount = (int)($counts['ipc'] ?? 0);
-$closedCount     = (int)($counts['cc']  ?? 0);
 
 $ticketId = trim($_GET['id'] ?? '');
 $ticket   = null;
 
 // ── Smart back URL ────────────────────────────────────────────────────────────
-$backUrl = 'tickets.php'; // safe default
+$backUrl = 'dashboard.php'; // safe default
 $sessionKey = 'td_back_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $ticketId);
 if (!empty($_GET['from'])) {
     $from = $_GET['from'];
@@ -37,7 +36,7 @@ if (!empty($_GET['from'])) {
         $backUrl = $from;
         $_SESSION[$sessionKey] = $backUrl;
     }
-} elseif (!empty($_SESSION[$sessionKey])) {
+} elseif (!empty($_SESSION[$sessionKey]) && strpos($_SESSION[$sessionKey], 'tickets.php') === false) {
     $backUrl = $_SESSION[$sessionKey];
 } elseif (!empty($_SERVER['HTTP_REFERER'])) {
     $ref = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_PATH);
@@ -49,8 +48,8 @@ if (!empty($_GET['from'])) {
 }
 $backUrlEncoded = urlencode($backUrl);
 if ($ticketId !== '') {
-    $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.dept_id = ? LIMIT 1");
-    $stmt->bind_param("si", $ticketId, $deptId); $stmt->execute();
+    $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.assigned_vendor_id = ? LIMIT 1");
+$stmt->bind_param("si", $ticketId, $vendorId); $stmt->execute();
     $ticket = $stmt->get_result()->fetch_assoc(); $stmt->close();
 }
 
@@ -58,304 +57,24 @@ if ($ticketId !== '') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
     $action = trim($_POST['action'] ?? 'update');
 
-    // ── ACTION: reassign ──────────────────────────────────────────────────────
-    if ($action === 'reassign') {
-    $newStaffId   = (int)($_POST['new_staff_id']  ?? 0);
-    $newVendorId  = (int)($_POST['new_vendor_id'] ?? 0);
-    $assignRemarks = trim($_POST['assign_remarks'] ?? '');
-
-    // Server-side guard: vendor assignment only allowed once ticket is In Progress
-    if ($newVendorId > 0 && strtolower($ticket['status']) !== 'in_progress') {
-        $_SESSION['flash_error'] = 'Vendor assignment is only allowed once the ticket is In Progress.';
-        header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
-    }
-
-    if ($newStaffId > 0) {
-    $oldAssigned = getAssignedStaff($conn, $ticketId);
-    $freshTicketStmt = $conn->prepare("SELECT assigned_vendor_name FROM complaints WHERE ticket_id = ? LIMIT 1");
-    $freshTicketStmt->bind_param("s", $ticketId);
-    $freshTicketStmt->execute();
-    $freshTicketRow = $freshTicketStmt->get_result()->fetch_assoc();
-    $freshTicketStmt->close();
-    if ($oldAssigned) {
-        $oldName = $oldAssigned['full_name'];
-    } elseif (!empty($freshTicketRow['assigned_vendor_name'])) {
-        $oldName = $freshTicketRow['assigned_vendor_name'];
-    } else {
-        $oldName = 'Unassigned';
-    }
-
-        $nsQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id=? LIMIT 1");
-$nsQ->bind_param("i", $newStaffId); $nsQ->execute();
-$nsRow = $nsQ->get_result()->fetch_assoc(); $nsQ->close();
-$newName = $nsRow['full_name'] ?? "Staff #$newStaffId";
-
-        // Clear vendor when assigning to staff
-        $clrVendor = $conn->prepare("UPDATE complaints SET assigned_vendor_id=NULL, assigned_vendor_name=NULL WHERE ticket_id=? AND dept_id=?");
-        $clrVendor->bind_param("si", $ticketId, $deptId); $clrVendor->execute(); $clrVendor->close();
-
-        manualAssignTicket($conn, $deptId, $ticketId, $newStaffId);
-
-        $asnLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,remarks) VALUES (?,?,?,'assigned',?,?,?)");
-        if ($asnLog) {
-            $alId   = (int)$_SESSION['staff_id'];
-            $alName = $_SESSION['staff_name'];
-            $asnLog->bind_param("sissss", $ticketId, $alId, $alName, $oldName, $newName, $assignRemarks);
-            $asnLog->execute(); $asnLog->close();
-        }
-        // ── Email: notify newly assigned staff ────────────────────────────────
-if (!empty($nsRow['email'])) {
-    $notifyMail = new PHPMailer(true);
-    try {
-        $notifyMail->isSMTP(); $notifyMail->Host='smtp.office365.com'; $notifyMail->SMTPAuth=true;
-        $notifyMail->Username='rush.rcmp@unikl.edu.my'; $notifyMail->Password='Rcmp@4321';
-        $notifyMail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $notifyMail->Port=587;
-        $notifyMail->SMTPDebug=0; $notifyMail->Debugoutput='error_log';
-        $notifyMail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
-        $notifyMail->addAddress($nsRow['email'], $newName);
-        $notifyMail->isHTML(true); $notifyMail->CharSet='UTF-8';
-        $notifyMail->Subject="Ticket Assigned to You — {$ticketId}";
-        $currentYear = date('Y'); $currentDate = date('d F Y');
-        $escapedNewName = htmlspecialchars($newName);
-        $escapedTicketId = htmlspecialchars($ticketId);
-        $escapedAssigner = htmlspecialchars($_SESSION['staff_name'] ?? 'Admin');
-        $notifyMail->Body = <<<HTML
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
-<body style="margin:0;padding:0;background-color:#ffffff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;padding:40px 16px;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:white;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #e4e7ed;">
-  <tr><td style="background:#00327a;padding:0;">
-    <table width="100%"><tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr></table>
-    <table width="100%"><tr><td style="padding:28px 40px 24px;">
-      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:4px;">Universiti Kuala Lumpur</div>
-      <div style="font-size:18px;font-weight:700;color:#fff;">RCMP Help Desk</div>
-    </td></tr></table>
-    <table width="100%"><tr><td style="padding:12px 40px 16px;background:#002660;">
-      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Ticket Assignment Notification</span>
-    </td></tr></table>
-  </td></tr>
-  <tr><td style="background:#f7f8fa;border-bottom:1px solid #e4e7ed;padding:14px 40px;">
-    <table width="100%"><tr>
-      <td style="font-size:12px;color:#6b7280;">Reference No.</td>
-      <td align="right" style="font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTicketId}</td>
-    </tr></table>
-  </td></tr>
-  <tr><td style="padding:36px 40px 0;">
-    <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">{$currentDate}</p>
-    <p style="margin:0 0 20px;font-size:15px;font-weight:600;color:#111827;">Dear {$escapedNewName},</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">A complaint ticket has been assigned to you by <strong>{$escapedAssigner}</strong>. Please log in to the portal to review and attend to it.</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:24px;">
-      <tr><td colspan="2" style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Ticket Details</span></td></tr>
-      <tr>
-        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Ticket Reference</td>
-        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTicketId}</td>
-      </tr>
-      <tr>
-        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Assigned By</td>
-        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedAssigner}</td>
-      </tr>
-      <tr>
-        <td style="width:40%;padding:12px 18px;background:#f7f8fa;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Action Required</td>
-        <td style="padding:12px 18px;font-size:13px;color:#111827;">Review and respond to this ticket</td>
-      </tr>
-    </table>
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-      <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
-        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Action Required</p>
-        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view the full details of this ticket and take the necessary action.</p>
-        <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
-      </td></tr>
-    </table>
-    <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
-    <p style="margin:20px 0 4px;font-size:14px;color:#374151;">Yours sincerely,</p>
-    <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#00327a;">UniKL RCMP Help Desk Team</p>
-    <p style="margin:0 0 28px;font-size:12px;color:#9ca3af;">Universiti Kuala Lumpur</p>
-  </td></tr>
-  <tr><td style="background:#f7f8fa;border-top:1px solid #e4e7ed;padding:20px 40px;">
-    <p style="margin:0;font-size:11px;color:#9ca3af;">This is a system-generated notification. Please do not reply directly to this email. &bull; &copy; {$currentYear} Universiti Kuala Lumpur.</p>
-  </td></tr>
-  <tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr>
-</table></td></tr></table></body></html>
-HTML;
-        $notifyMail->AltBody = "You have been assigned ticket {$ticketId} by {$escapedAssigner}.\n\nLogin: https://rush.rcmp.edu.my/login.php";
-        $notifyMail->send();
-    } catch (Exception $e) {
-        error_log("[UniKL Mail] Vendor reassign notify failed for {$ticketId}: ".$e->getMessage());
-    }
-}
-        $_SESSION['flash_success'] = 'Ticket reassigned to <strong>'.htmlspecialchars($newName).'</strong>.';
-
-    } elseif ($newVendorId > 0) {
-        $vQ = $conn->prepare("SELECT company_name FROM vendors WHERE vendor_id=? AND status='active' LIMIT 1");
-$vQ->bind_param("i", $newVendorId); $vQ->execute();
-$vRow = $vQ->get_result()->fetch_assoc(); $vQ->close();
-
-        if ($vRow) {
-            $oldAssigned = getAssignedStaff($conn, $ticketId);
-            $freshTicketStmt2 = $conn->prepare("SELECT assigned_vendor_name FROM complaints WHERE ticket_id = ? LIMIT 1");
-            $freshTicketStmt2->bind_param("s", $ticketId);
-            $freshTicketStmt2->execute();
-            $freshTicketRow2 = $freshTicketStmt2->get_result()->fetch_assoc();
-            $freshTicketStmt2->close();
-            if ($oldAssigned) {
-                $oldName = $oldAssigned['full_name'];
-            } elseif (!empty($freshTicketRow2['assigned_vendor_name'])) {
-                $oldName = $freshTicketRow2['assigned_vendor_name'];
-            } else {
-                $oldName = 'Unassigned';
-            }
-            $vendorDisplayName = $vRow['company_name'];
-
-            $updVendor = $conn->prepare("UPDATE complaints SET assigned_to=NULL, assigned_vendor_id=?, assigned_vendor_name=?, updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
-            $updVendor->bind_param("issi", $newVendorId, $vendorDisplayName, $ticketId, $deptId);
-            $updVendor->execute(); $updVendor->close();
-
-            $dq = $conn->prepare("DELETE FROM ticket_queue WHERE ticket_id = ?");
-            if ($dq) { $dq->bind_param("s", $ticketId); $dq->execute(); $dq->close(); }
-
-            $alId   = (int)$_SESSION['staff_id'];
-            $alName = $_SESSION['staff_name'];
-            $remarksFull = '[Vendor] ' . $assignRemarks;
-            $asnLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,remarks) VALUES (?,?,?,'assigned',?,?,?)");
-            if ($asnLog) {
-                $asnLog->bind_param("sissss", $ticketId, $alId, $alName, $oldName, $vendorDisplayName, $remarksFull);
-                $asnLog->execute(); $asnLog->close();
-            }
-            // ── Email: notify newly assigned vendor ───────────────────────────────
-$vEmailQ = $conn->prepare("
-    SELECT v.email AS company_email, vs.full_name AS pic_name, vs.email AS pic_email
-    FROM vendors v
-    LEFT JOIN vendor_staff vs ON vs.vendor_id = v.vendor_id AND vs.is_primary = 1
-    WHERE v.vendor_id = ? LIMIT 1
-");
-$vEmailQ->bind_param("i", $newVendorId); $vEmailQ->execute();
-$vEmailRow = $vEmailQ->get_result()->fetch_assoc(); $vEmailQ->close();
-
-$vendorToEmail = !empty($vEmailRow['pic_email']) ? $vEmailRow['pic_email'] : ($vEmailRow['company_email'] ?? '');
-$vendorToName  = !empty($vEmailRow['pic_name'])  ? $vEmailRow['pic_name']  : $vRow['company_name'];
-
-if (!empty($vendorToEmail)) {
-    $vendorMail = new PHPMailer(true);
-    try {
-        $vendorMail->isSMTP(); $vendorMail->Host='smtp.office365.com'; $vendorMail->SMTPAuth=true;
-        $vendorMail->Username='rush.rcmp@unikl.edu.my'; $vendorMail->Password='Rcmp@4321';
-        $vendorMail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $vendorMail->Port=587;
-        $vendorMail->SMTPDebug=0; $vendorMail->Debugoutput='error_log';
-        $vendorMail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
-        $vendorMail->addAddress($vendorToEmail, $vendorToName);
-        $vendorMail->isHTML(true); $vendorMail->CharSet='UTF-8';
-        $vendorMail->Subject="Ticket Assigned to Your Company — {$ticketId}";
-        $currentYear = date('Y'); $currentDate = date('d F Y');
-        $escapedPicName = htmlspecialchars($vendorToName);
-        $escapedCompany = htmlspecialchars($vRow['company_name']);
-        $escapedTicketId = htmlspecialchars($ticketId);
-        $escapedAssigner = htmlspecialchars($_SESSION['staff_name'] ?? 'Admin');
-        $vendorMail->Body = <<<HTML
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
-<body style="margin:0;padding:0;background-color:#ffffff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;padding:40px 16px;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:white;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #e4e7ed;">
-  <tr><td style="background:#00327a;padding:0;">
-    <table width="100%"><tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr></table>
-    <table width="100%"><tr><td style="padding:28px 40px 24px;">
-      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:4px;">Universiti Kuala Lumpur</div>
-      <div style="font-size:18px;font-weight:700;color:#fff;">RCMP Help Desk</div>
-    </td></tr></table>
-    <table width="100%"><tr><td style="padding:12px 40px 16px;background:#002660;">
-      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Vendor Ticket Assignment Notification</span>
-    </td></tr></table>
-  </td></tr>
-  <tr><td style="background:#f7f8fa;border-bottom:1px solid #e4e7ed;padding:14px 40px;">
-    <table width="100%"><tr>
-      <td style="font-size:12px;color:#6b7280;">Reference No.</td>
-      <td align="right" style="font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTicketId}</td>
-    </tr></table>
-  </td></tr>
-  <tr><td style="padding:36px 40px 0;">
-    <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">{$currentDate}</p>
-    <p style="margin:0 0 20px;font-size:15px;font-weight:600;color:#111827;">Dear {$escapedPicName},</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">A complaint ticket from UniKL RCMP Help Desk has been assigned to <strong>{$escapedCompany}</strong> by <strong>{$escapedAssigner}</strong>. Please log in to the portal to review and attend to it.</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:24px;">
-      <tr><td colspan="2" style="background:#7C3AED;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Ticket Details</span></td></tr>
-      <tr>
-        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Ticket Reference</td>
-        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTicketId}</td>
-      </tr>
-      <tr>
-        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Assigned To</td>
-        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedCompany}</td>
-      </tr>
-      <tr>
-        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Assigned By</td>
-        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedAssigner}</td>
-      </tr>
-      <tr>
-        <td style="width:40%;padding:12px 18px;background:#f7f8fa;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Action Required</td>
-        <td style="padding:12px 18px;font-size:13px;color:#111827;">Review and resolve this ticket</td>
-      </tr>
-    </table>
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-      <tr><td style="border-left:3px solid #7C3AED;background:#F5F3FF;padding:16px 20px;border-radius:0 4px 4px 0;">
-        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#5B21B6;">Action Required</p>
-        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk vendor portal to view the full details and take the necessary action.</p>
-        <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#7C3AED;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Vendor Portal</a>
-      </td></tr>
-    </table>
-    <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
-    <p style="margin:20px 0 4px;font-size:14px;color:#374151;">Yours sincerely,</p>
-    <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#00327a;">UniKL RCMP Help Desk Team</p>
-    <p style="margin:0 0 28px;font-size:12px;color:#9ca3af;">Universiti Kuala Lumpur</p>
-  </td></tr>
-  <tr><td style="background:#f7f8fa;border-top:1px solid #e4e7ed;padding:20px 40px;">
-    <p style="margin:0;font-size:11px;color:#9ca3af;">This is a system-generated notification. Please do not reply directly to this email. &bull; &copy; {$currentYear} Universiti Kuala Lumpur.</p>
-  </td></tr>
-  <tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr>
-</table></td></tr></table></body></html>
-HTML;
-        $vendorMail->AltBody = "Ticket {$ticketId} has been assigned to {$escapedCompany} by {$escapedAssigner}.\n\nLogin: https://rush.rcmp.edu.my/login.php";
-        $vendorMail->send();
-    } catch (Exception $e) {
-        error_log("[UniKL Mail] Staff reassign notify failed for {$ticketId}: ".$e->getMessage());
-    }
-}
-            $_SESSION['flash_success'] = 'Ticket assigned to vendor <strong>'.htmlspecialchars($vendorDisplayName).'</strong>.';
-        } else {
-            $_SESSION['flash_error'] = 'Selected vendor not found or inactive.';
-        }
-    } else {
-        $_SESSION['flash_error'] = 'Please select a staff member or vendor to assign.';
-    }
-    header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
-    }
+   
 
     
 
     // ── ACTION: update ────────────────────────────────────────────────────────
    if ($action === 'update' || $action === 'update_with_message') {
-    $assignedNow   = getAssignedStaff($conn, $ticketId);
-    $isAssignedNow = ($assignedNow && (int)$assignedNow['staff_id'] === (int)($_SESSION['staff_id'] ?? 0));
+    // Vendor is allowed to update because this ticket is assigned to them (already verified in fetch)
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-
-    // Allow any staff to change priority via AJAX (priority-only = action 'update' via AJAX)
-    $isPriorityOnlyAjax = $isAjax && $action === 'update';
-
-    if (!$isAssignedNow && !$isPriorityOnlyAjax) {
-        if ($isAjax) { header('Content-Type: application/json'); http_response_code(403); echo json_encode(['success'=>false,'error'=>'not_assigned']); exit; }
-        $_SESSION['flash_error'] = 'Only the assigned staff can change priority or status.';
-        header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
-    }
-
-        $newPriority = trim($_POST['priority'] ?? '');
-        $newStatus   = trim($_POST['status']   ?? '');
-        $allowedPri  = ['low','medium','high'];
-        $allowedSta  = ['open','in_progress','closed'];
+        $newPriority = $ticket['priority'] ?? 'medium'; // priority no longer editable by vendor
+$newStatus   = trim($_POST['status']   ?? '');
+$newVendorStaffId = (int)($_POST['vendor_staff_id'] ?? 0);
+$allowedPri  = ['low','medium','high'];
+$allowedSta  = ['open','in_progress','closed'];
 
         // Fetch fresh DB row for old values
-        $freshStmt = $conn->prepare("SELECT priority, status, sla_start_at, first_response_at FROM complaints WHERE ticket_id = ? AND dept_id = ? LIMIT 1");
-        $freshStmt->bind_param("si", $ticketId, $deptId); $freshStmt->execute();
+        $freshStmt = $conn->prepare("SELECT priority, status, sla_start_at, first_response_at FROM complaints WHERE ticket_id = ? LIMIT 1");
+$freshStmt->bind_param("s", $ticketId); $freshStmt->execute();
         $freshRow = $freshStmt->get_result()->fetch_assoc(); $freshStmt->close();
         $oldPriority      = $freshRow['priority']          ?? $ticket['priority'];
         $oldStatus        = $freshRow['status']            ?? $ticket['status'];
@@ -370,10 +89,7 @@ HTML;
             header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
         }
 
-        if (!in_array($newPriority, $allowedPri)) {
-            $_SESSION['flash_error'] = 'Invalid priority.';
-            header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
-        }
+        
         if (!in_array($newStatus, $allowedSta)) {
             $_SESSION['flash_error'] = 'Invalid status.';
             header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
@@ -383,8 +99,8 @@ HTML;
 
         // ── Stamp sla_start_at on very first in_progress ──────────────────
         if (empty($oldSlaStartAt)) {
-            $slaSet = $conn->prepare("UPDATE complaints SET sla_start_at=? WHERE ticket_id=? AND dept_id=?");
-            $slaSet->bind_param("ssi", $nowMysql, $ticketId, $deptId);
+           $slaSet = $conn->prepare("UPDATE complaints SET sla_start_at=? WHERE ticket_id=?");
+$slaSet->bind_param("ss", $nowMysql, $ticketId);
             $slaSet->execute(); $slaSet->close();
             $oldSlaStartAt = $nowMysql; // keep in sync for logic below
         }
@@ -392,33 +108,44 @@ HTML;
 // ── Stamp first_response_at on first staff action (open → anything) ──────
 // Covers: open→in_progress AND open→closed directly
 if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed'])) {
-    $frSet = $conn->prepare("UPDATE complaints SET first_response_at=? WHERE ticket_id=? AND dept_id=?");
-    $frSet->bind_param("ssi", $nowMysql, $ticketId, $deptId);
+    $frSet = $conn->prepare("UPDATE complaints SET first_response_at=? WHERE ticket_id=?");
+$frSet->bind_param("ss", $nowMysql, $ticketId);
     $frSet->execute(); $frSet->close();
 }
 
         // ── Build the UPDATE complaints query ─────────────────────────────
-        if ($newStatus === 'closed' && $oldStatus !== 'closed') {
-            // Closing: stamp resolved_at
-            $upd = $conn->prepare("UPDATE complaints SET priority=?,status=?,resolved_at=?,updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
-            $upd->bind_param("ssssi", $newPriority, $newStatus, $nowMysql, $ticketId, $deptId);
-        } else {
-            // open → in_progress or priority-only change
-            $upd = $conn->prepare("UPDATE complaints SET priority=?,status=?,updated_at=NOW() WHERE ticket_id=? AND dept_id=?");
-            $upd->bind_param("sssi", $newPriority, $newStatus, $ticketId, $deptId);
-        }
+        $bindStaffId = $newVendorStaffId ?: null;
+
+if ($newStatus === 'closed' && $oldStatus !== 'closed') {
+    $upd = $conn->prepare("UPDATE complaints SET status=?,resolved_at=?,updated_at=NOW(),handled_by_vendor_staff_id=? WHERE ticket_id=? AND assigned_vendor_id=?");
+    $upd->bind_param("ssisi", $newStatus, $nowMysql, $bindStaffId, $ticketId, $vendorId);
+} else {
+    $upd = $conn->prepare("UPDATE complaints SET status=?,updated_at=NOW(),handled_by_vendor_staff_id=? WHERE ticket_id=? AND assigned_vendor_id=?");
+    $upd->bind_param("sisi", $newStatus, $bindStaffId, $ticketId, $vendorId);
+}
 
         if ($upd->execute()) {
             // Log the change
-            $priChanged  = ($oldPriority !== $newPriority);
-            $statChanged = ($oldStatus   !== $newStatus);
-            if ($priChanged || $statChanged) {
-                $fc           = ($priChanged && $statChanged) ? 'both' : ($priChanged ? 'priority' : 'status');
+            $priChanged  = false; // priority no longer changed by vendor
+            $statChanged = ($oldStatus !== $newStatus);
+            if ($statChanged) {
+                $fc = 'status';
                 $logStaffId   = (int)$staffId;
                 $logStaffName = $staffName;
-                $logStmt = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,old_status,new_status) VALUES (?,?,?,?,?,?,?,?)");
+                // Resolve vendor staff name for log
+                $logVendorStaffName = null;
+                if ($newVendorStaffId) {
+                    $vsLogQ = $conn->prepare("SELECT full_name FROM vendor_staff WHERE staff_id = ? AND vendor_id = ? LIMIT 1");
+                    $vsLogQ->bind_param("ii", $newVendorStaffId, $vendorId);
+                    $vsLogQ->execute();
+                    $vsLogRow = $vsLogQ->get_result()->fetch_assoc();
+                    $vsLogQ->close();
+                    $logVendorStaffName = $vsLogRow['full_name'] ?? null;
+                }
+                        
+                $logStmt = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,vendor_staff_name,field_changed,old_priority,new_priority,old_status,new_status) VALUES (?,?,?,?,?,?,?,?,?)");
                 if ($logStmt) {
-                    $logStmt->bind_param("sissssss", $ticketId, $logStaffId, $logStaffName, $fc, $oldPriority, $newPriority, $oldStatus, $newStatus);
+                    $logStmt->bind_param("sisssssss", $ticketId, $logStaffId, $logStaffName, $logVendorStaffName, $fc, $oldPriority, $newPriority, $oldStatus, $newStatus);
                     $logStmt->execute(); $logStmt->close();
                 }
             }
@@ -431,7 +158,7 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
 
             $statusLabel = ucfirst(str_replace('_', ' ', $newStatus));
 
-            // ── Always notify submitter on status change ───────────────────────
+          // ── Always notify submitter on status change ───────────────────────
             // Build feedback section once — used by both email branches
             $feedbackSection = '';
             if ($newStatus === 'closed') {
@@ -447,11 +174,11 @@ if (empty($oldFirstResponse) && in_array($newStatus, ['in_progress', 'closed']))
 FBHTML;
             }
 
-            // Fetch submitter data — email stored in complaints table for users
-            $subType = $ticket['submitter_type'] ?? 'user';
-            $submitterData = null;
-            $emailSkippedReason = '';
-            if ($subType === 'user') {
+// Fetch submitter data — email stored in complaints table for users
+$subType = $ticket['submitter_type'] ?? 'user';
+$submitterData = null;
+$emailSkippedReason = '';
+if ($subType === 'user') {
     $storedEmail = decryptField($ticket['submitter_email'] ?? '');
     $storedName  = decryptField($ticket['submitter_name'] ?? '');
     if (!empty($storedEmail)) {
@@ -463,13 +190,13 @@ FBHTML;
         $emailSkippedReason = 'no_email_in_complaint';
         error_log("[UniKL Mail] No email sent for {$ticketId}: submitter_email not in complaints table");
     }
-            } else {
-                $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
-                $subQ->bind_param("i", $ticket['submitter_id']);
-                $subQ->execute();
-                $submitterData = $subQ->get_result()->fetch_assoc();
-                $subQ->close();
-            }
+} else {
+    $subQ = $conn->prepare("SELECT full_name, email FROM staff WHERE staff_id = ? LIMIT 1");
+    $subQ->bind_param("i", $ticket['submitter_id']);
+    $subQ->execute();
+    $submitterData = $subQ->get_result()->fetch_assoc();
+    $subQ->close();
+}
 
             // ── Status-only email (no message typed) ─────────────────────────
             if ($statChanged && empty(trim($_POST['message'] ?? ''))) {
@@ -484,7 +211,7 @@ FBHTML;
                         $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
                         $statFg  = $newStatus==='closed' ? '#059669' : ($newStatus==='in_progress' ? '#1D4ED8' : '#D97706');
 
-                        $statusOnlyHtml = <<<HTML
+$statusOnlyHtml = <<<HTML
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background-color:#ffffff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;padding:40px 16px;">
@@ -562,9 +289,9 @@ HTML;
             // ── Send message if provided ──────────────────────────────────────
             $inlineMessage = trim($_POST['message'] ?? '');
             if (!empty($inlineMessage)) {
-                $senderName = $_SESSION['staff_name'] ?? 'Staff';
-                $senderRole = 'staff';
-                $senderId   = (int)($_SESSION['staff_id'] ?? 0);
+                $senderName = $_SESSION['vendor_company'] ?? 'Vendor';
+$senderRole = 'staff';
+$senderId   = $vendorId;
                 $ins = $conn->prepare("INSERT INTO ticket_replies (ticket_id,sender_id,sender_name,sender_role,message) VALUES (?,?,?,?,?)");
                 $ins->bind_param("sisss", $ticketId, $senderId, $senderName, $senderRole, $inlineMessage);
                 $ins->execute(); $ins->close();
@@ -577,7 +304,16 @@ HTML;
                         $escapedTo   = htmlspecialchars($toName);
                         $escapedTid  = htmlspecialchars($ticketId);
                         $escapedMsg  = nl2br(htmlspecialchars($inlineMessage));
-                        $escapedFrom = htmlspecialchars($senderName);
+
+                        // Show department name in the email instead of vendor company name
+                        $deptDisplayName = $ticket['category_name'] ?? '';
+                        if (strpos($deptDisplayName, '/') !== false) {
+                            $deptDisplayName = trim(explode('/', $deptDisplayName, 2)[0]);
+                        }
+                        if ($deptDisplayName === '') {
+                            $deptDisplayName = 'Department';
+                        }
+                        $escapedFrom = htmlspecialchars($deptDisplayName);
                         $escapedStat = htmlspecialchars($statusLabel);
                         $statBg  = $newStatus==='closed' ? '#D1FAE5' : ($newStatus==='in_progress' ? '#DBEAFE' : '#FEF3C7');
                         $statFg  = $newStatus==='closed' ? '#059669' : ($newStatus==='in_progress' ? '#1D4ED8' : '#D97706');
@@ -653,7 +389,7 @@ HTML;
                             $mail->isHTML(true); $mail->CharSet='UTF-8';
                             $mail->Subject="Ticket Update ({$statusLabel}) — {$ticketId}";
                             $mail->Body=$htmlBody;
-                            $mail->AltBody="Status: {$statusLabel}\n\nMessage from {$senderName}:\n\n{$inlineMessage}\n\nTicket: {$ticketId}";
+                            $mail->AltBody="Status: {$statusLabel}\n\nMessage from {$deptDisplayName}:\n\n{$inlineMessage}\n\nTicket: {$ticketId}";
                             $mail->send();
                         } catch (Exception $e) {
                             error_log("[UniKL Mail] Merged message send failed for {$ticketId}: ".$mail->ErrorInfo);
@@ -662,17 +398,14 @@ HTML;
             } // end if(!empty($inlineMessage))
 
             // ── Fire processQueue ALWAYS (not just when message sent) ──────────
-            if ($statChanged && in_array($newStatus, ['in_progress', 'closed'])) {
-                processQueue($conn, $deptId, (int)$staffId);
-            }
-
+            
             $_SESSION['flash_success'] = 'Ticket updated — status: <strong>'.htmlspecialchars($statusLabel).'</strong>.';
 
             // ── PDPA: wipe personal data from complaints table once closed ──
             if ($newStatus === 'closed' && $oldStatus !== 'closed') {
-                $wipe = $conn->prepare("UPDATE complaints SET submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND dept_id = ?");
-                if ($wipe) {
-                    $wipe->bind_param("si", $ticketId, $deptId);
+                $wipe = $conn->prepare("UPDATE complaints SET submitter_name = NULL, phone = NULL WHERE ticket_id = ? AND assigned_vendor_id = ?");
+if ($wipe) {
+    $wipe->bind_param("si", $ticketId, $vendorId);
                     $wipe->execute();
                     $wipe->close();
                 }
@@ -727,7 +460,7 @@ if (!empty($_GET['action']) && $_GET['action']==='get_logs' && !empty($_GET['id'
             '' AS remarks,
             created_at AS event_at
         FROM ticket_replies
-        WHERE ticket_id = ? AND sender_role = 'staff'
+        WHERE ticket_id = ? AND sender_role IN ('staff','vendor')
         ORDER BY event_at DESC
     ");
     $lg->bind_param("ss",$ajaxTid,$ajaxTid); $lg->execute();
@@ -741,8 +474,8 @@ $updateWarning = $_SESSION['flash_warning'] ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error'], $_SESSION['flash_warning']);
 
 if ($ticketId !== '') {
-    $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.dept_id = ? LIMIT 1");
-    $stmt->bind_param("si", $ticketId, $deptId); $stmt->execute();
+    $stmt = $conn->prepare("SELECT c.*, cat.category_name FROM complaints c LEFT JOIN categories cat ON cat.category_id = c.category_id WHERE c.ticket_id = ? AND c.assigned_vendor_id = ? LIMIT 1");
+$stmt->bind_param("si", $ticketId, $vendorId); $stmt->execute();
     $ticket = $stmt->get_result()->fetch_assoc(); $stmt->close();
 }
 
@@ -810,44 +543,39 @@ if ($ticket) {
 $assignedStaff = null;
 $assignedVendor = null;
 if ($ticket) {
-    $assignedStaff = getAssignedStaff($conn, $ticketId);
+    $assignedStaff  = null; // vendors don't see staff assignment logic
+$assignedVendor = ['company_name' => $_SESSION['vendor_company'], 'pic_name' => $_SESSION['vendor_pic'] ?? ''];
     if (!empty($ticket['assigned_vendor_id'])) {
         $avQ = $conn->prepare("
-    SELECT v.vendor_id, v.company_name
-    FROM vendors v
-    WHERE v.vendor_id = ?
-");
-$avQ->bind_param("i", $ticket['assigned_vendor_id']);
-$avQ->execute();
-$assignedVendor = $avQ->get_result()->fetch_assoc();
-$avQ->close();
+            SELECT v.vendor_id, v.company_name, vs.full_name AS pic_name
+            FROM vendors v
+            LEFT JOIN vendor_staff vs ON vs.vendor_id = v.vendor_id AND vs.is_primary = 1
+            WHERE v.vendor_id = ?
+        ");
+        $avQ->bind_param("i", $ticket['assigned_vendor_id']);
+        $avQ->execute();
+        $assignedVendor = $avQ->get_result()->fetch_assoc();
+        $avQ->close();
     }
 }
 
-$currentStaffId  = (int)($_SESSION['staff_id'] ?? 0);
-$isAssignedStaff = ($assignedStaff && (int)$assignedStaff['staff_id'] === $currentStaffId);
+$isAssignedStaff = true;  // vendor always sees the update form (ticket is already theirs)
 
-$deptStaffList = [];
-$dsStmt = $conn->prepare("SELECT staff_id, full_name FROM staff WHERE dept_id = ? AND status = 'active' AND role = 'staff' ORDER BY staff_id ASC");
-$dsStmt->bind_param("i", $deptId); $dsStmt->execute();
-$dsRes = $dsStmt->get_result();
-while ($row = $dsRes->fetch_assoc()) $deptStaffList[] = $row;
-$dsStmt->close();
+// Fetch vendor staff list for the assigned vendor
+$vendorStaffList = [];
+if ($ticket && !empty($ticket['assigned_vendor_id'])) {
+    $vsQ = $conn->prepare("SELECT staff_id, full_name, position FROM vendor_staff WHERE vendor_id = ? ORDER BY is_primary DESC, full_name ASC");
+    $vsQ->bind_param("i", $ticket['assigned_vendor_id']);
+    $vsQ->execute();
+    $vendorStaffList = $vsQ->get_result()->fetch_all(MYSQLI_ASSOC);
+    $vsQ->close();
+}
 
+// Currently selected vendor staff
+$currentVendorStaffId = (int)($ticket['handled_by_vendor_staff_id'] ?? 0);
+
+$deptStaffList  = [];
 $deptVendorList = [];
-$dvStmt = $conn->prepare("
-    SELECT v.vendor_id, v.company_name
-    FROM vendors v
-    JOIN vendor_departments vd ON vd.vendor_id = v.vendor_id
-    WHERE vd.dept_id = ? AND v.status = 'active'
-    ORDER BY v.company_name ASC
-");
-$dvStmt->bind_param("i", $deptId);
-$dvStmt->execute();
-$dvRes = $dvStmt->get_result();
-while ($row = $dvRes->fetch_assoc()) $deptVendorList[] = $row;
-$dvStmt->close();
-
 $replies = [];
 if ($ticket) {
     $rq = $conn->prepare("SELECT reply_id,sender_id,sender_name,sender_role,message,attachment_path,created_at FROM ticket_replies WHERE ticket_id=? ORDER BY created_at ASC");
@@ -996,17 +724,27 @@ function ratingColors(int $rating): array {
 
 $isClosed   = $ticket && strtolower($ticket['status']) === 'closed';
 $hasFeedback= $feedback !== null;
-$curStat    = strtolower($ticket['status'] ?? 'open');
-$curPri     = strtolower($ticket['priority'] ?? 'medium');
 
 $activeNav    = 'tickets';
 $pageTitle    = 'Ticket Detail';
-$pageSubtitle = 'Administration & Facilities Management Department';
+$pageSubtitle = 'Information Technology Department';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <style>
+    .td-alert-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+}
 /* ══ Flash Toast ══ */
 .flash-toast {
   position: fixed;
@@ -1029,7 +767,6 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 .flash-toast.toast-error   { border-left-color: #EF4444; }
 .flash-toast.toast-warning { border-left-color: #F59E0B; }
 .flash-toast.toast-success { border-left-color: #22C55E; }
-
 .flash-toast-icon {
   width: 36px; height: 36px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -1039,19 +776,15 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 .toast-error   .flash-toast-icon { background: #FEE2E2; color: #DC2626; }
 .toast-warning .flash-toast-icon { background: #FEF3C7; color: #D97706; }
 .flash-toast-icon svg { width: 18px; height: 18px; }
-
 .flash-toast-body   { flex: 1; min-width: 0; }
 .flash-toast-title  { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 3px; }
 .flash-toast-msg    { font-size: 12.5px; color: #6B7280; line-height: 1.55; }
-
 .flash-toast-close {
   background: none; border: none; cursor: pointer;
   color: #9CA3AF; font-size: 18px; line-height: 1;
   padding: 0; flex-shrink: 0; margin-top: -2px;
 }
 .flash-toast-close:hover { color: #374151; }
-
-/* Progress bar at bottom */
 .flash-toast-bar {
   position: absolute; bottom: 0; left: 0;
   height: 3px; border-radius: 0 0 12px 12px;
@@ -1060,7 +793,6 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 .toast-success .flash-toast-bar { background: #22C55E; }
 .toast-error   .flash-toast-bar { background: #EF4444; }
 .toast-warning .flash-toast-bar { background: #F59E0B; }
-
 @keyframes toastSlideIn {
   from { transform: translateX(110%); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
@@ -1069,29 +801,61 @@ $pageSubtitle = 'Administration & Facilities Management Department';
   from { width: 100%; }
   to   { width: 0%; }
 }
-/* Warning inline alert */
-.td-alert-warning {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  font-size: 13.5px;
-  background: #FFFBEB;
-  border: 1px solid #FDE68A;
-  color: #92400E;
-}
     </style>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Ticket Detail | UniKL Help Desk – AFSMD</title>
+  <title>Ticket Detail | UniKL Help Desk – IT</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="css/ticket_detail.css">
+ <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy: #1E3A5F; --navy-dark: #142845; --gold: #B8860B; --gold-light: #D4A017;
+  --olive: #5C6B35; --page-bg: #e8edf5; --surface: #fff;
+  --border: #D8D3C8; --text: #1A2332; --text-muted: #7A8899;
+  --blue: #1a56db; --blue-light: #EFF6FF;
+  --g100: #f3f4f6; --g200: #e5e7eb; --g300: #d1d5db;
+  --g400: #9ca3af; --g500: #6b7280; --g700: #374151; --g900: #111827;
+}
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--page-bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+    nav {
+  background: var(--surface); border-bottom: 3px solid var(--navy);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  padding: 0 48px; display: flex; align-items: center; justify-content: space-between; height: 80px;
+}
+.nav-brand { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+.nav-brand img { width: 60px; height: 60px; object-fit: contain; }
+.nav-brand-text { font-size: 17px; font-weight: 700; color: var(--navy-dark); }
+.nav-brand-sub  { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--olive); }
+.nav-right { display: flex; align-items: center; gap: 12px; }
+.vendor-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--page-bg); border: 1px solid var(--border);
+  border-radius: 100px; padding: 6px 14px;
+  font-size: 13px; font-weight: 600; color: var(--navy-dark);
+}
+.btn-logout {
+  padding: 8px 18px; border-radius: 6px;
+  border: 1.5px solid var(--border); background: transparent;
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+  text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.2s; cursor: pointer;
+}
+.btn-logout:hover { border-color: var(--navy); color: var(--navy); background: #E8EEF6; }
+  </style>
+ <link rel="stylesheet" href="css/tickets_details.css">
   
 </head>
 <body>
-<?php require_once __DIR__ . '/_layout.php'; ?>
+<?php
+  $navBrandHref = 'dashboard.php';   // back arrow goes to dashboard
+  require_once __DIR__ . '/includes/header.php';
+?>
+<div class="main-content" style="max-width:1200px;margin:32px auto;padding:0 32px;">
 
   <!-- Breadcrumb -->
   <div class="td-breadcrumb">
@@ -1115,8 +879,6 @@ $pageSubtitle = 'Administration & Facilities Management Department';
   </div>
   <?php else: ?>
 
-  
-
   <?php if ($updateMsg): ?>
 <div class="td-alert td-alert-success"><svg viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg><span><?php echo $updateMsg; ?></span></div>
 <?php endif; ?>
@@ -1130,12 +892,12 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 </div>
 <?php endif; ?>
 
-<!-- ══ Toast Popup (success / error / warning) ══ -->
+<!-- ══ Toast Popup ══ -->
 <?php if ($updateMsg || $updateError || $updateWarning): ?>
 <div id="flashToast" class="flash-toast <?php
-  if ($updateMsg)      echo 'toast-success';
-  elseif ($updateError) echo 'toast-error';
-  else                  echo 'toast-warning';
+  if ($updateMsg)        echo 'toast-success';
+  elseif ($updateError)  echo 'toast-error';
+  else                   echo 'toast-warning';
 ?>">
   <div class="flash-toast-icon">
     <?php if ($updateMsg): ?>
@@ -1149,16 +911,16 @@ $pageSubtitle = 'Administration & Facilities Management Department';
   <div class="flash-toast-body">
     <div class="flash-toast-title">
       <?php
-        if ($updateMsg)       echo 'Update Successful';
-        elseif ($updateError) echo 'Error';
-        else                  echo 'Email Not Sent';
+        if ($updateMsg)        echo 'Update Successful';
+        elseif ($updateError)  echo 'Error';
+        else                   echo 'Email Not Sent';
       ?>
     </div>
     <div class="flash-toast-msg">
       <?php
-        if ($updateMsg)       echo $updateMsg;
-        elseif ($updateError) echo htmlspecialchars($updateError);
-        else                  echo htmlspecialchars($updateWarning);
+        if ($updateMsg)        echo $updateMsg;
+        elseif ($updateError)  echo htmlspecialchars($updateError);
+        else                   echo htmlspecialchars($updateWarning);
       ?>
     </div>
   </div>
@@ -1293,7 +1055,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             <div class="ti-desc-label">Description</div>
             <div class="ti-desc-box"><?php echo htmlspecialchars($ticket['description']); ?></div>
             <?php if(!empty($ticket['attachment_path'])): ?>
-            <a class="ti-attach-link" href="../../<?php echo htmlspecialchars($ticket['attachment_path']); ?>" target="_blank">
+            <a class="ti-attach-link" href="../<?php echo htmlspecialchars($ticket['attachment_path']); ?>" target="_blank">
               <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
               View Attachment
             </a>
@@ -1303,27 +1065,27 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 
             <!-- Submitted by -->
             <div class="ti-section-label">
-  <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-  Submitted By
-</div>
-<div class="ti-submitter-grid">
-  <?php if (!$isClosed): ?>
-  <div class="ti-submitter-cell">
-    <div class="ti-submitter-lbl">Name</div>
-    <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['name'] ?? '—'); ?></div>
-  </div>
-  <?php endif; ?>
-  <div class="ti-submitter-cell" <?php echo $isClosed ? 'style="border-right:none"' : ''; ?>>
-    <div class="ti-submitter-lbl">Email</div>
-    <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['email'] ?? '—'); ?></div>
-  </div>
-  <?php if (!$isClosed): ?>
-  <div class="ti-submitter-cell" style="border-right:none">
-    <div class="ti-submitter-lbl">Phone</div>
-    <div class="ti-submitter-val">+60 <?php echo htmlspecialchars(decryptField($ticket['phone']??'')?:'—'); ?></div>
-  </div>
-  <?php endif; ?>
-</div>
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Submitted By
+            </div>
+            <div class="ti-submitter-grid">
+              <?php if (strtolower($ticket['status']) !== 'closed'): ?>
+              <div class="ti-submitter-cell">
+                <div class="ti-submitter-lbl">Name</div>
+                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['name'] ?? '—'); ?></div>
+              </div>
+              <?php endif; ?>
+              <div class="ti-submitter-cell" <?php echo $isClosed ? 'style="border-right:none"' : ''; ?>>
+                <div class="ti-submitter-lbl">Email</div>
+                <div class="ti-submitter-val"><?php echo htmlspecialchars($submitter['email'] ?? '—'); ?></div>
+              </div>
+              <?php if (strtolower($ticket['status']) !== 'closed'): ?>
+              <div class="ti-submitter-cell" style="border-right:none">
+                <div class="ti-submitter-lbl">Phone</div>
+                <div class="ti-submitter-val">+60 <?php echo htmlspecialchars(decryptField($ticket['phone']??'')?:'—'); ?></div>
+              </div>
+              <?php endif; ?>
+            </div>
 
           </div>
         </div>
@@ -1475,7 +1237,6 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             </div>
             <div>
               <div class="td-card-header-title">Assigned To</div>
-              <div class="td-card-header-sub">Auto round-robin assignment</div>
             </div>
           </div>
           <div class="td-card-body">
@@ -1487,8 +1248,8 @@ $pageSubtitle = 'Administration & Facilities Management Department';
   <div style="flex:1;min-width:0;">
     <div class="assigned-name"><?php echo htmlspecialchars($assignedVendor['company_name']); ?></div>
     <div class="assigned-role-tag" style="color:#7C3AED;">
-    🏢 Vendor
-</div>
+      🏢 Vendor
+    </div>
   </div>
 </div>
             <?php elseif ($assignedStaff): ?>
@@ -1496,63 +1257,25 @@ $pageSubtitle = 'Administration & Facilities Management Department';
               <div class="assigned-avatar"><?php echo getInitials($assignedStaff['full_name']); ?></div>
               <div style="flex:1;min-width:0;">
                 <div class="assigned-name"><?php echo htmlspecialchars($assignedStaff['full_name']); ?></div>
-                <div class="assigned-role-tag">AFSMD Staff</div>
+                <div class="assigned-role-tag">IT Staff</div>
               </div>
             </div>
             <?php else: ?>
             <div class="unassigned-pill">⚠️ No staff assigned yet.</div>
             <?php endif; ?>
 
-            <?php if ((!empty($deptStaffList) || !empty($deptVendorList)) && !$isClosed): ?>
-<form method="POST" action="ticket_detail.php?id=<?php echo urlencode($ticketId); ?>">
-  <input type="hidden" name="action" value="reassign"/>
-  <input type="hidden" name="new_staff_id"  id="hiddenStaffId"  value=""/>
-  <input type="hidden" name="new_vendor_id" id="hiddenVendorId" value=""/>
-  <div class="reassign-label">Reassign to</div>
-  <div style="position:relative;margin-bottom:4px;">
-    <select class="reassign-select" id="reassignSelect" onchange="handleReassignChange(this)">
-      <option value=""><?php echo $curStat === 'in_progress' ? '— Select staff or vendor —' : '— Select staff —'; ?></option>
-      <?php if (!empty($deptStaffList)): ?>
-      <?php $showStaffGroup = !empty($deptVendorList) && $curStat === 'in_progress'; ?>
-      <?php if ($showStaffGroup): ?>
-      <optgroup label="─── Staff ───">
-      <?php endif; ?>
-        <?php foreach ($deptStaffList as $s): ?>
-        <?php if ((int)$s['staff_id'] === (int)($assignedStaff['staff_id'] ?? 0)) continue; ?>
-        <option value="staff_<?php echo $s['staff_id']; ?>">
-          <?php echo htmlspecialchars($s['full_name']); ?>
-        </option>
-        <?php endforeach; ?>
-      <?php if ($showStaffGroup): ?>
-      </optgroup>
-      <?php endif; ?>
-      <?php endif; ?>
-      <?php if (!empty($deptVendorList) && $curStat === 'in_progress'): ?>
-<optgroup label="─── Vendors ───">
-  <?php foreach ($deptVendorList as $v): ?>
-  <?php if (!empty($assignedVendor) && (int)$v['vendor_id'] === (int)$assignedVendor['vendor_id']) continue; ?>
-  <option value="vendor_<?php echo $v['vendor_id']; ?>">
-    🏢 <?php echo htmlspecialchars($v['company_name']); ?>
-</option>
-  <?php endforeach; ?>
-</optgroup>
-<?php endif; ?>
-    </select>
-  </div>
-  <div id="reassignRemarksBox" style="display:none;">
-    <div class="reassign-label" style="margin-top:10px;">Remarks <span style="color:#9CA3AF;font-weight:400;font-size:10px;">(optional)</span></div>
-    <textarea name="assign_remarks" class="msg-inline-textarea" placeholder="Reason for reassignment…" maxlength="500" rows="2"></textarea>
-  </div>
-  <button type="submit" id="reassignSaveBtn" class="reassign-btn" style="width:100%;margin-top:8px;display:none;">Save Assignment</button>
-</form>
-           <?php endif; ?>
+            
+
+
+
+
             <?php if ($isClosed): ?>
             <div style="margin-top:8px;font-size:11.5px;color:#9CA3AF;text-align:center;">Ticket is closed — reassignment locked</div>
             <?php endif; ?>
           </div>
         </div>
 
-        
+       
 
         <!-- Update Ticket -->
         <div class="td-card">
@@ -1562,7 +1285,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             </div>
             <div>
               <div class="td-card-header-title">Update Ticket</div>
-              <div class="td-card-header-sub"><?php echo $isClosed ? 'Ticket is closed — read only' : ($isAssignedStaff ? 'Change priority &amp; status' : 'View only — not assigned'); ?></div>
+              <div class="td-card-header-sub"><?php echo $isClosed ? 'Ticket is closed — read only' : ($isAssignedStaff ? 'Need to Assign Vendor staff &amp; update status' : 'View only — not assigned'); ?></div>
             </div>
           </div>
           <div class="td-card-body">
@@ -1570,37 +1293,46 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 
             <?php if ($isClosed): ?>
             <!-- Ticket closed — everything locked, read-only display -->
-            <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#9CA3AF;margin-bottom:6px;">Priority</div>
-            <div style="display:flex;gap:6px;margin-bottom:4px;">
-              <?php foreach(['low'=>['Low','#3B82F6','#EFF6FF'],'medium'=>['Medium','#F59E0B','#FFFBEB'],'high'=>['High','#EF4444','#FEF2F2']] as $val=>$arr): list($lbl,$fg,$bg)=$arr; ?>
-              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 5px;border-radius:8px;border:1.5px solid <?php echo $curPri===$val?$fg:'#E5E7EB'; ?>;background:<?php echo $curPri===$val?$bg:'#F9FAFB'; ?>;opacity:<?php echo $curPri===$val?'1':'.45'; ?>;">
-                <div style="width:7px;height:7px;border-radius:50%;background:<?php echo $fg; ?>;"></div>
-                <div style="font-size:11.5px;font-weight:<?php echo $curPri===$val?'700':'500'; ?>;color:<?php echo $curPri===$val?$fg:'#9CA3AF'; ?>;"><?php echo $lbl; ?></div>
-              </div>
-              <?php endforeach; ?>
-            </div>
-            <div style="height:1px;background:#F3F4F6;margin:14px 0;"></div>
+            
             <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#9CA3AF;margin-bottom:6px;">Status</div>
             <div style="padding:9px 11px;border:1.5px solid #E5E7EB;border-radius:7px;font-size:13px;color:#9CA3AF;background:#F9FAFB;">
               Closed
             </div>
 
             <?php elseif ($isAssignedStaff): ?>
-              <div class="pri-label-sm">Priority <span id="priSavingSpinner" style="display:none;font-size:10px;color:#9CA3AF;font-weight:400;margin-left:3px">saving…</span></div>
-              <div class="pri-btn-group">
-                <?php foreach(['low'=>'Low','medium'=>'Medium','high'=>'High'] as $val=>$label): ?>
-                <button type="button" class="pri-btn <?php echo $curPri===$val?'active':''; ?>" data-pri="<?php echo $val; ?>" onclick="selectPriorityAutoSave('<?php echo $val; ?>',this)">
-                  <span class="pri-dot"></span><?php echo $label; ?>
-                </button>
-                <?php endforeach; ?>
-              </div>
-              <div class="pri-status-divider"><span>Status</span></div>
+
 <form method="POST" action="ticket_detail.php?id=<?php echo urlencode($ticketId); ?>" id="updateForm">
   <input type="hidden" name="action" value="update_with_message"/>
-  <input type="hidden" name="priority" id="priorityInput" value="<?php echo htmlspecialchars($curPri); ?>"/>
-                
+  
+<?php if (!empty($vendorStaffList)): ?>
+<div class="pri-status-divider"><span>Handled By</span></div>
+<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;" id="vendorStaffRadioGroup">
+  <?php foreach($vendorStaffList as $vs): ?>
+  <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1.5px solid #E5E7EB;border-radius:8px;cursor:pointer;font-size:13px;transition:border-color .15s;" 
+         onclick="this.parentNode.querySelectorAll('label').forEach(l=>l.style.borderColor='#E5E7EB');this.style.borderColor='#7C3AED';enableStatusSelect();">
+    <input type="radio" name="vendor_staff_id" value="<?php echo (int)$vs['staff_id']; ?>"
+           <?php echo ($currentVendorStaffId === (int)$vs['staff_id']) ? 'checked' : ''; ?>
+           style="accent-color:#7C3AED;" onchange="enableStatusSelect()">
+    <div>
+      <div style="font-weight:600;color:#111827;"><?php echo htmlspecialchars($vs['full_name']); ?></div>
+      <?php if(!empty($vs['position'])): ?><div style="font-size:11px;color:#9CA3AF;"><?php echo htmlspecialchars($vs['position']); ?></div><?php endif; ?>
+    </div>
+  </label>
+  <?php endforeach; ?>
+</div>
+<?php else: ?>
+<div style="padding:12px 14px;background:#FEF9C3;border:1px solid #FDE68A;border-radius:8px;margin-bottom:12px;">
+  <div style="font-size:12px;color:#92400E;opacity:.85;margin-bottom:10px;">Add a staff member so you can assign who handles this ticket.</div>
+  <a href="vendor_staff.php?from=<?php echo urlencode('ticket_detail.php?id=' . urlencode($ticketId) . '&tab=detail&from=' . $backUrlEncoded); ?>"
+     style="display:block;text-align:center;padding:8px 14px;background:#92400E;color:#fff;font-size:12.5px;font-weight:600;text-decoration:none;border-radius:6px;">
+    + Add Staff
+  </a>
+</div>
+<?php endif; ?>
+<div class="pri-status-divider"><span>Status</span></div>
+  
 <div class="status-select-wrap">
-  <select name="status" id="status" class="status-select-styled" onchange="handleStatusChange(this.value)">
+  <select name="status" id="status" class="status-select-styled" onchange="handleStatusChange(this.value)" <?php echo (!empty($vendorStaffList) && !$currentVendorStaffId) ? 'disabled' : ''; ?>>
     <?php if ($curStat === 'open'): ?>
   <option value="" disabled selected>— Select action —</option>
   <option value="in_progress">In Progress</option>
@@ -1627,6 +1359,8 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 
 <button type="button" class="btn-update-save" onclick="openConfirmModal()">Save Changes</button>
 </form>
+
+
 
             <?php else: ?>
   <div class="no-permission-box">
@@ -1698,11 +1432,11 @@ $pageSubtitle = 'Administration & Facilities Management Department';
         <?php foreach($changeLogs as $idx=>$log):
           $fc=$log['field_changed'];
           if ($fc === 'priority') { $dotCls = 'pri'; }
-          elseif ($fc === 'status') { $dotCls = 'stat'; }
-          elseif ($fc === 'assigned') { $dotCls = 'asgn'; }
-          elseif ($fc === 'conversation') { $dotCls = 'conv'; }
-          elseif ($fc === 'message') { $dotCls = 'msg'; }
-          else { $dotCls = 'both'; }
+elseif ($fc === 'status') { $dotCls = 'stat'; }
+elseif ($fc === 'assigned') { $dotCls = 'asgn'; }
+elseif ($fc === 'conversation') { $dotCls = 'conv'; }
+elseif ($fc === 'message') { $dotCls = 'msg'; }
+else { $dotCls = 'both'; }
         ?>
         <div class="tl-item" data-log-index="<?php echo $idx; ?>" style="<?php echo $idx>=10?'display:none':''; ?>">
           <div class="tl-dot <?php echo $dotCls; ?>">
@@ -1752,14 +1486,13 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 <div class="tl-row" style="margin-top:4px;">
     <span class="tl-row-label">Assigned to</span>
     <?php $fromName = $log['old_priority'] ?? null; $toName = $log['new_priority'] ?? null; ?>
-    <?php if ($fromName && $fromName !== 'Unassigned'): ?>
-        <span class="tl-chip-name"><?php echo htmlspecialchars($fromName); ?></span>
-        <span class="tl-arrow">→</span>
-    <?php else: ?>
-        <span class="tl-chip-name" style="color:#9CA3AF;background:#F9FAFB;">Unassigned</span>
-        <span class="tl-arrow">→</span>
-    <?php endif; ?>
-    <span class="tl-chip-name tl-chip-name--new"><?php echo htmlspecialchars($toName ?? '—'); ?></span>
+<?php if ($fromName): ?>
+    <span class="tl-chip-name" style="<?php echo $fromName === 'Unassigned' ? 'color:#9CA3AF;background:#F3F4F6;' : ''; ?>">
+        <?php echo htmlspecialchars($fromName); ?>
+    </span>
+    <span class="tl-arrow">→</span>
+<?php endif; ?>
+<span class="tl-chip-name tl-chip-name--new"><?php echo htmlspecialchars($toName ?? '—'); ?></span>
 </div>
 <?php if (!empty($log['remarks'])): ?>
 <div class="tl-msg-bubble" style="border-left-color:#6366F1;background:#EEF2FF;color:#3730A3;margin-top:6px;">
@@ -1857,7 +1590,7 @@ $pageSubtitle = 'Administration & Facilities Management Department';
             <div style="flex-shrink:0;line-height:0"><?php echo feedbackEmojiSvg($r, 38); ?></div>
             <div style="flex:1;min-width:0">
               <div class="fb-compact-label" style="color:<?php echo $chipFg; ?>"><?php echo ratingLabel($r); ?></div>
-<div class="fb-compact-meta">
+              <div class="fb-compact-meta">
                 <?php echo date('d M Y, H:i',strtotime($feedback['created_at'])); ?>
                 <?php if($feedback['is_auto_submitted']): ?>&nbsp;<span class="fb-auto-chip">Auto</span><?php endif; ?>
               </div>
@@ -1903,26 +1636,10 @@ $pageSubtitle = 'Administration & Facilities Management Department';
   </div><!-- /.td-panel feedback -->
 
   <?php endif; ?>
-  </div></main>
+  </div></div>
 
 
-<!-- ══ Priority Success Modal ══ -->
-<div id="priModalBackdrop" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(10,20,50,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
-  <div id="priModal" style="background:white;border-radius:14px;padding:32px 28px 24px;max-width:380px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.16);position:relative;animation:priModalIn .28s cubic-bezier(.34,1.56,.64,1);">
-    <button onclick="closePriModal()" style="position:absolute;top:13px;right:15px;background:none;border:none;cursor:pointer;color:#9CA3AF;font-size:19px;line-height:1;">&#215;</button>
-    <div id="priModalIcon" style="width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:26px;"></div>
-    <div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#9CA3AF;margin-bottom:7px">Priority Updated</div>
-    <div style="font-family:'DM Serif Display',serif;font-size:20px;color:#0D1F3C;margin-bottom:5px">Changes Saved!</div>
-    <div id="priModalSubtext" style="font-size:13.5px;color:#6B7280;margin-bottom:20px;line-height:1.55"></div>
-    <div style="background:#F9FAFB;border-radius:9px;padding:3px 0;margin-bottom:20px;border:1px solid #E5E7EB;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:12.5px;"><span style="color:#9CA3AF;">Ticket</span><span id="priModalTicketId" style="font-family:monospace;font-weight:700;color:#001f5c;font-size:11px;background:#E2E8F7;padding:2px 9px;border-radius:5px;"></span></div>
-      <div style="height:1px;background:#E5E7EB;"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:12.5px;"><span style="color:#9CA3AF;">Priority</span><span id="priModalChip" style="font-weight:700;padding:2px 13px;border-radius:20px;font-size:12.5px;"></span></div>
-    </div>
-    <button onclick="closePriModal()" style="width:100%;padding:11px;border-radius:9px;border:none;background:#001f5c;color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
-    <div id="priModalProgressBar" style="position:absolute;bottom:0;left:0;right:0;height:4px;background:#E2E8F7;border-radius:0 0 14px 14px;overflow:hidden;"><div id="priModalProgressFill" style="height:100%;width:100%;background:#001f5c;border-radius:0 0 14px 14px;"></div></div>
-  </div>
-</div>
+
 
 <!-- ══ Lightbox ══ -->
 <div id="lightboxBackdrop">
@@ -1994,51 +1711,12 @@ $pageSubtitle = 'Administration & Facilities Management Department';
 
 <script>
 // ── Reassign select — show remarks + button only when a staff is chosen ───────
-function handleReassignChange(sel) {
-  var remarksBox  = document.getElementById('reassignRemarksBox');
-  var saveBtn     = document.getElementById('reassignSaveBtn');
-  var val         = sel.value;
-  var show        = val !== '';
-  remarksBox.style.display = show ? 'block' : 'none';
-  saveBtn.style.display    = show ? 'block' : 'none';
+function handleReassignChange(sel) { /* not used in vendor portal */ }
 
-  var staffInput  = document.getElementById('hiddenStaffId');
-  var vendorInput = document.getElementById('hiddenVendorId');
-  if (val.startsWith('staff_')) {
-    staffInput.value  = val.replace('staff_', '');
-    vendorInput.value = '';
-  } else if (val.startsWith('vendor_')) {
-    vendorInput.value = val.replace('vendor_', '');
-    staffInput.value  = '';
-  } else {
-    staffInput.value  = '';
-    vendorInput.value = '';
-  }
+function enableStatusSelect() {
+  var sel = document.getElementById('status');
+  if (sel) sel.disabled = false;
 }
-
-// ── Priority auto-save ────────────────────────────────────────────────────────
-var priConfig={
-  low:{emoji:'🔵',label:'Low',chip:'#EFF6FF',chipColor:'#3B82F6',subtext:'Marked as low priority.'},
-  medium:{emoji:'🟡',label:'Medium',chip:'#FFFBEB',chipColor:'#F59E0B',subtext:'Marked as medium priority.'},
-  high:{emoji:'🔴',label:'High',chip:'#FFF1F2',chipColor:'#EF4444',subtext:'Escalated to high priority.'}
-};
-var priModalAutoClose=null;
-
-function openPriModal(priority){
-  var cfg=priConfig[priority]||priConfig['medium'];
-  document.getElementById('priModalIcon').textContent=cfg.emoji;
-  document.getElementById('priModalIcon').style.background=cfg.chip;
-  document.getElementById('priModalSubtext').textContent=cfg.subtext;
-  document.getElementById('priModalTicketId').textContent='<?php echo addslashes($ticketId); ?>';
-  var chip=document.getElementById('priModalChip');
-  chip.textContent=cfg.label; chip.style.background=cfg.chip; chip.style.color=cfg.chipColor;
-  var bd=document.getElementById('priModalBackdrop'); bd.style.display='flex';
-  var fill=document.getElementById('priModalProgressFill');
-  fill.style.transition='none'; fill.style.width='100%';
-  requestAnimationFrame(function(){requestAnimationFrame(function(){fill.style.transition='width 4s linear';fill.style.width='0%';});});
-  clearTimeout(priModalAutoClose); priModalAutoClose=setTimeout(closePriModal,4000);
-}
-function closePriModal(){clearTimeout(priModalAutoClose);document.getElementById('priModalBackdrop').style.display='none';}
 
 function handleStatusChange(val) {
   document.querySelector('.btn-update-save').style.display = 'block';
@@ -2047,7 +1725,9 @@ function handleStatusChange(val) {
     msgBox.style.display = (val === 'in_progress' || val === 'closed') ? 'block' : 'none';
   }
 }
-document.getElementById('priModalBackdrop').addEventListener('click',function(e){if(e.target===this)closePriModal();});
+
+
+
 
 var priFlagMap={
   low:'<span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#3B82F6;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#3B82F6" xmlns="http://www.w3.org/2000/svg"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"/></svg>Low</span>',
@@ -2094,6 +1774,16 @@ var currentTicketStatus='<?php echo addslashes($curStat ?? 'open'); ?>';
 
 // ── Confirm modal ─────────────────────────────────────────────────────────────
 function openConfirmModal(){
+  // Guard: ensure a vendor staff is selected if the list exists
+  var radios = document.querySelectorAll('input[name="vendor_staff_id"]');
+  if (radios.length > 0) {
+    var anyChecked = Array.from(radios).some(function(r){ return r.checked; });
+    if (!anyChecked) {
+      alert('Please select a staff member before saving.');
+      return;
+    }
+  }
+
   var status = document.getElementById('status').value;
   var currentStatus = '<?php echo addslashes($curStat); ?>';
 
@@ -2135,7 +1825,7 @@ function closeLightbox(){if(!lb)return;lb.classList.remove('show');document.body
 var lbClose=document.getElementById('lightboxClose');
 if(lbClose)lbClose.addEventListener('click',closeLightbox);
 if(lb)lb.addEventListener('click',function(e){if(e.target===this)closeLightbox();});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeLightbox();closeConfirmModal();closePriModal();closeValidationModal();}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeLightbox();closeConfirmModal();closeValidationModal();}});
 
 
 // ── Timeline pagination ───────────────────────────────────────────────────────
@@ -2217,6 +1907,16 @@ function dismissToast() {
   toast.style.opacity    = '0';
   setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 320);
 }
+
+// Highlight pre-selected vendor staff radio on load
+(function(){
+  var radios = document.querySelectorAll('input[name="vendor_staff_id"]');
+  radios.forEach(function(r){
+    if(r.checked){
+      r.closest('label').style.borderColor='#7C3AED';
+    }
+  });
+})();
 
 </script>
 </body>

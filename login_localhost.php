@@ -1,5 +1,5 @@
 <?php
-// uniKL/complaint/login.php  (for testing)
+// uniKL/complaint/login_localhost.php  (for testing)
 session_start();
 require 'db_connect.php';
 

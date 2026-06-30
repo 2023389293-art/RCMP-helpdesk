@@ -43,22 +43,24 @@ function bindAdvanced($stmt, string $baseTypes, array $baseRefs, string $extraTy
     $types = $baseTypes . $extraTypes;
     $allParams = array_merge($baseRefs, $extraParams);
     $bindArgs = [$types];
-    $refs = [];
-    foreach ($allParams as $key => $val) {
-        $refs[$key] = $val;
-        $bindArgs[] = &$refs[$key];
+    foreach ($allParams as &$val) {
+        $bindArgs[] = &$val;
     }
+    unset($val);
     call_user_func_array([$stmt, 'bind_param'], $bindArgs);
 }
 
 // ── Counts (open / in_progress / closed) ─────────────────────────────────────
 $stmt = $conn->prepare(
-    "SELECT SUM(complaints.status='open') AS oc,
-            SUM(complaints.status='in_progress') AS ipc,
-            SUM(complaints.status='closed') AS cc
-     FROM complaints
-     LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
-     WHERE complaints.dept_id = ? $extraWhere"
+    "SELECT SUM(t.status='open') AS oc,
+            SUM(t.status='in_progress') AS ipc,
+            SUM(t.status='closed') AS cc
+     FROM (
+         SELECT complaints.status
+         FROM complaints
+         WHERE complaints.dept_id = ? $extraWhere
+         GROUP BY complaints.ticket_id
+     ) AS t"
 );
 if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
 else { bindAdvanced($stmt, "i", [$deptId], $extraTypes, $extraParams); }
@@ -71,11 +73,11 @@ $closedCount     = (int)($counts['cc']  ?? 0);
 
 // ── Total for current filter ──────────────────────────────────────────────────
 if ($filterStatus === 'all') {
-    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
+    $stmt = $conn->prepare("SELECT COUNT(DISTINCT complaints.ticket_id) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("i", $deptId); }
     else { bindAdvanced($stmt, "i", [$deptId], $extraTypes, $extraParams); }
 } else {
-    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
+    $stmt = $conn->prepare("SELECT COUNT(DISTINCT complaints.ticket_id) AS total FROM complaints LEFT JOIN staff s ON s.staff_id = complaints.assigned_to WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere");
     if (empty($extraParams)) { $stmt->bind_param("is", $deptId, $filterStatus); }
     else { bindAdvanced($stmt, "is", [$deptId, $filterStatus], $extraTypes, $extraParams); }
 }
@@ -95,15 +97,20 @@ if ($filterStatus === 'all') {
         complaints.priority, complaints.my_department,
         complaints.created_at, complaints.updated_at,
         complaints.submitter_type, complaints.submitter_email,
+        complaints.assigned_vendor_id,
+        complaints.assigned_vendor_name,
+        v.company_name AS assigned_vendor_company,
         s.staff_id AS assigned_staff_id,
-        s.full_name AS assigned_staff_name,
-        st.email AS staff_submitter_email,
-        cat.category_name
+                s.full_name AS assigned_staff_name,
+                st.email AS staff_submitter_email,
+                cat.category_name
  FROM complaints
  LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+ LEFT JOIN vendors v ON v.vendor_id = complaints.assigned_vendor_id
  LEFT JOIN staff st ON complaints.submitter_type = 'staff' AND complaints.submitter_id = st.staff_id
  LEFT JOIN categories cat ON cat.category_id = complaints.category_id
          WHERE complaints.dept_id = ? $extraWhere
+         GROUP BY complaints.ticket_id
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("iii", $deptId, $perPage, $offset); }
@@ -114,15 +121,20 @@ if ($filterStatus === 'all') {
                 complaints.priority, complaints.my_department,
                 complaints.created_at, complaints.updated_at,
                 complaints.submitter_type, complaints.submitter_email,
+                complaints.assigned_vendor_id,
+                complaints.assigned_vendor_name,
+                v.company_name AS assigned_vendor_company,
                 s.staff_id AS assigned_staff_id,
                 s.full_name AS assigned_staff_name,
                 st.email AS staff_submitter_email,
                 cat.category_name
-         FROM complaints
+ FROM complaints
          LEFT JOIN staff s ON s.staff_id = complaints.assigned_to
+         LEFT JOIN vendors v ON v.vendor_id = complaints.assigned_vendor_id
          LEFT JOIN staff st ON complaints.submitter_type = 'staff' AND complaints.submitter_id = st.staff_id
          LEFT JOIN categories cat ON cat.category_id = complaints.category_id
          WHERE complaints.dept_id = ? AND complaints.status = ? $extraWhere
+         GROUP BY complaints.ticket_id
          ORDER BY complaints.created_at DESC LIMIT ? OFFSET ?"
     );
     if (empty($extraParams)) { $stmt->bind_param("isii", $deptId, $filterStatus, $perPage, $offset); }
@@ -278,44 +290,95 @@ col.col-action    { width: 8%;  }
 
 .complaint-email{font-size:12px;color:var(--g700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:100%;}
 
-    /* ── Mobile responsive ── */
-    @media (max-width: 640px) {
-      .filter-bar { gap: 4px; }
-      .filter-tab { padding: 6px 10px; font-size: 12px; }
+    /* ══════════════════════════════════════════════════
+   TICKETS — MOBILE RESPONSIVE
+   ══════════════════════════════════════════════════ */
 
-      .toolbar { flex-direction: column; align-items: flex-start; }
-      .toolbar-right { width: 100%; flex-wrap: wrap; }
-      .search-input { width: 100%; }
+/* ── Tablet: filter bar wraps, table starts scrolling ── */
+@media (max-width: 900px) {
+  .adv-filter-bar-body { gap: 10px; }
+  .adv-filter-select,
+  .adv-filter-input    { min-width: 130px; }
+  .adv-filter-actions  { margin-left: 0; width: 100%; }
+  .btn-apply-filter,
+  .btn-reset-filter    { flex: 1; justify-content: center; }
+}
 
-      /* Hide less important columns on mobile */
-      .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-      table { table-layout: auto; min-width: 480px; }
+/* ── Mobile: full overhaul ── */
+@media (max-width: 640px) {
 
-      col.col-id       { width: auto; }
-      col.col-dept     { width: auto; }
-      col.col-status   { width: auto; }
-      col.col-priority { width: auto; }
-      col.col-category { width: auto; }
-      col.col-assigned { width: auto; }
-      col.col-action   { width: auto; }
+  /* Filter tabs — scroll horizontally instead of wrapping */
+  .filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    gap: 6px;
+  }
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .filter-tab { flex-shrink: 0; padding: 7px 12px; font-size: 13px; }
 
-      thead th { font-size: 11px; padding: 8px 8px; white-space: nowrap; }
-      tbody td { padding: 9px 8px; font-size: 12px; }
+  /* Advanced filter — stack each group full width */
+  .adv-filter-bar-body { padding: 12px 14px; gap: 10px; }
+  .adv-filter-group    { width: 100%; }
+  .adv-filter-select,
+  .adv-filter-input    { width: 100%; min-width: unset; }
+  .adv-filter-actions  { width: 100%; margin-left: 0; }
+  .btn-apply-filter,
+  .btn-reset-filter    { flex: 1; justify-content: center; }
+  .adv-filter-bar-header { padding: 11px 14px; }
 
-      /* Keep action button always visible */
-      .btn-view { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
-      .tid-link { font-size: 12px; padding: 2px 6px; }
+  /* Active chips */
+  .active-chips { gap: 6px; }
+  .chip         { font-size: 11px; padding: 3px 8px; }
 
-      .assigned-name { max-width: 60px; }
-      .dept-cell .dept-name { font-size: 12px; }
-      .dept-cell .dept-datetime { font-size: 11px; }
+  /* Toolbar — stack vertically */
+  .toolbar       { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .toolbar-right { width: 100%; }
+  .search-wrap   { flex: 1; }
+  .search-input  { width: 100%; }
+  .perpage-select { flex-shrink: 0; }
 
-      .pagination-bar { flex-direction: column; align-items: center; }
+  /* Table — hide less important columns, allow horizontal scroll as fallback */
+  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table     { table-layout: auto; min-width: 420px; }
 
-      /* Hide category and assigned columns on very small screens, show scroll hint */
-      th:nth-child(5), td:nth-child(5),
-      th:nth-child(6), td:nth-child(6) { display: none; }
-    }
+  /* Hide Category and Assigned To columns on mobile */
+  thead th:nth-child(5),
+  tbody td:nth-child(5),
+  thead th:nth-child(6),
+  tbody td:nth-child(6),
+  thead th:nth-child(7),
+  tbody td:nth-child(7) { display: none; }
+
+  /* Tighten remaining column padding */
+  thead th,
+  tbody td { padding: 9px 8px; }
+
+  /* Ticket ID — smaller pill */
+  .tid-link { font-size: 11px; padding: 2px 6px; }
+
+  /* Department cell — tighten */
+  .dept-cell .dept-name     { font-size: 12px; }
+  .dept-cell .dept-datetime { font-size: 10px; }
+
+  /* Status badge — smaller */
+  .bdg { font-size: 11px; padding: 2px 6px; }
+
+  /* Priority — text hidden, icon only */
+  .priority-pill { font-size: 0; gap: 0; }
+  .priority-flag-icon { width: 16px; height: 16px; top: 0; }
+
+  /* View button — icon only */
+  .btn-view { padding: 5px 8px; font-size: 0; gap: 0; }
+  .btn-view svg { width: 14px; height: 14px; }
+
+  /* Pagination */
+  .pagination-bar { flex-direction: column; align-items: center; gap: 8px; }
+  .pg-btn         { padding: 6px 10px; font-size: 12px; min-width: 32px; }
+  .pg-info        { font-size: 12px; }
+}
 
     /* ── Ticket ID ── */
     .tid-link{font-weight:600;color:var(--accent);font-size:13px;text-decoration:none;font-family:monospace;letter-spacing:.03em;background:#EFF6FF;padding:3px 8px;border-radius:5px;white-space:nowrap;display:inline-block;max-width:100%;overflow:visible;}
@@ -594,7 +657,18 @@ else { $flagFill = '#64748b'; }
 
             <!-- Assigned To -->
             <td>
-              <?php if (!empty($t['assigned_staff_name'])): ?>
+              <?php if (!empty($t['assigned_vendor_name'])): 
+                $vendorDisplay = !empty($t['assigned_vendor_company']) ? $t['assigned_vendor_company'] : $t['assigned_vendor_name'];
+              ?>
+              <div class="assigned-cell">
+                <div class="staff-avatar-sm" style="background:linear-gradient(135deg,#5B21B6,#7C3AED);">
+                  <?php echo strtoupper(substr($vendorDisplay, 0, 1)); ?>
+                </div>
+                <span class="assigned-name" title="<?php echo htmlspecialchars($vendorDisplay); ?>" style="color:#7C3AED;">
+                  <?php echo htmlspecialchars($vendorDisplay); ?>
+                </span>
+              </div>
+              <?php elseif (!empty($t['assigned_staff_name'])): ?>
               <div class="assigned-cell">
                 <div class="staff-avatar-sm"><?php echo staffInitials($t['assigned_staff_name']); ?></div>
                 <span class="assigned-name" title="<?php echo htmlspecialchars($t['assigned_staff_name']); ?>"><?php echo htmlspecialchars($t['assigned_staff_name']); ?></span>

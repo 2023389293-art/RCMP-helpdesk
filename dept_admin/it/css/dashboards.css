@@ -263,6 +263,7 @@ button.mini-card {
   position: relative;
   height: 340px;
   background: var(--white);
+  min-height: 300px;
 }
 /* Category chart: auto-height based on number of bars */
 .chart-canvas-wrap.category-view {
@@ -271,6 +272,9 @@ button.mini-card {
 }
 #mainChart {
   background: var(--white);
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* ── RATING PANEL ────────────────────────────────────────── */

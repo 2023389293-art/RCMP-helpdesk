@@ -33,7 +33,9 @@ let chartInstance  = null;
     initCustomDateRange();
     initDropdowns();
     initSearch();
-    applyAllFilters();
+    requestAnimationFrame(() => {
+      applyAllFilters();
+    });
   });
 
   /* ══════════════════════════════════════════════
@@ -162,7 +164,7 @@ let chartInstance  = null;
     if (!tsInPeriod(t.submitted_ts)) return false;
     if (filterStatus   !== 'all' && t.status   !== filterStatus)   return false;
     if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
-    if (filterStaff    !== 'all' && (t.assigned_staff_name || '—') !== filterStaff) return false;
+    // closed_by filter only applies to table rows (DOM), not chart data
     return true;
   });
 }
@@ -218,7 +220,7 @@ let chartInstance  = null;
     }
     if (filterStatus   !== 'all') parts.push(`Status: <strong>${filterStatus.replace('_',' ')}</strong>`);
 if (filterPriority !== 'all') parts.push(`Priority: <strong>${filterPriority}</strong>`);
-if (filterStaff    !== 'all') parts.push(`Staff: <strong>${filterStaff}</strong>`);
+if (filterStaff    !== 'all') parts.push(`Closed By: <strong>${filterStaff}</strong>`);
 if (searchQuery)               parts.push(`Search: <strong>"${searchQuery}"</strong>`);
 
     el.innerHTML = parts.map(p => `<span class="filter-pill">${p}</span>`).join('');
@@ -483,7 +485,7 @@ window.downloadCSV = function () {
       `Period: ${getPeriodLabel()}`,
       filterStatus   !== 'all' ? `Status: ${filterStatus.replace('_', ' ')}` : null,
       filterPriority !== 'all' ? `Priority: ${filterPriority}` : null,
-      filterStaff    !== 'all' ? `Staff: ${filterStaff}` : null,
+      filterStaff    !== 'all' ? `Closed By: ${filterStaff}` : null,
       searchQuery ? `Search: "${searchQuery}"` : null,
     ].filter(Boolean).join('   |   ');
     doc.text(filterInfo, 14, 28);

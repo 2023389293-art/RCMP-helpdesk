@@ -392,6 +392,43 @@ foreach ($scRows as $scRow) {
     .actions-cell { display: flex; align-items: center; gap: 5px; flex-wrap: nowrap; }
     .actions-cell form { display: inline-flex; }
 
+    /* ── MOBILE RESPONSIVE ── */
+.card.no-pad {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table {
+  min-width: 700px;
+}
+
+@media (max-width: 900px) {
+  .main-content {
+    padding: 20px 12px;
+  }
+  .filter-bar { flex-direction: column; align-items: stretch; }
+  .filter-bar select,
+  .filter-bar .search-wrap,
+  .filter-bar .btn-primary-sm,
+  .filter-bar .btn-ghost-sm { width: 100%; }
+
+  .data-table th,
+  .data-table td { padding: 8px 8px; font-size: 12px; }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 14px 8px;
+    max-width: 100vw !important;
+    box-sizing: border-box;
+    width: 100%;
+  }
+  .data-table { min-width: 650px; }
+  .data-table th,
+  .data-table td { padding: 7px 6px; font-size: 11px; }
+  .badge { font-size: 10px; padding: 3px 7px; }
+}
+
   /* Fix hover — use a visually distinct color from thead gray-100 */
   .data-table tbody tr:hover td {
     background-color: #ede9fe !important;
@@ -439,7 +476,7 @@ foreach ($scRows as $scRow) {
     <?php if ($search||$roleF): ?><a href="users.php" class="btn-ghost-sm">Clear</a><?php endif; ?>
   </form>
 
-  <div class="card no-pad">
+  <div class="card no-pad" style="touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch;">
     <table class="data-table full">
       <thead>
         <tr>

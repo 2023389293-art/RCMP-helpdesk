@@ -14,10 +14,11 @@ if (!function_exists('staffInitials')) {
     }
 }
 
-$status   = $_GET['status']   ?? '';
-$priority = $_GET['priority'] ?? '';
-$category = $_GET['category'] ?? '';
-$search   = trim($_GET['q']   ?? '');
+$status        = $_GET['status']        ?? '';
+$priority      = $_GET['priority']      ?? '';
+$category      = $_GET['category']      ?? '';
+$search        = trim($_GET['q']        ?? '');
+$submitterType = $_GET['submitter_type'] ?? '';
 $page     = max(1, (int)($_GET['page'] ?? 1));
 
 // ── PER-PAGE: accept 10 / 25 / 50, default 10 ──
@@ -29,11 +30,25 @@ $where  = ["c.dept_id = 4"];
 $params = [];
 $types  = '';
 
-if ($status)   { $where[] = "c.status = ?";           $params[] = $status;   $types .= 's'; }
-if ($priority) { $where[] = "c.priority = ?";         $params[] = $priority; $types .= 's'; }
-if ($category) { $where[] = "c.category_id = ?";      $params[] = $category; $types .= 'i'; }
-if ($search)   { $where[] = "(c.ticket_id LIKE ? OR c.title LIKE ?)";
-                 $like = "%$search%"; $params[] = $like; $params[] = $like; $types .= 'ss'; }
+if ($status)        { $where[] = "c.status = ?";             $params[] = $status;        $types .= 's'; }
+if ($priority)      { $where[] = "c.priority = ?";           $params[] = $priority;      $types .= 's'; }
+if ($category)      { $where[] = "c.category_id = ?";        $params[] = $category;      $types .= 'i'; }
+if ($search)        { $where[] = "(c.ticket_id LIKE ? OR c.title LIKE ?)";
+                      $like = "%$search%"; $params[] = $like; $params[] = $like; $types .= 'ss'; }
+if ($submitterType) {
+    if ($submitterType === 'vendor') {
+        // Assigned to a vendor
+        $where[] = "c.assigned_vendor_id IS NOT NULL";
+    } else {
+        // Assigned to a staff or admin — check the assigned_to staff role
+        $where[] = "c.assigned_to IS NOT NULL AND EXISTS (
+            SELECT 1 FROM staff ast2
+            WHERE ast2.staff_id = c.assigned_to AND ast2.role = ?
+        )";
+        $params[] = $submitterType;
+        $types   .= 's';
+    }
+}
 
 $whereSQL = implode(' AND ', $where);
 
@@ -54,7 +69,9 @@ $sql = "
            st.email       AS staff_submitter_email,
            c.my_department,
            c.description,
-           ast.full_name  AS assigned_staff_name
+           ast.full_name  AS assigned_staff_name,
+           c.assigned_vendor_id,
+           c.assigned_vendor_name
     FROM complaints c
     LEFT JOIN categories cat ON cat.category_id = c.category_id
     LEFT JOIN staff   st  ON c.submitter_type = 'staff'   AND c.submitter_id = st.staff_id
@@ -240,9 +257,11 @@ button.ticket-kpi-card {
     }
 
     /* ── ASSIGNED TO cell ── */
-    .td-assigned {
-      white-space: nowrap;
-    }
+.td-assigned {
+  white-space: nowrap;
+  max-width: 200px;
+  min-width: 170px;
+}
 
     /* ── UNASSIGNED STATE ── */
     .unassigned-text {
@@ -549,9 +568,28 @@ button.ticket-kpi-card {
       font-weight: 600;
     }
 
+    
+
     /* ── MOBILE RESPONSIVE ── */
+
+    /* Make the table wrapper ALWAYS scrollable horizontally */
+    .card.no-pad {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Table must have a minimum width so all columns are always present */
+    .data-table {
+      min-width: 700px;
+    }
+
     @media (max-width: 900px) {
-      .main-content { padding: 20px 12px; }
+      .main-content {
+        padding: 20px 12px;
+        margin-left: 0 !important;
+        max-width: 100vw !important;
+        box-sizing: border-box;
+      }
       .page-title   { font-size: 22px; }
       .filter-bar   { flex-direction: column; align-items: stretch; }
       .filter-bar select,
@@ -559,25 +597,50 @@ button.ticket-kpi-card {
       .filter-bar .btn-primary-sm,
       .filter-bar .btn-ghost-sm { width: 100%; }
 
-.data-table thead th:nth-child(3),
-.data-table thead th:nth-child(4),
-.data-table thead th:nth-child(5),
-.data-table thead th:nth-child(7),
-.data-table tbody td:nth-child(3),
-.data-table tbody td:nth-child(4),
-.data-table tbody td:nth-child(5),
-.data-table tbody td:nth-child(7) { display: none; }
+      /* Tighten cell padding and font on tablet/small laptop */
+      .data-table th,
+      .data-table td      { padding: 8px 8px; font-size: 12px; }
+      .ticket-id          { max-width: 72px; font-size: 11px; word-break: break-all; }
+      .td-submitted-by    { max-width: 140px; }
+      .dept-name          { font-size: 12px; max-width: 130px; }
+      .submitted-datetime { font-size: 10px; }
+      .td-assigned        { min-width: 120px !important; max-width: 140px !important; }
+      .assigned-name      { font-size: 11px; }
+      .staff-avatar-sm    { width: 24px; height: 24px; font-size: 9px; }
+      .td-cat             { max-width: 110px; }
 
-      .card.no-pad {
-  overflow-x: auto;
-}
-      .data-table  { min-width: 500px; }
-      .ticket-id   { max-width: 70px; font-size: 10px; }
-      .td-title    { max-width: 100px; }
+      .pagination-top     { flex-direction: column; align-items: flex-start; }
+      .pg-controls        { width: 100%; justify-content: flex-end; }
+      .pagination-bottom  { gap: 4px; }
+    }
 
-      .pagination-top  { flex-direction: column; align-items: flex-start; }
-      .pg-controls     { width: 100%; justify-content: flex-end; }
-      .pagination-bottom { gap: 4px; }
+    @media (max-width: 480px) {
+      .main-content {
+        padding: 14px 8px;
+        margin-left: 0 !important;
+        max-width: 100vw !important;
+        box-sizing: border-box;
+        width: 100%;
+      }
+
+      /* KPI cards: 2 columns, smaller */
+      .ticket-kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .ticket-kpi-val  { font-size: 20px; }
+      .ticket-kpi-card { padding: 10px 8px; gap: 8px; }
+      .ticket-kpi-icon { width: 34px; height: 34px; }
+      .ticket-kpi-label{ font-size: 10px; }
+
+      /* Tighter table on phones — all columns still visible via scroll */
+      .data-table       { min-width: 620px; }
+      .data-table th,
+      .data-table td    { padding: 7px 6px; font-size: 11px; }
+      .ticket-id        { max-width: 65px; font-size: 10px; }
+      .dept-name        { font-size: 11px; max-width: 110px; }
+      .submitted-datetime{ font-size: 9px; }
+      .badge            { font-size: 10px; padding: 3px 7px; }
+      .btn-view         { padding: 4px 8px; font-size: 10px; }
+      .complainant-email{ font-size: 10px; max-width: 120px; }
+      .td-cat           { max-width: 90px; font-size: 10px; }
     }
     
   </style>
@@ -667,11 +730,19 @@ button.ticket-kpi-card {
       <?php endforeach; ?>
     </select>
 
+    <select name="submitter_type">
+      <option value="">All Assigned</option>
+      <option value="staff"  <?= $submitterType==='staff'  ?'selected':'' ?>>Staff</option>
+      <option value="admin"  <?= $submitterType==='admin'  ?'selected':'' ?>>Admin</option>
+      <option value="vendor" <?= $submitterType==='vendor' ?'selected':'' ?>>Vendor</option>
+    </select>
+
     <!-- keep per_page value when re-filtering -->
-    <input type="hidden" name="per_page" value="<?= $perPage ?>"/>
+<input type="hidden" name="per_page" value="<?= $perPage ?>"/>
+
 
     <button type="submit" class="btn-primary-sm">Filter</button>
-    <?php if ($status||$priority||$category||$search): ?>
+    <?php if ($status||$priority||$category||$search||$submitterType): ?>
     <a href="tickets.php" class="btn-ghost-sm">Clear</a>
     <?php endif; ?>
   </form>
@@ -700,7 +771,7 @@ button.ticket-kpi-card {
   </div>
   <?php endif; ?>
 
-  <div class="card no-pad">
+  <div class="card no-pad" style="touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch;">
     <table class="data-table full">
       <thead>
         <tr>
@@ -769,8 +840,21 @@ button.ticket-kpi-card {
           </td>
 
           <!-- Assigned To -->
-          <td class="td-assigned" style="max-width:130px;">
-            <?php if (!empty($t['assigned_staff_name'])): ?>
+          <td class="td-assigned" style="max-width:160px; min-width:140px;">
+            <?php if (!empty($t['assigned_vendor_name'])): ?>
+  <?php
+    // Strip " (Staff Name)" suffix → keep only company name
+    $vendorCompany = preg_replace('/\s*\(.*?\)\s*$/', '', $t['assigned_vendor_name']);
+  ?>
+  <div class="assigned-cell">
+    <div class="staff-avatar-sm" style="background:linear-gradient(135deg,#5B21B6,#7C3AED);">
+      <?= strtoupper(substr($vendorCompany, 0, 1)) ?>
+    </div>
+    <span class="assigned-name" title="<?= htmlspecialchars($vendorCompany) ?>" style="color:#7C3AED;">
+      <?= htmlspecialchars($vendorCompany) ?>
+    </span>
+  </div>
+            <?php elseif (!empty($t['assigned_staff_name'])): ?>
               <div class="assigned-cell">
                 <div class="staff-avatar-sm">
                   <?php
@@ -790,7 +874,7 @@ button.ticket-kpi-card {
           </td>
 
           <!-- View Button -->
-          <td style="white-space:nowrap; width:80px;">
+          <td style="white-space:nowrap; width:70px;">
             <a href="ticket_detail.php?id=<?= urlencode($t['ticket_id']) ?>" class="btn-view">
               <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               View
@@ -978,7 +1062,16 @@ function openTicketModal(t) {
   document.getElementById('modal-created').textContent = t.created_at || '—';
 
   const assignedEl = document.getElementById('modal-assigned');
-  if (t.assigned_staff_name) {
+  if (t.assigned_vendor_name) {
+    const vendorCompany = t.assigned_vendor_name.replace(/\s*\(.*?\)\s*$/, '');
+    assignedEl.innerHTML =
+      `<div style="display:flex;align-items:center;gap:8px;">
+         <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#5B21B6,#7C3AED);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">
+           ${escHtml(vendorCompany.charAt(0).toUpperCase())}
+         </div>
+         <span style="font-size:13px;font-weight:500;color:#7C3AED;">🏢 ${escHtml(vendorCompany)}</span>
+       </div>`;
+  } else if (t.assigned_staff_name) {
     assignedEl.innerHTML =
       `<div style="display:flex;align-items:center;gap:8px;">
          <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#001f5c,#1a56db);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">

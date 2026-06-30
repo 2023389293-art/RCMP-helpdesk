@@ -50,7 +50,7 @@ $priTotal  = $priLow + $priMedium + $priHigh;
 // ── Top Departments Filing Complaints ─────────────────────────────────────────
 $topDepts = [];
 $stmt = $conn->prepare(
-    "SELECT my_department, COUNT(*) AS total
+    "SELECT my_department, COUNT(DISTINCT ticket_id) AS total
      FROM complaints
      WHERE dept_id = ?
      GROUP BY my_department
@@ -137,9 +137,10 @@ $stmt = $conn->prepare(
      FROM complaints c
      LEFT JOIN categories cat ON cat.category_id = c.category_id
      WHERE c.dept_id = ? AND c.assigned_to = ? AND c.status != 'closed'
+     GROUP BY c.ticket_id
      ORDER BY
-       FIELD(priority, 'high', 'medium', 'low'),
-       created_at ASC
+       FIELD(c.priority, 'high', 'medium', 'low'),
+       c.created_at ASC
      LIMIT 5"
 );
 $stmt->bind_param("ii", $deptId, $staffId);
@@ -174,10 +175,13 @@ $stmt->close();
 $highPriTickets = [];
 $stmt = $conn->prepare(
     "SELECT c.ticket_id, c.title, c.my_department, c.status, c.assigned_to,
+            c.assigned_vendor_id, c.assigned_vendor_name,
+            v.company_name AS assigned_vendor_company,
             s.full_name AS handled_by, cat.category_name
      FROM complaints c
      LEFT JOIN staff s ON s.staff_id = c.assigned_to
      LEFT JOIN categories cat ON cat.category_id = c.category_id
+     LEFT JOIN vendors v ON v.vendor_id = c.assigned_vendor_id
      WHERE c.dept_id = ? AND c.priority = 'high' AND c.status != 'closed'
      ORDER BY c.created_at ASC"
 );
@@ -210,10 +214,13 @@ if (!empty($slaBreachedTickets)) {
     $types = str_repeat('s', count($slaBreachedTickets));
     $stmt = $conn->prepare(
         "SELECT c.ticket_id, c.title, c.my_department, c.status, c.created_at,
+                c.assigned_vendor_id, c.assigned_vendor_name,
+                v.company_name AS assigned_vendor_company,
                 s.full_name AS handled_by, cat.category_name
          FROM complaints c
          LEFT JOIN staff s ON s.staff_id = c.assigned_to
          LEFT JOIN categories cat ON cat.category_id = c.category_id
+         LEFT JOIN vendors v ON v.vendor_id = c.assigned_vendor_id
          WHERE c.ticket_id IN ($placeholders)
          ORDER BY c.created_at ASC"
     );
@@ -230,6 +237,9 @@ $stmt = $conn->prepare(
     "SELECT c.ticket_id, c.title, c.status, c.priority, c.my_department,
             c.created_at, c.assigned_to,
             c.submitter_type, c.submitter_id, c.submitter_email,
+            c.assigned_vendor_id,
+            c.assigned_vendor_name,
+            v.company_name AS assigned_vendor_company,
             s.full_name AS handled_by,
             s.staff_code AS handled_by_code,
             st.email AS staff_submitter_email,
@@ -238,7 +248,9 @@ $stmt = $conn->prepare(
      LEFT JOIN staff s ON s.staff_id = c.assigned_to
      LEFT JOIN staff st ON c.submitter_type = 'staff' AND c.submitter_id = st.staff_id
      LEFT JOIN categories cat ON cat.category_id = c.category_id
+     LEFT JOIN vendors v ON v.vendor_id = c.assigned_vendor_id
      WHERE c.dept_id = ? AND c.status != 'closed'
+     GROUP BY c.ticket_id
      ORDER BY c.created_at DESC"
 );
 $stmt->bind_param("i", $deptId);
@@ -294,14 +306,14 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Dashboard | UniKL Help Desk – Maintenance</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="css/dashboards.css"/>
+  <link rel="stylesheet" href="css/dashboard.css"/>
 </head>
 <body>
 
 <?php require_once __DIR__ . '/_layout.php'; ?>
 
     <!-- ══ TOP: Open / In Progress / Closed / SLA Breached ══ -->
-<div class="stats" style="grid-template-columns: repeat(2, 1fr);">
+<div class="stats">
 
   <a class="stat" href="tickets.php?status=open">
     <div class="stat-icon si-open">
@@ -435,7 +447,9 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
           <div class="mt-meta">
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>
             <span class="mt-status-bdg mt-status-<?php echo $s; ?>"><?php echo $statusLabel; ?></span>
-            <?php if ($t['handled_by']): ?>
+            <?php if (!empty($t['assigned_vendor_company'])): ?>
+  <span class="mt-dept" style="color:#7C3AED;">· <?php echo htmlspecialchars($t['assigned_vendor_company']); ?> (Vendor)</span>
+            <?php elseif (!empty($t['handled_by'])): ?>
               <span class="mt-dept">· <?php echo htmlspecialchars($t['handled_by']); ?></span>
             <?php else: ?>
               <span class="mt-dept" style="color:#F87171;">· Unassigned</span>
@@ -474,7 +488,9 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>
             <span class="mt-status-bdg mt-status-<?php echo $s; ?>"><?php echo $statusLabel; ?></span>
             <span class="mt-sla-badge mt-sla-overdue">⚠ SLA Breached</span>
-            <?php if ($t['handled_by']): ?>
+            <?php if (!empty($t['assigned_vendor_company'])): ?>
+  <span class="mt-dept" style="color:#7C3AED;">· <?php echo htmlspecialchars($t['assigned_vendor_company']); ?> (Vendor)</span>
+<?php elseif (!empty($t['handled_by'])): ?>
               <span class="mt-dept">· <?php echo htmlspecialchars($t['handled_by']); ?></span>
             <?php endif; ?>
           </div>
@@ -725,7 +741,16 @@ const cx=80, cy=80, r=68;
                 <?php endif; ?>
               </td>
               <td>
-                <?php if ($handledBy): ?>
+                <?php if (!empty($t['assigned_vendor_company'])): ?>
+  <div class="assigned-cell">
+    <div class="staff-avatar-sm" style="background:linear-gradient(135deg,#5B21B6,#7C3AED);">
+      <?php echo strtoupper(substr($t['assigned_vendor_company'], 0, 1)); ?>
+    </div>
+    <div class="assigned-info">
+      <span class="assigned-name" style="color:#7C3AED;"><?php echo htmlspecialchars($t['assigned_vendor_company']); ?></span>
+    </div>
+  </div>
+                <?php elseif ($handledBy): ?>
                   <div class="assigned-cell">
                     <div class="staff-avatar-sm">
                       <?php echo staffInitials($handledBy); ?>

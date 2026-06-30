@@ -135,10 +135,13 @@ $dashNow = new DateTime();
 $highPriTickets = [];
 $stmt = $conn->prepare(
     "SELECT c.ticket_id, c.title, c.my_department, c.status, c.assigned_to,
+            c.assigned_vendor_id, c.assigned_vendor_name,
+            v.company_name AS assigned_vendor_company,
             s.full_name AS handled_by, cat.category_name
      FROM complaints c
      LEFT JOIN staff s ON s.staff_id = c.assigned_to
      LEFT JOIN categories cat ON cat.category_id = c.category_id
+     LEFT JOIN vendors v ON v.vendor_id = c.assigned_vendor_id
      WHERE c.dept_id = ? AND c.priority = 'high' AND c.status != 'closed'
      ORDER BY c.created_at ASC"
 );
@@ -176,10 +179,13 @@ if (!empty($slaBreachedTickets)) {
     $types = str_repeat('s', count($slaBreachedTickets));
     $stmt = $conn->prepare(
         "SELECT c.ticket_id, c.title, c.my_department, c.status, c.created_at,
+                c.assigned_vendor_id, c.assigned_vendor_name,
+                v.company_name AS assigned_vendor_company,
                 s.full_name AS handled_by, cat.category_name
          FROM complaints c
          LEFT JOIN staff s ON s.staff_id = c.assigned_to
          LEFT JOIN categories cat ON cat.category_id = c.category_id
+         LEFT JOIN vendors v ON v.vendor_id = c.assigned_vendor_id
          WHERE c.ticket_id IN ($placeholders)
          ORDER BY c.created_at ASC"
     );
@@ -253,6 +259,9 @@ $stmt = $conn->prepare(
     "SELECT c.ticket_id, c.title, c.status, c.priority, c.my_department,
         c.created_at, c.assigned_to,
         c.submitter_type, c.submitter_id, c.submitter_email,
+        c.assigned_vendor_id,
+        c.assigned_vendor_name,
+        v.company_name AS assigned_vendor_company,
         s.full_name AS handled_by,
         s.staff_code AS handled_by_code,
         st.email AS staff_submitter_email,
@@ -261,6 +270,7 @@ $stmt = $conn->prepare(
  LEFT JOIN staff s ON s.staff_id = c.assigned_to
  LEFT JOIN staff st ON c.submitter_type = 'staff' AND c.submitter_id = st.staff_id
  LEFT JOIN categories cat ON cat.category_id = c.category_id
+ LEFT JOIN vendors v ON v.vendor_id = c.assigned_vendor_id
  WHERE c.dept_id = ? AND c.status != 'closed'
  GROUP BY c.ticket_id
  ORDER BY c.created_at DESC"
@@ -851,7 +861,9 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
           <div class="mt-meta">
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>
             <span class="mt-status-bdg mt-status-<?php echo $s; ?>"><?php echo $statusLabel; ?></span>
-            <?php if ($t['handled_by']): ?>
+            <?php if (!empty($t['assigned_vendor_company'])): ?>
+  <span class="mt-dept" style="color:#7C3AED;">· <?php echo htmlspecialchars($t['assigned_vendor_company']); ?> (Vendor)</span>
+            <?php elseif (!empty($t['handled_by'])): ?>
               <span class="mt-dept">· <?php echo htmlspecialchars($t['handled_by']); ?></span>
             <?php else: ?>
               <span class="mt-dept" style="color:#F87171;">· Unassigned</span>
@@ -891,7 +903,9 @@ $pageSubtitle = 'Welcome back, ' . $staffName;
             <span class="mt-dept"><?php echo htmlspecialchars($t['my_department'] ?? '—'); ?></span>
             <span class="mt-status-bdg mt-status-<?php echo $s; ?>"><?php echo $statusLabel; ?></span>
             <span class="mt-sla-badge mt-sla-overdue">⚠ SLA Breached</span>
-            <?php if ($t['handled_by']): ?>
+            <?php if (!empty($t['assigned_vendor_company'])): ?>
+  <span class="mt-dept" style="color:#7C3AED;">· <?php echo htmlspecialchars($t['assigned_vendor_company']); ?> (Vendor)</span>
+            <?php elseif (!empty($t['handled_by'])): ?>
               <span class="mt-dept">· <?php echo htmlspecialchars($t['handled_by']); ?></span>
             <?php endif; ?>
           </div>
@@ -1158,9 +1172,18 @@ else { $flagFill = '#64748b'; }
                 <?php endif; ?>
               </td>
 
-              <!-- Assign To — gradient circle avatar + name + staff code, same as tickets.php -->
+              <!-- Assign To — vendor or staff avatar, same as tickets.php -->
               <td>
-                <?php if ($handledBy): ?>
+                <?php if (!empty($t['assigned_vendor_company'])): ?>
+  <div class="assigned-cell">
+    <div class="staff-avatar-sm" style="background:linear-gradient(135deg,#5B21B6,#7C3AED);">
+      <?php echo strtoupper(substr($t['assigned_vendor_company'], 0, 1)); ?>
+    </div>
+    <div class="assigned-info">
+      <span class="assigned-name" style="color:#7C3AED;"><?php echo htmlspecialchars($t['assigned_vendor_company']); ?></span>
+    </div>
+  </div>
+                <?php elseif ($handledBy): ?>
                   <div class="assigned-cell">
                     <div class="staff-avatar-sm">
                       <?php echo staffInitials($handledBy); ?>

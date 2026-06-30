@@ -63,29 +63,282 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ticket) {
 
     // ── ACTION: reassign ──────────────────────────────────────────────────────
     if ($action === 'reassign') {
-        $newStaffId = (int)($_POST['new_staff_id'] ?? 0);
+        $newStaffId   = (int)($_POST['new_staff_id']   ?? 0);
+        $newVendorId  = (int)($_POST['new_vendor_id']  ?? 0);
+        $assignRemarks = trim($_POST['assign_remarks'] ?? '');
+
+        // Server-side guard: vendor assignment only allowed once ticket is In Progress
+        if ($newVendorId > 0 && strtolower($ticket['status']) !== 'in_progress') {
+            $_SESSION['flash_error'] = 'Vendor assignment is only allowed once the ticket is In Progress.';
+            header('Location: ticket_detail.php?id='.urlencode($ticketId).'&tab=detail&from='.$backUrlEncoded); exit;
+        }
+
         if ($newStaffId > 0) {
+            // ── Assign to staff ───────────────────────────────────────────────
             $oldAssigned = getAssignedStaff($conn, $ticketId);
-            $oldName = $oldAssigned ? $oldAssigned['full_name'] : 'Unassigned';
+            $freshTicketStmt = $conn->prepare("SELECT assigned_vendor_name FROM complaints WHERE ticket_id = ? LIMIT 1");
+            $freshTicketStmt->bind_param("s", $ticketId);
+            $freshTicketStmt->execute();
+            $freshTicketRow = $freshTicketStmt->get_result()->fetch_assoc();
+            $freshTicketStmt->close();
+            if ($oldAssigned) {
+                $oldName = $oldAssigned['full_name'];
+            } elseif (!empty($freshTicketRow['assigned_vendor_name'])) {
+                $oldName = $freshTicketRow['assigned_vendor_name'];
+            } else {
+                $oldName = 'Unassigned';
+            }
 
             $nsQ = $conn->prepare("SELECT full_name FROM staff WHERE staff_id=? LIMIT 1");
             $nsQ->bind_param("i", $newStaffId); $nsQ->execute();
             $nsRow = $nsQ->get_result()->fetch_assoc(); $nsQ->close();
             $newName = $nsRow['full_name'] ?? "Staff #$newStaffId";
 
+            // Clear vendor assignment when reassigning to staff
+            $clrVendor = $conn->prepare("UPDATE complaints SET assigned_vendor_id=NULL, assigned_vendor_name=NULL WHERE ticket_id=? AND dept_id=4");
+            $clrVendor->bind_param("s", $ticketId); $clrVendor->execute(); $clrVendor->close();
+
             manualAssignTicket($conn, 4, $ticketId, $newStaffId);
 
-            $assignRemarks = trim($_POST['assign_remarks'] ?? '');
-
-            // Log with real admin identity + remarks
             $asnLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,remarks) VALUES (?,?,?,'assigned',?,?,?)");
             if ($asnLog) {
                 $asnLog->bind_param("sissss", $ticketId, $adminStaffId, $adminStaffName, $oldName, $newName, $assignRemarks);
                 $asnLog->execute(); $asnLog->close();
             }
+
+            // ── Email: notify newly assigned staff ────────────────────────────────
+            if (!empty($nsRow['email'])) {
+                $notifyMail = new PHPMailer(true);
+                try {
+                    $notifyMail->isSMTP(); $notifyMail->Host='smtp.office365.com'; $notifyMail->SMTPAuth=true;
+                    $notifyMail->Username='rush.rcmp@unikl.edu.my'; $notifyMail->Password='Rcmp@4321';
+                    $notifyMail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $notifyMail->Port=587;
+                    $notifyMail->SMTPDebug=0; $notifyMail->Debugoutput='error_log';
+                    $notifyMail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
+                    $notifyMail->addAddress($nsRow['email'], $newName);
+                    $notifyMail->isHTML(true); $notifyMail->CharSet='UTF-8';
+                    $notifyMail->Subject="Ticket Assigned to You — {$ticketId}";
+                    $currentYear = date('Y'); $currentDate = date('d F Y');
+                    $escapedNewName = htmlspecialchars($newName);
+                    $escapedTicketId = htmlspecialchars($ticketId);
+                    $escapedAssigner = htmlspecialchars($adminStaffName);
+                    $notifyMail->Body = <<<HTML
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background-color:#ffffff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;padding:40px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:white;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #e4e7ed;">
+  <tr><td style="background:#00327a;padding:0;">
+    <table width="100%"><tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr></table>
+    <table width="100%"><tr><td style="padding:28px 40px 24px;">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:4px;">Universiti Kuala Lumpur</div>
+      <div style="font-size:18px;font-weight:700;color:#fff;">RCMP Help Desk</div>
+    </td></tr></table>
+    <table width="100%"><tr><td style="padding:12px 40px 16px;background:#002660;">
+      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Ticket Assignment Notification</span>
+    </td></tr></table>
+  </td></tr>
+  <tr><td style="background:#f7f8fa;border-bottom:1px solid #e4e7ed;padding:14px 40px;">
+    <table width="100%"><tr>
+      <td style="font-size:12px;color:#6b7280;">Reference No.</td>
+      <td align="right" style="font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTicketId}</td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:36px 40px 0;">
+    <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">{$currentDate}</p>
+    <p style="margin:0 0 20px;font-size:15px;font-weight:600;color:#111827;">Dear {$escapedNewName},</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">A complaint ticket has been assigned to you by <strong>{$escapedAssigner}</strong>. Please log in to the portal to review and attend to it.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:24px;">
+      <tr><td colspan="2" style="background:#00327a;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Ticket Details</span></td></tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Ticket Reference</td>
+        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTicketId}</td>
+      </tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Assigned By</td>
+        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedAssigner}</td>
+      </tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Action Required</td>
+        <td style="padding:12px 18px;font-size:13px;color:#111827;">Review and respond to this ticket</td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+      <tr><td style="border-left:3px solid #e8b200;background:#fffdf0;padding:16px 20px;border-radius:0 4px 4px 0;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#92700a;">Action Required</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk portal to view the full details of this ticket and take the necessary action.</p>
+        <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#00327a;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Portal</a>
+      </td></tr>
+    </table>
+    <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
+    <p style="margin:20px 0 4px;font-size:14px;color:#374151;">Yours sincerely,</p>
+    <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#00327a;">UniKL RCMP Help Desk Team</p>
+    <p style="margin:0 0 28px;font-size:12px;color:#9ca3af;">Universiti Kuala Lumpur</p>
+  </td></tr>
+  <tr><td style="background:#f7f8fa;border-top:1px solid #e4e7ed;padding:20px 40px;">
+    <p style="margin:0;font-size:11px;color:#9ca3af;">This is a system-generated notification. Please do not reply directly to this email. &bull; &copy; {$currentYear} Universiti Kuala Lumpur.</p>
+  </td></tr>
+  <tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr>
+</table></td></tr></table></body></html>
+HTML;
+                    $notifyMail->AltBody = "You have been assigned ticket {$ticketId} by {$escapedAssigner}.\n\nLogin: https://rush.rcmp.edu.my/login.php";
+                    $notifyMail->send();
+                } catch (Exception $e) {
+                    error_log("[UniKL Mail] Staff assign notify failed for {$ticketId}: ".$e->getMessage());
+                }
+            }
+
             $_SESSION['flash_success'] = 'Ticket reassigned to <strong>' . htmlspecialchars($newName) . '</strong>.';
+
+        } elseif ($newVendorId > 0) {
+            // ── Assign to vendor ──────────────────────────────────────────────
+            
+            $vQ = $conn->prepare("
+    SELECT v.company_name,
+           vs.full_name AS pic_name
+    FROM vendors v
+    LEFT JOIN vendor_staff vs ON vs.vendor_id = v.vendor_id AND vs.is_primary = 1
+    WHERE v.vendor_id = ? AND v.status = 'active' LIMIT 1
+");
+$vQ->bind_param("i", $newVendorId); $vQ->execute();
+$vRow = $vQ->get_result()->fetch_assoc(); $vQ->close();
+
+            if ($vRow) {
+                $oldAssigned = getAssignedStaff($conn, $ticketId);
+                $freshTicketStmt2 = $conn->prepare("SELECT assigned_vendor_name FROM complaints WHERE ticket_id = ? LIMIT 1");
+                $freshTicketStmt2->bind_param("s", $ticketId);
+                $freshTicketStmt2->execute();
+                $freshTicketRow2 = $freshTicketStmt2->get_result()->fetch_assoc();
+                $freshTicketStmt2->close();
+                if ($oldAssigned) {
+                    $oldName = $oldAssigned['full_name'];
+                } elseif (!empty($freshTicketRow2['assigned_vendor_name'])) {
+                    $oldName = $freshTicketRow2['assigned_vendor_name'];
+                } else {
+                    $oldName = 'Unassigned';
+                }
+                $vendorDisplayName = !empty($vRow['pic_name'])
+    ? $vRow['company_name'] . ' (' . $vRow['pic_name'] . ')'
+    : $vRow['company_name'];
+
+                // Clear staff assignment, set vendor, remove from queue
+                $updVendor = $conn->prepare("UPDATE complaints SET assigned_to=NULL, assigned_vendor_id=?, assigned_vendor_name=?, updated_at=NOW() WHERE ticket_id=? AND dept_id=4");
+                $updVendor->bind_param("iss", $newVendorId, $vendorDisplayName, $ticketId);
+                $updVendor->execute(); $updVendor->close();
+
+                // Remove from queue if present
+                $dq = $conn->prepare("DELETE FROM ticket_queue WHERE ticket_id = ?");
+                if ($dq) { $dq->bind_param("s", $ticketId); $dq->execute(); $dq->close(); }
+
+                $asnLog = $conn->prepare("INSERT INTO ticket_logs (ticket_id,changed_by_id,changed_by,field_changed,old_priority,new_priority,remarks) VALUES (?,?,?,'assigned',?,?,?)");
+                if ($asnLog) {
+                    $remarksFull = '[Vendor] ' . $assignRemarks;
+                    $asnLog->bind_param("sissss", $ticketId, $adminStaffId, $adminStaffName, $oldName, $vendorDisplayName, $remarksFull);
+                    $asnLog->execute(); $asnLog->close();
+                }
+
+                // ── Email: notify newly assigned vendor ───────────────────────────────
+                $vEmailQ = $conn->prepare("
+    SELECT vs.email, vs.full_name AS pic_name
+    FROM vendor_staff vs
+    WHERE vs.vendor_id = ? AND vs.is_primary = 1
+    LIMIT 1
+");
+$vEmailQ->bind_param("i", $newVendorId); $vEmailQ->execute();
+$vEmailRow = $vEmailQ->get_result()->fetch_assoc(); $vEmailQ->close();
+
+                if (!empty($vEmailRow['email'])) {
+                    $vendorMail = new PHPMailer(true);
+                    try {
+                        $vendorMail->isSMTP(); $vendorMail->Host='smtp.office365.com'; $vendorMail->SMTPAuth=true;
+                        $vendorMail->Username='rush.rcmp@unikl.edu.my'; $vendorMail->Password='Rcmp@4321';
+                        $vendorMail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $vendorMail->Port=587;
+                        $vendorMail->SMTPDebug=0; $vendorMail->Debugoutput='error_log';
+                        $vendorMail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
+                        $vendorMail->addAddress($vEmailRow['email'], $vRow['pic_name']);
+                        $vendorMail->isHTML(true); $vendorMail->CharSet='UTF-8';
+                        $vendorMail->Subject="Ticket Assigned to Your Company — {$ticketId}";
+                        $currentYear = date('Y'); $currentDate = date('d F Y');
+                        $escapedPicName = htmlspecialchars($vRow['pic_name']);
+                        $escapedCompany = htmlspecialchars($vRow['company_name']);
+                        $escapedTicketId = htmlspecialchars($ticketId);
+                        $escapedAssigner = htmlspecialchars($adminStaffName);
+                        $vendorMail->Body = <<<HTML
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background-color:#ffffff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;padding:40px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:white;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #e4e7ed;">
+  <tr><td style="background:#00327a;padding:0;">
+    <table width="100%"><tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr></table>
+    <table width="100%"><tr><td style="padding:28px 40px 24px;">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:4px;">Universiti Kuala Lumpur</div>
+      <div style="font-size:18px;font-weight:700;color:#fff;">RCMP Help Desk</div>
+    </td></tr></table>
+    <table width="100%"><tr><td style="padding:12px 40px 16px;background:#002660;">
+      <span style="font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.06em;text-transform:uppercase;">&#128203;&nbsp; Vendor Ticket Assignment Notification</span>
+    </td></tr></table>
+  </td></tr>
+  <tr><td style="background:#f7f8fa;border-bottom:1px solid #e4e7ed;padding:14px 40px;">
+    <table width="100%"><tr>
+      <td style="font-size:12px;color:#6b7280;">Reference No.</td>
+      <td align="right" style="font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTicketId}</td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:36px 40px 0;">
+    <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">{$currentDate}</p>
+    <p style="margin:0 0 20px;font-size:15px;font-weight:600;color:#111827;">Dear {$escapedPicName},</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.75;">A complaint ticket from UniKL RCMP Help Desk has been assigned to <strong>{$escapedCompany}</strong> by <strong>{$escapedAssigner}</strong>. Please log in to the portal to review and attend to it.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ed;border-radius:4px;overflow:hidden;margin-bottom:24px;">
+      <tr><td colspan="2" style="background:#7C3AED;padding:10px 18px;"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);">Ticket Details</span></td></tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Ticket Reference</td>
+        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;font-weight:700;color:#00327a;font-family:monospace;">{$escapedTicketId}</td>
+      </tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Assigned To</td>
+        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedCompany}</td>
+      </tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;border-bottom:1px solid #e4e7ed;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Assigned By</td>
+        <td style="padding:12px 18px;border-bottom:1px solid #e4e7ed;font-size:13px;color:#111827;">{$escapedAssigner}</td>
+      </tr>
+      <tr>
+        <td style="width:40%;padding:12px 18px;background:#f7f8fa;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Action Required</td>
+        <td style="padding:12px 18px;font-size:13px;color:#111827;">Review and resolve this ticket</td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+      <tr><td style="border-left:3px solid #7C3AED;background:#F5F3FF;padding:16px 20px;border-radius:0 4px 4px 0;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#5B21B6;">Action Required</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Please log in to the UniKL RCMP Help Desk vendor portal to view the full details and take the necessary action.</p>
+        <a href="https://rush.rcmp.edu.my/login.php" style="display:inline-block;padding:10px 22px;background-color:#7C3AED;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:4px;">Login to Vendor Portal</a>
+      </td></tr>
+    </table>
+    <table width="100%"><tr><td style="height:1px;background:#e4e7ed;"></td></tr></table>
+    <p style="margin:20px 0 4px;font-size:14px;color:#374151;">Yours sincerely,</p>
+    <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#00327a;">UniKL RCMP Help Desk Team</p>
+    <p style="margin:0 0 28px;font-size:12px;color:#9ca3af;">Universiti Kuala Lumpur</p>
+  </td></tr>
+  <tr><td style="background:#f7f8fa;border-top:1px solid #e4e7ed;padding:20px 40px;">
+    <p style="margin:0;font-size:11px;color:#9ca3af;">This is a system-generated notification. Please do not reply directly to this email. &bull; &copy; {$currentYear} Universiti Kuala Lumpur.</p>
+  </td></tr>
+  <tr><td style="height:4px;background:linear-gradient(90deg,#e8b200,#f5cc30,#e8b200);"></td></tr>
+</table></td></tr></table></body></html>
+HTML;
+                        $vendorMail->AltBody = "Ticket {$ticketId} has been assigned to {$escapedCompany} by {$escapedAssigner}.\n\nLogin: https://rush.rcmp.edu.my/login.php";
+                        $vendorMail->send();
+                    } catch (Exception $e) {
+                        error_log("[UniKL Mail] Vendor assign notify failed for {$ticketId}: ".$e->getMessage());
+                    }
+                }
+
+                $_SESSION['flash_success'] = 'Ticket assigned to vendor <strong>' . htmlspecialchars($vRow['company_name']) . '</strong>.';
+            } else {
+                $_SESSION['flash_error'] = 'Selected vendor not found or inactive.';
+            }
         } else {
-            $_SESSION['flash_error'] = 'Please select a staff member to assign.';
+            $_SESSION['flash_error'] = 'Please select a staff member or vendor to assign.';
         }
         header('Location: ticket_detail.php?id=' . urlencode($ticketId) . '&tab=detail&from=' . $backUrlEncoded);
         exit;
@@ -401,8 +654,23 @@ if ($ticket) {
 
 // ── Fetch assigned staff ──────────────────────────────────────────────────────
 $assignedStaff = null;
+$assignedVendor = null;
 if ($ticket) {
     $assignedStaff = getAssignedStaff($conn, $ticketId);
+    // Also check for vendor assignment
+    if (!empty($ticket['assigned_vendor_id'])) {
+        $avQ = $conn->prepare("
+    SELECT v.vendor_id, v.company_name,
+           vs.full_name AS pic_name
+    FROM vendors v
+    LEFT JOIN vendor_staff vs ON vs.vendor_id = v.vendor_id AND vs.is_primary = 1
+    WHERE v.vendor_id = ? LIMIT 1
+");
+        $avQ->bind_param("i", $ticket['assigned_vendor_id']);
+        $avQ->execute();
+        $assignedVendor = $avQ->get_result()->fetch_assoc();
+        $avQ->close();
+    }
 }
 
 // ── SLA data ──────────────────────────────────────────────────────────────────
@@ -443,7 +711,6 @@ if ($ticket && !empty($ticket['created_at'])) {
 }
 
 // ── Fetch dept staff list for reassign dropdown (staff + admins of dept 4) ───
-// We show both staff and admin roles so admin can assign to themselves
 $deptStaffList = [];
 $dsStmt = $conn->prepare("
     SELECT staff_id, full_name, role
@@ -456,6 +723,22 @@ $dsRes = $dsStmt->get_result();
 while ($row = $dsRes->fetch_assoc()) $deptStaffList[] = $row;
 $dsStmt->close();
 
+// ── Fetch active vendors linked to dept 4 ────────────────────────────────────
+$deptVendorList = [];
+$dvStmt = $conn->prepare("
+    SELECT v.vendor_id, v.company_name,
+           vs.full_name AS pic_name
+    FROM vendors v
+    JOIN vendor_departments vd ON vd.vendor_id = v.vendor_id
+    LEFT JOIN vendor_staff vs ON vs.vendor_id = v.vendor_id AND vs.is_primary = 1
+    WHERE vd.dept_id = 4 AND v.status = 'active'
+    ORDER BY v.company_name ASC
+");
+$dvStmt->execute();
+$dvRes = $dvStmt->get_result();
+while ($row = $dvRes->fetch_assoc()) $deptVendorList[] = $row;
+$dvStmt->close();
+
 // ── Fetch change history ──────────────────────────────────────────────────────
 $changeLogs = [];
 if ($ticket) {
@@ -464,6 +747,7 @@ if ($ticket) {
             'log' AS source,
             log_id AS row_id,
             changed_by,
+            COALESCE(vendor_staff_name, '') AS vendor_staff_name,
             field_changed,
             old_priority,
             new_priority,
@@ -479,6 +763,7 @@ if ($ticket) {
             'reply' AS source,
             reply_id AS row_id,
             sender_name AS changed_by,
+            NULL AS vendor_staff_name,
             'message' AS field_changed,
             NULL AS old_priority,
             NULL AS new_priority,
@@ -519,10 +804,13 @@ if (!in_array($activeTab, ['detail', 'history', 'feedback'])) $activeTab = 'deta
 $isClosed    = $ticket && strtolower($ticket['status']) === 'closed';
 $hasFeedback = $feedback !== null;
 
-// Admin can update if assigned to ticket OR if any admin/hod role is assigned
-$isAdminAssigned = (!$isClosed && $assignedStaff && (
-    (int)$assignedStaff['staff_id'] === $adminStaffId ||
-    in_array(strtolower($assignedStaff['role'] ?? ''), ['admin', 'hod'])
+// Admin can update if assigned to ticket OR if any admin/hod role is assigned OR ticket is vendor-assigned
+$isAdminAssigned = (!$isClosed && (
+    ($assignedStaff && (
+        (int)$assignedStaff['staff_id'] === $adminStaffId ||
+        in_array(strtolower($assignedStaff['role'] ?? ''), ['admin', 'hod'])
+    )) ||
+    ($assignedVendor !== null)
 ));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -635,7 +923,7 @@ function ratingColors(int $rating): array {
 ?>
 <title><?= htmlspecialchars($catTitle) ?> | UniKL Help Desk – IT Admin</title>
   <?php include '_head_assets.php'; ?>
-  <link rel="stylesheet" href="css/tickets_detail.css"/>
+  <link rel="stylesheet" href="css/ticket_detail.css"/>
 </head>
 <body>
 <?php include '_sidebar.php'; ?>
@@ -923,6 +1211,8 @@ $wasReopened = ($slaStartTs > $createdTs + 60);
       <!-- RIGHT: Sidebar -->
       <div class="detail-right">
 
+        <?php $curPri = strtolower($ticket['priority'] ?? 'medium'); $curStat = strtolower($ticket['status'] ?? 'open'); ?>
+
         <!-- ── ASSIGNED TO CARD ── -->
         <div class="td-card">
           <div class="td-card-header">
@@ -936,7 +1226,17 @@ $wasReopened = ($slaStartTs > $createdTs + 60);
           </div>
           <div class="td-card-body">
 
-            <?php if ($assignedStaff): ?>
+            <?php if ($assignedVendor): ?>
+            <div class="assigned-pill" style="border-left: 3px solid #7C3AED;">
+              <div class="assigned-avatar" style="background:#F3E8FF;color:#7C3AED;">
+                <?= strtoupper(substr($assignedVendor['company_name'], 0, 1)) ?>
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div class="assigned-name"><?= htmlspecialchars($assignedVendor['company_name']) ?></div>
+<div class="assigned-role-tag" style="color:#7C3AED;">🏢 Vendor</div>
+              </div>
+            </div>
+            <?php elseif ($assignedStaff): ?>
             <div class="assigned-pill">
               <div class="assigned-avatar"><?= getInitials($assignedStaff['full_name']) ?></div>
               <div style="flex:1;min-width:0;">
@@ -954,19 +1254,35 @@ $wasReopened = ($slaStartTs > $createdTs + 60);
 
             
 
-            <?php if (!empty($deptStaffList)): ?>
+            <?php if (!empty($deptStaffList) || !empty($deptVendorList)): ?>
             <form method="POST" action="ticket_detail.php?id=<?= urlencode($ticketId) ?>">
   <input type="hidden" name="action" value="reassign"/>
+  <input type="hidden" name="new_staff_id"  id="hiddenStaffId"  value=""/>
+  <input type="hidden" name="new_vendor_id" id="hiddenVendorId" value=""/>
   <div class="reassign-label">Reassign to</div>
   <div class="reassign-row">
-    <select name="new_staff_id" class="reassign-select" id="reassignSelect" required onchange="handleReassignChange(this)">
-      <option value="">— Select staff —</option>
-      <?php foreach ($deptStaffList as $s): ?>
-      <?php if ((int)$s['staff_id'] === (int)($assignedStaff['staff_id'] ?? 0)) continue; ?>
-      <option value="<?= $s['staff_id'] ?>">
-        <?= htmlspecialchars($s['full_name']) ?><?= $s['role'] === 'admin' ? ' (Admin)' : '' ?>
-      </option>
-      <?php endforeach; ?>
+    <select class="reassign-select" id="reassignSelect" onchange="handleReassignChange(this)">
+      <option value=""><?= $curStat === 'in_progress' ? '— Select staff or vendor —' : '— Select staff —' ?></option>
+      <?php if (!empty($deptStaffList)): ?>
+      <optgroup label="─── Staff ───">
+        <?php foreach ($deptStaffList as $s): ?>
+        <?php if ((int)$s['staff_id'] === (int)($assignedStaff['staff_id'] ?? 0)) continue; ?>
+        <option value="staff_<?= $s['staff_id'] ?>">
+          <?= htmlspecialchars($s['full_name']) ?><?= $s['role'] === 'admin' ? ' (Admin)' : '' ?>
+        </option>
+        <?php endforeach; ?>
+      </optgroup>
+      <?php endif; ?>
+      <?php if (!empty($deptVendorList) && $curStat === 'in_progress'): ?>
+      <optgroup label="─── Vendors ───">
+        <?php foreach ($deptVendorList as $v): ?>
+        <?php if (!empty($assignedVendor) && (int)$v['vendor_id'] === (int)$assignedVendor['vendor_id']) continue; ?>
+        <option value="vendor_<?= $v['vendor_id'] ?>">
+  🏢 <?= htmlspecialchars($v['company_name']) ?>
+</option>
+        <?php endforeach; ?>
+      </optgroup>
+      <?php endif; ?>
     </select>
   </div>
   <div id="reassignRemarksBox" style="display:none;">
@@ -985,7 +1301,6 @@ $wasReopened = ($slaStartTs > $createdTs + 60);
         </div>
 
         <!-- ── UPDATE TICKET / STATUS OVERVIEW (original style) ── -->
-        <?php $curPri = strtolower($ticket['priority'] ?? 'medium'); $curStat = strtolower($ticket['status'] ?? 'open'); ?>
 
         <?php if ($isAdminAssigned && !$isClosed): ?>
         <!-- Admin is assigned — full update form matching original staff view -->
@@ -1188,6 +1503,17 @@ $wasReopened = ($slaStartTs > $createdTs + 60);
                 <span class="tl-row-label">Status</span>
                 <?= statChip($log['old_status']) ?><span class="tl-arrow">→</span><?= statChip($log['new_status']) ?>
               </div>
+              <?php if ($log['new_status'] === 'closed' && !empty($log['vendor_staff_name'])): ?>
+              <div class="tl-row" style="margin-top:4px;">
+                <span class="tl-row-label">Handled By</span>
+                <span class="tl-chip-name" style="background:#F3E8FF;color:#7C3AED;">
+                  👤 <?= htmlspecialchars($log['vendor_staff_name']) ?>
+                  <?php if (!empty($log['changed_by']) && $log['changed_by'] !== $log['vendor_staff_name']): ?>
+                  <span style="color:#9CA3AF;font-weight:400;"> · <?= htmlspecialchars($log['changed_by']) ?></span>
+                  <?php endif; ?>
+                </span>
+              </div>
+              <?php endif; ?>
               <?php endif; ?>
               <?php if ($fc === 'assigned'): ?>
               <div class="tl-row">
@@ -1365,9 +1691,25 @@ var priFlagMap = {
 function handleReassignChange(sel) {
   var remarksBox = document.getElementById('reassignRemarksBox');
   var saveBtn    = document.getElementById('reassignSaveBtn');
-  var show = sel.value !== '';
+  var val        = sel.value;
+  var show       = val !== '';
+
   remarksBox.style.display = show ? 'block' : 'none';
   saveBtn.style.display    = show ? 'block' : 'none';
+
+  // Split "staff_123" or "vendor_456" into the hidden inputs
+  var staffInput  = document.getElementById('hiddenStaffId');
+  var vendorInput = document.getElementById('hiddenVendorId');
+  if (val.startsWith('staff_')) {
+    staffInput.value  = val.replace('staff_', '');
+    vendorInput.value = '';
+  } else if (val.startsWith('vendor_')) {
+    vendorInput.value = val.replace('vendor_', '');
+    staffInput.value  = '';
+  } else {
+    staffInput.value  = '';
+    vendorInput.value = '';
+  }
 }
 
 // ── Admin priority change (AJAX, no reassign needed) ─────────────────────────

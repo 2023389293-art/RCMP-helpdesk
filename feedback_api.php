@@ -169,6 +169,11 @@ if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['success' => false, 'error' => 'invalid_input']);
         exit;
     }
+    // Ratings 1–3 require a comment unless auto-submitted
+    if (!$isAuto && $rating <= 3 && empty($comment)) {
+        echo json_encode(['success' => false, 'error' => 'comment_required']);
+        exit;
+    }
 
     // Confirm ticket belongs to this submitter and is closed
     $check = $conn->prepare("

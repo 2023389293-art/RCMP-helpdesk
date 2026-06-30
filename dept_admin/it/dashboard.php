@@ -89,7 +89,7 @@ $topDepts = $conn->query("SELECT c.my_department AS dept_name, COUNT(*) AS n FRO
   <?php include '_head_assets.php'; ?>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet"/>
   <!-- ✅ NEW: separated CSS file (place dashboard.css in same folder) -->
-  <link rel="stylesheet" href="css/dashboard.css"/>
+  <link rel="stylesheet" href="css/dashboards.css"/>
 </head>
 <body>
 <?php include '_sidebar.php'; ?>
@@ -536,13 +536,17 @@ function showCanvas(showGroupLabels = false, isCategory = false) {
   // Category uses dynamic height; others use fixed 340px
   if (isCategory) {
     wrap.classList.add('category-view');
-    // Set height based on number of categories (52px per bar + 80px padding)
     const barH = Math.max(160, CAT_DATA.length * 52 + 80);
     wrap.style.height = barH + 'px';
   } else {
     wrap.classList.remove('category-view');
     wrap.style.height = '340px';
   }
+
+  // Force canvas to re-measure after display:block (fixes mobile Safari blank chart)
+  const canvas = document.getElementById('mainChart');
+  canvas.style.width  = '100%';
+  canvas.style.height = '100%';
 }
 
 // ══ switchChart — called by KPI cards AND tabs ════════════════════════
@@ -585,7 +589,10 @@ function switchChart(view, tabEl) {
 }
 
 // ══ Boot ══════════════════════════════════════════════════════════════
-switchChart('status');
+// Delay init so canvas has real dimensions on mobile before Chart.js measures it
+requestAnimationFrame(() => {
+  switchChart('status');
+});
 </script>
 <?php include '_foot_scripts.php'; ?>
 <script>

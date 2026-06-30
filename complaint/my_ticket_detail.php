@@ -43,7 +43,7 @@ $stmt->bind_param("si", $ticketId, $userId);
     $stmt->close();
 }
 
-// Fetch "handled by" — only the assigned staff
+// Fetch "handled by" — assigned staff
 $handledBy = [];
 if ($ticket && !empty($ticket['assigned_to'])) {
     $hs = $conn->prepare("SELECT full_name, role FROM staff WHERE staff_id = ? LIMIT 1");
@@ -51,6 +51,73 @@ if ($ticket && !empty($ticket['assigned_to'])) {
     $hs->execute();
     $handledBy = $hs->get_result()->fetch_all(MYSQLI_ASSOC);
     $hs->close();
+}
+
+// Fetch assigned vendor if any
+$assignedVendor = null;
+if ($ticket && !empty($ticket['assigned_vendor_id'])) {
+    $vhs = $conn->prepare("SELECT company_name FROM vendors WHERE vendor_id = ? LIMIT 1");
+    $vhs->bind_param("i", $ticket['assigned_vendor_id']);
+    $vhs->execute();
+    $assignedVendor = $vhs->get_result()->fetch_assoc();
+    $vhs->close();
+
+    if ($assignedVendor) {
+        $assignedVendor['pic_name'] = null;
+
+        // Only show a staff name once the ticket is actually closed —
+        // and use whoever closed it, not the primary contact.
+        if (strtolower($ticket['status']) === 'closed') {
+            $vsq = $conn->prepare("
+                SELECT vendor_staff_name
+                FROM ticket_logs
+                WHERE ticket_id = ?
+                  AND field_changed = 'status'
+                  AND new_status = 'closed'
+                  AND vendor_staff_name IS NOT NULL
+                  AND vendor_staff_name <> ''
+                ORDER BY log_id DESC
+                LIMIT 1
+            ");
+            $vsq->bind_param("s", $ticketId);
+            $vsq->execute();
+            $closerRow = $vsq->get_result()->fetch_assoc();
+            $vsq->close();
+
+            if ($closerRow && !empty($closerRow['vendor_staff_name'])) {
+                $assignedVendor['pic_name'] = $closerRow['vendor_staff_name'];
+            }
+        }
+    }
+}
+
+// Fallback: if no staff is currently in assigned_to but a vendor IS assigned,
+// find the last staff member who handled this ticket before vendor handoff.
+if ($ticket && empty($handledBy) && $assignedVendor) {
+    $lsq = $conn->prepare("
+        SELECT changed_by_id, changed_by
+        FROM ticket_logs
+        WHERE ticket_id = ?
+          AND field_changed = 'assigned'
+          AND changed_by_id > 0
+        ORDER BY log_id DESC
+        LIMIT 1
+    ");
+    $lsq->bind_param("s", $ticketId);
+    $lsq->execute();
+    $lastStaffLog = $lsq->get_result()->fetch_assoc();
+    $lsq->close();
+
+    if ($lastStaffLog && !empty($lastStaffLog['changed_by_id'])) {
+        $sq = $conn->prepare("SELECT full_name, role FROM staff WHERE staff_id = ? LIMIT 1");
+        $sq->bind_param("i", $lastStaffLog['changed_by_id']);
+        $sq->execute();
+        $fallbackStaff = $sq->get_result()->fetch_assoc();
+        $sq->close();
+        if ($fallbackStaff) {
+            $handledBy = [$fallbackStaff];
+        }
+    }
 }
 
 // Fetch replies (read-only)
@@ -70,7 +137,7 @@ if ($ticket) {
 $statusLogs = [];
 if ($ticket) {
     $lq = $conn->prepare("
-        SELECT changed_by, new_status, changed_at
+        SELECT changed_by, changed_by_id, new_status, changed_at
         FROM ticket_logs
         WHERE ticket_id = ? AND field_changed = 'status'
         ORDER BY changed_at ASC
@@ -684,8 +751,9 @@ require 'layout.php';
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span>Handled By</span>
     </div>
-    <?php if (!empty($handledBy)): ?>
+    <?php if (!empty($handledBy) || $assignedVendor): ?>
     <div class="tp-staff-grid">
+
       <?php foreach ($handledBy as $s):
         $ini = getInitials($s['full_name']);
       ?>
@@ -697,8 +765,9 @@ require 'layout.php';
         </div>
       </div>
       <?php endforeach; ?>
+
     </div>
-    <?php else: ?>
+<?php else: ?>
     <div class="tp-staff-card" style="max-width: 320px;">
         <div class="tp-staff-avatar" style="background: #EEF2F7; color: #5A7A9A;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -729,7 +798,7 @@ require 'layout.php';
             </div>
         </div>
     </div>
-    <?php endif; ?>
+<?php endif; ?>
 
     <div class="tp-divider"></div>
 
@@ -772,10 +841,68 @@ $fbColor  = $fbColors[1];
     </div>
 
     <?php else: ?>
-    <div style="text-align:center;padding:24px 16px;background:#F9FAFB;border-radius:12px;border:1px dashed #E5E7EB;">
-      <div style="font-size:22px;margin-bottom:8px;">💬</div>
-      <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:4px;">No Feedback Yet</div>
-      <div style="font-size:12px;color:#9CA3AF;">You haven't submitted feedback for this ticket.</div>
+    <div id="inlineFbForm" data-ticket-id="<?php echo htmlspecialchars($ticket['ticket_id']); ?>">
+      <div style="text-align:center;font-size:13px;font-weight:600;color:#374151;margin-bottom:14px;">
+        Rate your experience with this ticket
+      </div>
+
+      <div class="fb-emoji-row" id="ifbEmojiRow" style="margin-bottom:6px;">
+        <button class="fb-emoji-btn" data-val="1" type="button" aria-label="Very dissatisfied">
+          <svg viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" stroke="#EF4444" stroke-width="2.5" fill="#FEE2E2"/>
+            <circle cx="17" cy="20" r="2.5" fill="#EF4444"/><circle cx="31" cy="20" r="2.5" fill="#EF4444"/>
+            <path d="M16 33c2-4 14-4 16 0" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="fb-emoji-btn" data-val="2" type="button" aria-label="Dissatisfied">
+          <svg viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" stroke="#F97316" stroke-width="2.5" fill="#FFEDD5"/>
+            <circle cx="17" cy="20" r="2.5" fill="#F97316"/><circle cx="31" cy="20" r="2.5" fill="#F97316"/>
+            <path d="M17 32c2-3 12-3 14 0" stroke="#F97316" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="fb-emoji-btn" data-val="3" type="button" aria-label="Neutral">
+          <svg viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" stroke="#EAB308" stroke-width="2.5" fill="#FEF9C3"/>
+            <circle cx="17" cy="20" r="2.5" fill="#EAB308"/><circle cx="31" cy="20" r="2.5" fill="#EAB308"/>
+            <line x1="17" y1="32" x2="31" y2="32" stroke="#EAB308" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="fb-emoji-btn" data-val="4" type="button" aria-label="Satisfied">
+          <svg viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" stroke="#22C55E" stroke-width="2.5" fill="#DCFCE7"/>
+            <circle cx="17" cy="20" r="2.5" fill="#22C55E"/><circle cx="31" cy="20" r="2.5" fill="#22C55E"/>
+            <path d="M16 28c2 4 14 4 16 0" stroke="#22C55E" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="fb-emoji-btn" data-val="5" type="button" aria-label="Very satisfied">
+          <svg viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" stroke="#16A34A" stroke-width="2.5" fill="#D1FAE5"/>
+            <circle cx="17" cy="19" r="2.5" fill="#16A34A"/><circle cx="31" cy="19" r="2.5" fill="#16A34A"/>
+            <path d="M14 27c2 6 18 6 20 0" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="fb-rating-desc" id="ifbRatingDesc" style="color:#9299b0;">Click a face to rate</div>
+
+      <label class="fb-comment-label" for="ifbComment">
+        What could be improved? <span id="ifbCommentNote" style="font-weight:400;color:#9299b0;">(optional)</span>
+      </label>
+      <textarea id="ifbComment" class="fb-textarea" placeholder="Share any thoughts about the response time, staff helpfulness, or anything else…" maxlength="1000"></textarea>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button class="fb-submit-btn" id="ifbSubmitBtn" type="button" disabled>
+          Submit Feedback
+          <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="inlineFbSuccess" style="display:none;text-align:center;padding:24px 16px;background:#F0FDF4;border-radius:12px;border:1px solid #BBF7D0;">
+      <div style="font-size:22px;margin-bottom:8px;">🎉</div>
+      <div style="font-size:13px;font-weight:600;color:#166534;margin-bottom:4px;">Thank you for your feedback!</div>
+      <div style="font-size:12px;color:#6B7280;">Your response has been recorded.</div>
     </div>
     <?php endif; ?>
 
@@ -835,7 +962,7 @@ $fbColor  = $fbColors[1];
                 color:<?php echo $ps['color']; ?>;
                 border-color:<?php echo $ps['border']; ?>;">
       <span class="tp-status-event-dot" style="background:<?php echo $ps['dot']; ?>;"></span>
-      Ticket marked as <strong><?php echo $ps['label']; ?></strong> by <?php echo htmlspecialchars($by); ?>
+      Ticket marked as <strong><?php echo $ps['label']; ?></strong><?php if (!empty($item['data']['changed_by_id'])): ?> by <?php echo htmlspecialchars($by); ?><?php endif; ?>
     </div>
     <span class="tp-status-event-time"><?php echo $at; ?></span>
   </div>
@@ -845,8 +972,9 @@ $fbColor  = $fbColors[1];
     $isMe     = ($r['sender_role'] === $submitterType && (int)$r['sender_id'] === $userId);
     $rowClass = $isMe ? 'tp-me' : 'tp-dept';
     $avClass  = $isMe ? 'av-me' : 'av-dept';
-    $initials    = getInitials($r['sender_name']);
-    $senderLabel = $isMe ? 'You' : $r['sender_name'];
+    $isVendorMsg = ($assignedVendor && $r['sender_name'] === $assignedVendor['company_name']);
+    $senderLabel = $isMe ? 'You' : ($isVendorMsg ? ($ticket['dept_name'] ?? 'Department') : $r['sender_name']);
+    $initials    = getInitials($senderLabel);
     $hasAttach   = !empty($r['attachment_path']);
     $attachPath  = $hasAttach ? $r['attachment_path'] : '';
     $isImg       = $hasAttach && isImageAttachment($attachPath);
@@ -946,6 +1074,84 @@ ob_start();
 (function(){
   const box = document.getElementById('tpMessages');
   if (box) box.scrollTop = box.scrollHeight;
+})();
+
+/* ── Inline feedback form (ticket detail page) ── */
+(function () {
+  const form = document.getElementById('inlineFbForm');
+  if (!form) return; // ticket not closed, or feedback already submitted
+
+  // Prevent the global feedback popup (layout.php) from also appearing
+  // over this same ticket while the inline form is visible.
+  window.__inlineFbActiveTicket = form.dataset.ticketId;
+
+  const ticketId   = form.dataset.ticketId;
+  const submitBtn  = document.getElementById('ifbSubmitBtn');
+  const ratingDesc = document.getElementById('ifbRatingDesc');
+  const commentEl  = document.getElementById('ifbComment');
+  const successBox = document.getElementById('inlineFbSuccess');
+  let selectedRating = 0;
+
+  const DESCS  = ['', 'Very Dissatisfied', 'Dissatisfied', 'Neutral', 'Satisfied', 'Very Satisfied'];
+  const COLORS = ['', '#EF4444', '#F97316', '#EAB308', '#22C55E', '#16A34A'];
+
+  function ifbUpdateSubmitState() {
+    var needsComment = selectedRating >= 1 && selectedRating <= 3;
+    var hasComment   = commentEl.value.trim().length > 0;
+    submitBtn.disabled = (selectedRating < 1) || (needsComment && !hasComment);
+    var noteEl = document.getElementById('ifbCommentNote');
+    if (noteEl) {
+      noteEl.textContent = needsComment ? '(required)' : '(optional)';
+      noteEl.style.color = needsComment ? '#DC2626' : '#9299b0';
+    }
+  }
+
+  form.querySelectorAll('.fb-emoji-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      selectedRating = parseInt(btn.dataset.val, 10);
+      form.querySelectorAll('.fb-emoji-btn').forEach(function (b) {
+        b.classList.toggle('fb-selected', parseInt(b.dataset.val, 10) === selectedRating);
+      });
+      ratingDesc.textContent = DESCS[selectedRating];
+      ratingDesc.style.color = COLORS[selectedRating];
+      ifbUpdateSubmitState();
+    });
+  });
+
+  commentEl.addEventListener('input', function () {
+    ifbUpdateSubmitState();
+  });
+
+  submitBtn.addEventListener('click', function () {
+    var needsComment = selectedRating >= 1 && selectedRating <= 3;
+    if (selectedRating < 1) return;
+    if (needsComment && commentEl.value.trim().length === 0) return;
+    submitBtn.disabled    = true;
+    submitBtn.textContent = 'Submitting…';
+
+    const fd = new FormData();
+    fd.append('action',    'submit');
+    fd.append('ticket_id', ticketId);
+    fd.append('rating',    String(selectedRating));
+    fd.append('comment',   commentEl.value.trim());
+    fd.append('auto',      '0');
+
+    fetch('../feedback_api.php', { method: 'POST', credentials: 'same-origin', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.success) {
+          form.style.display = 'none';
+          successBox.style.display = 'block';
+        } else {
+          submitBtn.disabled  = false;
+          submitBtn.innerHTML = 'Submit Feedback <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.5"><polyline points="9 18 15 12 9 6"/></svg>';
+        }
+      })
+      .catch(function () {
+        submitBtn.disabled  = false;
+        submitBtn.innerHTML = 'Submit Feedback <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.5"><polyline points="9 18 15 12 9 6"/></svg>';
+      });
+  });
 })();
 
 const _lb    = document.getElementById('tpLightbox');
