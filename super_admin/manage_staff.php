@@ -15,6 +15,13 @@ require_once '../db_connect.php';
 $departments = $conn->query("SELECT dept_id, dept_name FROM departments ORDER BY dept_id")->fetch_all(MYSQLI_ASSOC);
 $categories  = $conn->query("SELECT category_id, category_name, dept_id FROM categories ORDER BY dept_id, category_name")->fetch_all(MYSQLI_ASSOC);
 
+// Departments that already have a Head of Department assigned
+$deptsWithHodIds = array_map('intval', array_column(
+    $conn->query("SELECT dept_id FROM staff WHERE role='hod' AND dept_id IS NOT NULL")->fetch_all(MYSQLI_ASSOC),
+    'dept_id'
+));
+
+
 // ── Handle POST actions ───────────────────────────────────────────────────────
 $successMsg = '';
 $errorMsg   = '';
@@ -31,6 +38,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $categoryId  = !empty($categoryIds) ? $categoryIds[0] : 0;
         $staffCode  = trim($_POST['staff_code'] ?? '');
         $password   = $_POST['password'] ?? '';
+        $role       = ($_POST['role'] ?? 'staff') === 'hod' ? 'hod' : 'staff';
+
+        // Check if the chosen department already has a HOD
+        $hodConflict = false;
+        if ($role === 'hod' && $deptId) {
+            $hodCheck = $conn->prepare("SELECT staff_id FROM staff WHERE role='hod' AND dept_id=?");
+            $hodCheck->bind_param('i', $deptId);
+            $hodCheck->execute();
+            $hodCheck->store_result();
+            $hodConflict = $hodCheck->num_rows > 0;
+        }
 
 if (!$fullName || !$email || !$deptId || !$password || !$staffCode) {
     $errorMsg = 'Please fill in all required fields.';
@@ -38,6 +56,8 @@ if (!$fullName || !$email || !$deptId || !$password || !$staffCode) {
     $errorMsg = 'Phone number must contain only digits and be 10 to 11 numbers long.';
 } elseif (strlen($password) < 8 || strlen($password) > 10) {
     $errorMsg = 'Password must be between 8 and 10 characters.';
+} elseif ($hodConflict) {
+    $errorMsg = 'This department already has a Head of Department.';
 } else {
             $check = $conn->prepare("SELECT staff_id FROM staff WHERE email = ?");
             $check->bind_param('s', $email);
@@ -72,21 +92,24 @@ if (!$fullName || !$email || !$deptId || !$password || !$staffCode) {
                 }
 
                 $hash = password_hash($password, PASSWORD_BCRYPT);
-                $stmt = $conn->prepare("INSERT INTO staff (staff_code, full_name, email, password_hash, department, dept_id, role, category, phone, status) VALUES (?,?,?,?,?,?,'staff',?,?,'active')");
-                $stmt->bind_param('ssssssss', $staffCode, $fullName, $email, $hash, $deptName, $deptId, $categoryName, $phone);
+                $stmt = $conn->prepare("INSERT INTO staff (staff_code, full_name, email, password_hash, department, dept_id, role, category, phone, status) VALUES (?,?,?,?,?,?,?,?,?,'active')");
+                $stmt->bind_param('sssssssss', $staffCode, $fullName, $email, $hash, $deptName, $deptId, $role, $categoryName, $phone);
                 if ($stmt->execute()) {
                     $newStaffId = $conn->insert_id;
 
-                    // Sync ALL selected categories to staff_categories
-                    foreach ($categoryIds as $cid) {
-                        if (!$cid) continue;
-                        $scIns = $conn->prepare("INSERT IGNORE INTO staff_categories (staff_id, category_id) VALUES (?, ?)");
-                        $scIns->bind_param("ii", $newStaffId, $cid);
-                        $scIns->execute();
-                        $scIns->close();
+                    // Sync categories only for 'staff' role — HODs don't handle tickets directly
+                    if ($role === 'staff') {
+                        foreach ($categoryIds as $cid) {
+                            if (!$cid) continue;
+                            $scIns = $conn->prepare("INSERT IGNORE INTO staff_categories (staff_id, category_id) VALUES (?, ?)");
+                            $scIns->bind_param("ii", $newStaffId, $cid);
+                            $scIns->execute();
+                            $scIns->close();
+                        }
                     }
 
-                    $successMsg = "Staff member <strong>" . htmlspecialchars($fullName) . "</strong> added successfully.";
+                    $roleLabel = $role === 'hod' ? 'Head of Department' : 'staff member';
+                    $successMsg = "New <strong>" . $roleLabel . "</strong> <strong>" . htmlspecialchars($fullName) . "</strong> added successfully.";
                 } else {
                     $errorMsg = 'Database error: ' . htmlspecialchars($conn->error);
                 }
@@ -888,7 +911,7 @@ include 'layout.php';
         <div class="section-label">Assignment</div>
         <div class="form-group">
           <label>Department <span>*</span></label>
-          <select name="dept_id" id="addDeptId" class="form-control" required onchange="filterAddCats()">
+          <select name="dept_id" id="addDeptId" class="form-control" required onchange="onAddDeptChange()">
             <option value="">— Select Department —</option>
             <option value="1">Administration &amp; Facilities Management (AFSMD)</option>
             <option value="2">Maintenance Department</option>
@@ -896,6 +919,15 @@ include 'layout.php';
             <option value="4">Information Technology Department</option>
             <option value="5">Human Capital Department (HCD)</option>
           </select>
+        </div>
+        <div class="category-section" id="addRoleSection">
+          <div class="form-group">
+            <label>Role <span>*</span></label>
+            <select name="role" id="addRole" class="form-control" onchange="handleAddRoleChange()">
+              <option value="staff">Staff</option>
+              <option value="hod">Head of Department (HOD)</option>
+            </select>
+          </div>
         </div>
         <div class="category-section" id="addCategorySection">
   <div class="form-group">
@@ -966,35 +998,39 @@ include 'layout.php';
           <label>Email Address <span>*</span></label>
           <input type="email" name="email" id="editEmail" class="form-control" required>
         </div>
-        <div class="divider"></div>
-        <div class="section-label">Assignment</div>
-        <div class="form-group">
-          <label>Department <span>*</span></label>
-          <select name="dept_id" id="editDeptId" class="form-control" onchange="filterEditCats()">
-            <option value="">— Select Department —</option>
-            <option value="1">Administration &amp; Facilities Management (AFSMD)</option>
-            <option value="2">Maintenance Department</option>
-            <option value="3">Corporate Communication Unit (CCU)</option>
-            <option value="4">Information Technology Department</option>
-            <option value="5">Human Capital Department (HCD)</option>
-          </select>
+        <div id="editAssignmentBlock">
+          <div class="divider"></div>
+          <div class="section-label">Assignment</div>
+          <div class="form-group">
+            <label>Department <span>*</span></label>
+            <select name="dept_id" id="editDeptId" class="form-control" onchange="filterEditCats()">
+              <option value="">— Select Department —</option>
+              <option value="1">Administration &amp; Facilities Management (AFSMD)</option>
+              <option value="2">Maintenance Department</option>
+              <option value="3">Corporate Communication Unit (CCU)</option>
+              <option value="4">Information Technology Department</option>
+              <option value="5">Human Capital Department (HCD)</option>
+            </select>
+          </div>
+          <div class="category-section" id="editCategorySection">
+            <div class="form-group">
+              <label>Category <small style="color:#9ca3af;font-weight:400;">Select at least one</small></label>
+              <div id="editCategoryList" style="border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;">
+                <!-- filled by JS -->
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="category-section" id="editCategorySection">
-  <div class="form-group">
-    <label>Category <small style="color:#9ca3af;font-weight:400;">Select at least one</small></label>
-    <div id="editCategoryList" style="border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;">
-      <!-- filled by JS -->
-    </div>
-  </div>
-</div>
-        <div class="divider"></div>
-        <div class="section-label">Account Status</div>
-        <div class="form-group">
-          <label>Status</label>
-          <select name="status" id="editStatus" class="form-control">
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+        <div id="editStatusBlock">
+          <div class="divider"></div>
+          <div class="section-label">Account Status</div>
+          <div class="form-group">
+            <label>Status</label>
+            <select name="status" id="editStatus" class="form-control">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1124,6 +1160,41 @@ include 'layout.php';
 <!-- Categories JSON for JS -->
 <script>
 const ALL_CATS = <?= json_encode($categories) ?>;
+const DEPTS_WITH_HOD = <?= json_encode($deptsWithHodIds) ?>;
+
+function onAddDeptChange() {
+  updateAddRoleVisibility();
+  refreshAddCategoryVisibility();
+}
+
+function updateAddRoleVisibility() {
+  const deptId = parseInt(document.getElementById('addDeptId').value) || 0;
+  const roleSection = document.getElementById('addRoleSection');
+  const roleSelect = document.getElementById('addRole');
+  const deptHasHod = DEPTS_WITH_HOD.includes(deptId);
+
+  if (!deptId || deptHasHod) {
+    // No department chosen yet, or this department already has a HOD —
+    // force role back to Staff and hide the Role picker entirely.
+    roleSelect.value = 'staff';
+    roleSection.classList.remove('visible');
+  } else {
+    roleSection.classList.add('visible');
+  }
+}
+
+function refreshAddCategoryVisibility() {
+  const role = document.getElementById('addRole').value;
+  if (role === 'hod') {
+    document.getElementById('addCategorySection').classList.remove('visible');
+  } else {
+    filterAddCats();
+  }
+}
+
+function handleAddRoleChange() {
+  refreshAddCategoryVisibility();
+}
 
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -1218,6 +1289,12 @@ function openEditModal(s) {
   document.getElementById('editStatus').value    = s.status;
   document.getElementById('editDeptId').value    = s.dept_id || '';
   document.getElementById('editStaffCode').value = s.staff_code || '';
+
+  // Hide Assignment & Account Status for HOD, Super Admin, and Report Viewer
+  const restrictedRoles = ['hod', 'super_admin', 'report_viewer'];
+  const isRestricted = restrictedRoles.includes(s.role);
+  document.getElementById('editAssignmentBlock').style.display = isRestricted ? 'none' : '';
+  document.getElementById('editStatusBlock').style.display = isRestricted ? 'none' : '';
 
   // Open modal first so the category section is in the DOM and visible
   openModal('editModal');

@@ -35,46 +35,36 @@ if (!$fullName || !$email || !$deptId || !$password) {
 } elseif ($phone !== '' && (!ctype_digit($phone) || strlen($phone) < 10 || strlen($phone) > 11)) {
     $errorMsg = 'Phone number must contain only digits and be 10 to 11 numbers long.';
 } else {
-    // Check max 2 admins per department
-            $cntStmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM staff WHERE role='admin' AND dept_id=?");
-            $cntStmt->bind_param('i', $deptId);
-            $cntStmt->execute();
-            $deptAdminCount = (int)$cntStmt->get_result()->fetch_assoc()['cnt'];
+    // Check duplicate email
+    $check = $conn->prepare("SELECT staff_id FROM staff WHERE email = ?");
+    $check->bind_param('s', $email);
+    $check->execute();
+    $check->store_result();
 
-            if ($deptAdminCount >= 2) {
-                $errorMsg = 'This department already has 2 admins (maximum). Please remove one before adding another.';
-            } else {
-                // Check duplicate email
-                $check = $conn->prepare("SELECT staff_id FROM staff WHERE email = ?");
-                $check->bind_param('s', $email);
-                $check->execute();
-                $check->store_result();
+    if ($check->num_rows > 0) {
+        $errorMsg = 'An account with this email already exists.';
+    } else {
+        // Generate staff_code: A00XXXX
+        $maxCode = $conn->query("SELECT MAX(CAST(SUBSTRING(staff_code,2) AS UNSIGNED)) AS m FROM staff WHERE staff_code LIKE 'A%'")->fetch_assoc()['m'] ?? 0;
+        $staffCode = 'A' . str_pad((int)$maxCode + 1, 6, '0', STR_PAD_LEFT);
 
-                if ($check->num_rows > 0) {
-                    $errorMsg = 'An account with this email already exists.';
-                } else {
-                    // Generate staff_code: A00XXXX
-                    $maxCode = $conn->query("SELECT MAX(CAST(SUBSTRING(staff_code,2) AS UNSIGNED)) AS m FROM staff WHERE staff_code LIKE 'A%'")->fetch_assoc()['m'] ?? 0;
-                    $staffCode = 'A' . str_pad((int)$maxCode + 1, 6, '0', STR_PAD_LEFT);
+        // Get dept_name
+        $deptName = '';
+        foreach ($departments as $d) {
+            if ((int)$d['dept_id'] === $deptId) { $deptName = $d['dept_name']; break; }
+        }
 
-                    // Get dept_name
-                    $deptName = '';
-                    foreach ($departments as $d) {
-                        if ((int)$d['dept_id'] === $deptId) { $deptName = $d['dept_name']; break; }
-                    }
-
-                    $hash = password_hash($password, PASSWORD_BCRYPT);
-$stmt = $conn->prepare("INSERT INTO staff (staff_code, full_name, email, password_hash, department, dept_id, role, phone, status) VALUES (?, ?, ?, ?, ?, ?, 'admin', ?, 'active')");
-$stmt->bind_param('sssssis', $staffCode, $fullName, $email, $hash, $deptName, $deptId, $phone);
-                    if ($stmt->execute()) {
-                        $successMsg = "Admin <strong>" . htmlspecialchars($fullName) . "</strong> added successfully.";
-                    } else {
-                        $errorMsg = 'Database error: ' . htmlspecialchars($conn->error);
-                    }
-                }
-            }
+        $hash = password_hash($password, PASSWORD_BCRYPT);
+        $stmt = $conn->prepare("INSERT INTO staff (staff_code, full_name, email, password_hash, department, dept_id, role, phone, status) VALUES (?, ?, ?, ?, ?, ?, 'admin', ?, 'active')");
+        $stmt->bind_param('sssssis', $staffCode, $fullName, $email, $hash, $deptName, $deptId, $phone);
+        if ($stmt->execute()) {
+            $successMsg = "Admin <strong>" . htmlspecialchars($fullName) . "</strong> added successfully.";
+        } else {
+            $errorMsg = 'Database error: ' . htmlspecialchars($conn->error);
         }
     }
+}
+}
 
     // ── TOGGLE STATUS ──
     if ($action === 'toggle_status') {
@@ -188,21 +178,10 @@ $stmt->bind_param('sssssis', $staffCode, $fullName, $email, $hash, $deptName, $d
         if (!$staffRow) {
             $errorMsg = 'Staff member not found.';
         } else {
-            $promoteDeptId = (int)$staffRow['dept_id'];
-            // Check 2-admin cap for this department
-            $capCheck = $conn->prepare("SELECT COUNT(*) AS cnt FROM staff WHERE role='admin' AND dept_id=?");
-            $capCheck->bind_param('i', $promoteDeptId);
-            $capCheck->execute();
-            $capCount = (int)$capCheck->get_result()->fetch_assoc()['cnt'];
-
-            if ($capCount >= 2) {
-                $errorMsg = 'Cannot promote — this department already has 2 admins (maximum).';
-            } else {
-                $stmt = $conn->prepare("UPDATE staff SET role='admin', category=NULL WHERE staff_id=? AND role='staff'");
-                $stmt->bind_param('i', $staffId);
-                $stmt->execute();
-                $successMsg = 'Staff member <strong>' . htmlspecialchars($staffRow['full_name']) . '</strong> promoted to Admin successfully.';
-            }
+            $stmt = $conn->prepare("UPDATE staff SET role='admin', category=NULL WHERE staff_id=? AND role='staff'");
+$stmt->bind_param('i', $staffId);
+$stmt->execute();
+$successMsg = 'Staff member <strong>' . htmlspecialchars($staffRow['full_name']) . '</strong> promoted to Admin successfully.';
         }
     }
 

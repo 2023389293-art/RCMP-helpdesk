@@ -710,6 +710,7 @@ require 'layout.php';
   <div style="display:flex;justify-content:center;">
     <div style="display:inline-flex;background:#f1f5f9;border-radius:14px;padding:4px;gap:2px;border:2px solid #cbd5e1;">
 
+     <?php /* HIDDEN: AFSMD sub-tabs (Submit Complaint / Request Equipment) — remove this comment block to re-enable
       <button type="button" id="subTabComplaint" onclick="switchAfsmdTab('complaint')"
         style="display:inline-flex;align-items:center;gap:7px;
                padding:8px 18px;border-radius:10px;border:none;
@@ -725,13 +726,13 @@ require 'layout.php';
         Submit Complaint
       </button>
 
-      <button type="button" id="subTabRequisition" disabled
+      <button type="button" id="subTabRequisition" onclick="switchAfsmdTab('requisition')"
         style="display:inline-flex;align-items:center;gap:7px;
                padding:8px 18px;border-radius:10px;border:none;
-               cursor:not-allowed;font-family:'DM Sans',sans-serif;
-               background:transparent;color:#cbd5e1;
+               cursor:pointer;font-family:'DM Sans',sans-serif;
+               background:transparent;color:#64748b;
                box-shadow:none;font-size:13px;font-weight:600;
-               transition:all .2s;opacity:0.5;">
+               transition:all .2s;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
           <path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/>
@@ -739,6 +740,7 @@ require 'layout.php';
         </svg>
         Request Equipment
       </button>
+      */ ?>
 
     </div>
   </div>
@@ -1863,6 +1865,13 @@ function switchAfsmdTab(tab) {
   const btnComplaint = document.getElementById('subTabComplaint');
   const btnReq       = document.getElementById('subTabRequisition');
 
+  if (!btnComplaint || !btnReq) {
+    // Sub-tab buttons are currently commented out — just show the complaint section.
+    if (complaint)   complaint.style.display   = '';
+    if (requisition) requisition.style.display = 'none';
+    return;
+  }
+
   if (tab === 'complaint') {
     complaint.style.display   = '';
     requisition.style.display = 'none';
@@ -1954,9 +1963,9 @@ function activateTab(tabEl) {
 
   // Show/hide the AFSMD sub-tabs
   const subTabs = document.getElementById('afsmdSubTabs');
-  if (tabEl.dataset.dept === 'Administration & Facilities Management Department') {
-    subTabs.style.display = '';
-  } else {
+  if (tabEl.dataset.dept === 'Administration & Facilities Management Department' && document.getElementById('subTabComplaint')) {
+  subTabs.style.display = '';
+} else {
     subTabs.style.display = 'none';
     switchAfsmdTab('complaint');
   }
@@ -2166,7 +2175,7 @@ document.querySelectorAll('.dept-tab').forEach(tab => {
     loadDeptCategories(firstTab.dataset.dept);
     applyDeptBorderColor(firstTab.dataset.dept);
     const subTabs = document.getElementById('afsmdSubTabs');
-    if (firstTab.dataset.dept === 'Administration & Facilities Management Department') {
+    if (firstTab.dataset.dept === 'Administration & Facilities Management Department' && document.getElementById('subTabComplaint')) {
       subTabs.style.display = '';
     }
   }
