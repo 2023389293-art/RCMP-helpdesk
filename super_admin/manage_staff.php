@@ -136,8 +136,22 @@ $roleRow->execute();
 $currentRole = $roleRow->get_result()->fetch_assoc()['role'] ?? 'staff';
 $deptRequired = !in_array($currentRole, ['super_admin', 'report_viewer']);
 
+$newRole = in_array($_POST['role'] ?? '', ['staff','hod']) ? $_POST['role'] : $currentRole;
+if (!in_array($currentRole, ['staff','hod'])) { $newRole = $currentRole; } // never touch admin/super_admin/report_viewer roles here
+
+$hodConflict = false;
+if ($newRole === 'hod' && $deptId) {
+    $hodCheck = $conn->prepare("SELECT staff_id FROM staff WHERE role='hod' AND dept_id=? AND staff_id != ?");
+    $hodCheck->bind_param('ii', $deptId, $staffId);
+    $hodCheck->execute();
+    $hodCheck->store_result();
+    $hodConflict = $hodCheck->num_rows > 0;
+}
+
 if (!$fullName || !$email || !$editStaffCode || ($deptRequired && !$deptId)) {
     $errorMsg = 'Please fill in all required fields.';
+} elseif ($hodConflict) {
+    $errorMsg = 'This department already has a Head of Department.';
 } elseif ($currentRole === 'staff' && !ctype_digit($editStaffCode)) {
     $errorMsg = 'Staff ID / Code must contain numbers only.';
 } elseif ($phone !== '' && (!ctype_digit($phone) || strlen($phone) < 10 || strlen($phone) > 11)) {
@@ -164,7 +178,7 @@ if (!$fullName || !$email || !$editStaffCode || ($deptRequired && !$deptId)) {
                 }
 
                 $categoryName = null;
-                if (!empty($categoryIds)) {
+                if ($newRole === 'staff' && !empty($categoryIds)) {
                     foreach ($categories as $cat) {
                         if ((int)$cat['category_id'] === $categoryIds[0]) {
                             $parts = explode('/', $cat['category_name'], 2);
@@ -174,29 +188,38 @@ if (!$fullName || !$email || !$editStaffCode || ($deptRequired && !$deptId)) {
                     }
                 }
 
-                $stmt = $conn->prepare("UPDATE staff SET staff_code=?, full_name=?, email=?, department=?, dept_id=?, category=?, phone=?, status=? WHERE staff_id=?");
-                $stmt->bind_param('ssssssssi', $editStaffCode, $fullName, $email, $deptName, $deptId, $categoryName, $phone, $status, $staffId);
+                $stmt = $conn->prepare("UPDATE staff SET staff_code=?, full_name=?, email=?, department=?, dept_id=?, role=?, category=?, phone=?, status=? WHERE staff_id=?");
+                $stmt->bind_param('sssssssssi', $editStaffCode, $fullName, $email, $deptName, $deptId, $newRole, $categoryName, $phone, $status, $staffId);
                 if ($stmt->execute()) {
 
-                    // Sync staff_categories — delete old then insert new
-                    $delSc = $conn->prepare("
-                        DELETE sc FROM staff_categories sc
-                        JOIN categories c ON c.category_id = sc.category_id
-                        WHERE sc.staff_id = ? AND c.dept_id = ?
-                    ");
-                    $delSc->bind_param("ii", $staffId, $deptId);
-                    $delSc->execute();
-                    $delSc->close();
+                    if ($newRole === 'staff') {
+                        // Sync staff_categories — delete old then insert new
+                        $delSc = $conn->prepare("
+                            DELETE sc FROM staff_categories sc
+                            JOIN categories c ON c.category_id = sc.category_id
+                            WHERE sc.staff_id = ? AND c.dept_id = ?
+                        ");
+                        $delSc->bind_param("ii", $staffId, $deptId);
+                        $delSc->execute();
+                        $delSc->close();
 
-                    foreach ($categoryIds as $cid) {
-                        if (!$cid) continue;
-                        $scIns = $conn->prepare("INSERT IGNORE INTO staff_categories (staff_id, category_id) VALUES (?, ?)");
-                        $scIns->bind_param("ii", $staffId, $cid);
-                        $scIns->execute();
-                        $scIns->close();
+                        foreach ($categoryIds as $cid) {
+                            if (!$cid) continue;
+                            $scIns = $conn->prepare("INSERT IGNORE INTO staff_categories (staff_id, category_id) VALUES (?, ?)");
+                            $scIns->bind_param("ii", $staffId, $cid);
+                            $scIns->execute();
+                            $scIns->close();
+                        }
+                    } else {
+                        // HOD doesn't handle tickets directly — clear any assigned categories
+                        $delSc = $conn->prepare("DELETE FROM staff_categories WHERE staff_id = ?");
+                        $delSc->bind_param("i", $staffId);
+                        $delSc->execute();
+                        $delSc->close();
                     }
 
-                    $successMsg = "Staff member <strong>" . htmlspecialchars($fullName) . "</strong> updated successfully.";
+                    $roleLabel = $newRole === 'hod' ? 'Head of Department' : 'staff member';
+                    $successMsg = "<strong>" . htmlspecialchars($fullName) . "</strong> updated" . ($newRole !== $currentRole ? " — role changed to <strong>{$roleLabel}</strong>" : "") . ".";
                 } else {
                     $errorMsg = 'Database error: ' . htmlspecialchars($conn->error);
                 }
@@ -1003,7 +1026,7 @@ include 'layout.php';
           <div class="section-label">Assignment</div>
           <div class="form-group">
             <label>Department <span>*</span></label>
-            <select name="dept_id" id="editDeptId" class="form-control" onchange="filterEditCats()">
+            <select name="dept_id" id="editDeptId" class="form-control" onchange="onEditDeptChange()">
               <option value="">— Select Department —</option>
               <option value="1">Administration &amp; Facilities Management (AFSMD)</option>
               <option value="2">Maintenance Department</option>
@@ -1011,6 +1034,15 @@ include 'layout.php';
               <option value="4">Information Technology Department</option>
               <option value="5">Human Capital Department (HCD)</option>
             </select>
+          </div>
+          <div class="category-section" id="editRoleSection">
+            <div class="form-group">
+              <label>Role <span>*</span></label>
+              <select name="role" id="editRole" class="form-control" onchange="handleEditRoleChange()">
+                <option value="staff">Staff</option>
+                <option value="hod">Head of Department (HOD)</option>
+              </select>
+            </div>
           </div>
           <div class="category-section" id="editCategorySection">
             <div class="form-group">
@@ -1280,6 +1312,49 @@ function openViewModal(s) {
     });
 }
 
+function onEditDeptChange() {
+  updateEditRoleVisibility();
+}
+
+function updateEditRoleVisibility() {
+  const deptId       = parseInt(document.getElementById('editDeptId').value) || 0;
+  const roleSection  = document.getElementById('editRoleSection');
+  const roleSelect   = document.getElementById('editRole');
+  const originalRole = roleSelect.dataset.original || 'staff';
+  const originalDept = parseInt(roleSelect.dataset.originalDept) || 0;
+
+  // Only staff/hod accounts can have their role changed here — admins keep this hidden
+  if (!['staff', 'hod'].includes(originalRole)) {
+    roleSection.classList.remove('visible');
+    return;
+  }
+
+  // A department only "conflicts" if it already has a HOD that ISN'T this same person
+  const isSelfHod        = originalRole === 'hod' && deptId === originalDept;
+  const deptHasOtherHod  = DEPTS_WITH_HOD.includes(deptId) && !isSelfHod;
+
+  if (!deptId || deptHasOtherHod) {
+    roleSelect.value = 'staff';
+    roleSection.classList.remove('visible');
+  } else {
+    roleSection.classList.add('visible');
+  }
+  refreshEditCategoryVisibility();
+}
+
+function refreshEditCategoryVisibility() {
+  const role = document.getElementById('editRole').value;
+  if (role === 'hod') {
+    document.getElementById('editCategorySection').classList.remove('visible');
+  } else {
+    filterEditCats();
+  }
+}
+
+function handleEditRoleChange() {
+  refreshEditCategoryVisibility();
+}
+
 function openEditModal(s) {
   document.getElementById('editModalSubtitle').textContent = 'Editing: ' + s.full_name;
   document.getElementById('editStaffId').value   = s.staff_id;
@@ -1290,31 +1365,39 @@ function openEditModal(s) {
   document.getElementById('editDeptId').value    = s.dept_id || '';
   document.getElementById('editStaffCode').value = s.staff_code || '';
 
-  // Hide Assignment & Account Status for HOD, Super Admin, and Report Viewer
-  const restrictedRoles = ['hod', 'super_admin', 'report_viewer'];
+  const roleSelect = document.getElementById('editRole');
+  roleSelect.value = (s.role === 'hod') ? 'hod' : 'staff';
+  roleSelect.dataset.original     = s.role;
+  roleSelect.dataset.originalDept = s.dept_id || '';
+
+  // Hide Assignment & Account Status only for Super Admin and Report Viewer
+  const restrictedRoles = ['super_admin', 'report_viewer'];
   const isRestricted = restrictedRoles.includes(s.role);
   document.getElementById('editAssignmentBlock').style.display = isRestricted ? 'none' : '';
   document.getElementById('editStatusBlock').style.display = isRestricted ? 'none' : '';
 
-  // Open modal first so the category section is in the DOM and visible
+  // Open modal first so the sections are in the DOM
   openModal('editModal');
 
-  // Show a loading indicator in the category list while fetching
+  // Decide Role/Category visibility now that dept + role are set
+  updateEditRoleVisibility();
+
   const editList = document.getElementById('editCategoryList');
-  const editSec  = document.getElementById('editCategorySection');
-  if (s.dept_id) {
+  if (s.dept_id && roleSelect.value !== 'hod') {
     editList.innerHTML = '<em style="color:#9ca3af;font-size:13px;">Loading categories…</em>';
-    editSec.classList.add('visible');
   }
 
-  // Fetch current categories then build checkboxes with correct checked state
   fetch('get_staff_categories_sa.php?staff_id=' + s.staff_id)
     .then(r => r.json())
     .then(data => {
       const checkedIds = (data.category_ids || []).map(Number);
-      filterEditCats(checkedIds);
+      if (document.getElementById('editRole').value !== 'hod') {
+        filterEditCats(checkedIds);
+      }
     })
-    .catch(() => { filterEditCats([]); });
+    .catch(() => {
+      if (document.getElementById('editRole').value !== 'hod') filterEditCats([]);
+    });
 }
 
 function openResetModal(id, name) {

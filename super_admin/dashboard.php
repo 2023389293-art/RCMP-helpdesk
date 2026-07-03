@@ -179,13 +179,13 @@ include 'layout.php';
   .section-title { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 14px; }
 
   /* ── Bottom two-column layout ── */
-  .bottom-grid {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    gap: 20px;
-    align-items: stretch;
-    margin-bottom: 28px;
-  }
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 28px;
+}
   @media (max-width: 960px) { .bottom-grid { grid-template-columns: 1fr; } }
   @media (max-width: 600px) { .bottom-grid { gap: 14px; } }
 
@@ -231,19 +231,22 @@ include 'layout.php';
   }
 
   /* ── Dept table card ── */
-  .dept-card {
-    background: white; border-radius: 12px;
-    border: 1px solid var(--gray-200);
-    box-shadow: 0 1px 4px rgba(0,0,0,.04);
-    overflow: hidden; box-sizing: border-box; height: 100%;
-  }
-  @media (max-width: 600px) {
-    .dept-card { overflow-x: auto; }
-    .dept-table { min-width: 480px; }
-    .dept-table th, .dept-table td { padding: 10px 12px; font-size: 12px; }
-  }
-  .dept-card-header { padding: 16px 20px 0; }
-  .dept-table { width: 100%; border-collapse: collapse; }
+.dept-card {
+  background: white; border-radius: 12px;
+  border: 1px solid var(--gray-200);
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+  box-sizing: border-box; height: 100%;
+}
+.dept-card-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 600px) {
+  .dept-table { min-width: 480px; }
+  .dept-table th, .dept-table td { padding: 10px 12px; font-size: 12px; }
+}
+.dept-card-header { padding: 16px 20px 0; }
+.dept-table { width: 100%; min-width: 700px; border-collapse: collapse; }
   .dept-table th {
     font-size: 11px; font-weight: 600; color: var(--gray-500);
     text-transform: uppercase; letter-spacing: .06em;
@@ -408,6 +411,7 @@ include 'layout.php';
       <div class="section-title">Status Breakdown per Department</div>
     </div>
     <br>
+    <div class="dept-card-scroll">
     <table class="dept-table">
       <thead>
   <tr>
@@ -478,6 +482,7 @@ include 'layout.php';
         <?php endforeach; ?>
       </tbody>
     </table>
+    </div>
   </div>
 
 </div>

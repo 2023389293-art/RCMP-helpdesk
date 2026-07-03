@@ -75,6 +75,56 @@
     .nav-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; display: block; flex-shrink: 0; }
     .nav-pip { position: absolute; right: 10px; width: 6px; height: 6px; border-radius: 50%; background: #B8A8D8; }
 
+    /* ── SUBMENU ─────────────────────────────────────────────────── */
+    .nav-submenu {
+      display: flex; flex-direction: column; gap: 1px;
+      margin: 2px 0 4px 14px;
+      padding-left: 14px;
+      border-left: 1.5px solid rgba(255,255,255,.12);
+    }
+    .nav-subitem {
+      display: flex; align-items: center; gap: 9px;
+      padding: 7px 10px; border-radius: 6px;
+      font-size: 13px; font-weight: 500;
+      color: rgba(255,255,255,.45);
+      text-decoration: none;
+      transition: background .15s, color .15s;
+    }
+    .nav-subitem svg {
+      width: 13px; height: 13px; fill: none;
+      stroke: currentColor; stroke-width: 1.8;
+      flex-shrink: 0;
+    }
+    .nav-subitem:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.80); }
+    .nav-subitem.active { background: rgba(107,90,158,.35); color: #C8B8E8; font-weight: 600; }
+
+    /* ── COLLAPSIBLE NAV GROUP ─────────────────────────────────────── */
+    .nav-group-toggle {
+      width: 100%;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      text-align: left;
+      justify-content: flex-start;
+      color: rgba(255,255,255,.55);
+    }
+    .nav-group-toggle:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
+    .nav-group-toggle.active { background: rgba(107,90,158,.4); }
+
+    .nav-chevron {
+      width: 14px; height: 14px;
+      fill: none; stroke: currentColor; stroke-width: 2;
+      margin-left: auto;
+      flex-shrink: 0;
+      transition: transform .2s ease;
+    }
+
+    .nav-group-submenu { display: none; }
+    .nav-group.open .nav-group-submenu { display: flex; }
+    .nav-group.open .nav-chevron { transform: rotate(180deg); }
+    .nav-group.open .nav-group-toggle { color: rgba(255,255,255,.85); }
+
     .sidebar-footer {
       padding: 14px 16px; border-top: 1px solid rgba(255,255,255,.07);
     }
@@ -128,7 +178,12 @@
 
     /* ── CARDS ────────────────────────────────────────────────────── */
     .card { background: white; border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-    .card.no-pad { padding: 0; overflow: hidden; }
+.card.no-pad {
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
     .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
     .card-title { font-size: 15px; font-weight: 600; color: var(--gray-900); }
     .card-link { font-size: 12px; color: var(--blue); text-decoration: none; font-weight: 500; }
@@ -140,7 +195,7 @@
 
     /* ── TABLE ────────────────────────────────────────────────────── */
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .data-table.full { width: 100%; }
+.data-table.full { width: 100%; min-width: 900px; }
     .data-table thead th { padding: 10px 16px; background: var(--gray-100); border-bottom: 1px solid var(--gray-200); font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--gray-500); text-align: left; white-space: nowrap; }
     .data-table tbody td { padding: 12px 16px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
     .data-table tbody tr:last-child td { border-bottom: none; }
@@ -305,6 +360,11 @@
 
   /* ── Tables: hide less important columns, allow horizontal scroll ── */
   .card.no-pad { overflow-x: auto; }
+.card.no-pad::-webkit-scrollbar { height: 8px; }
+.card.no-pad::-webkit-scrollbar-track { background: var(--gray-100); }
+.card.no-pad::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 4px; }
+.card.no-pad::-webkit-scrollbar-thumb:hover { background: var(--gray-500); }
+
   .data-table { min-width: 400px; }
 
   /* All Tickets page — hide less critical columns */

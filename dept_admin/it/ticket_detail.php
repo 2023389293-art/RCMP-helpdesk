@@ -193,15 +193,9 @@ HTML;
         } elseif ($newVendorId > 0) {
             // ── Assign to vendor ──────────────────────────────────────────────
             
-            $vQ = $conn->prepare("
-    SELECT v.company_name,
-           vs.full_name AS pic_name
-    FROM vendors v
-    LEFT JOIN vendor_staff vs ON vs.vendor_id = v.vendor_id AND vs.is_primary = 1
-    WHERE v.vendor_id = ? AND v.status = 'active' LIMIT 1
-");
-$vQ->bind_param("i", $newVendorId); $vQ->execute();
-$vRow = $vQ->get_result()->fetch_assoc(); $vQ->close();
+            $vQ = $conn->prepare("SELECT company_name FROM vendors WHERE vendor_id=? AND status='active' LIMIT 1");
+            $vQ->bind_param("i", $newVendorId); $vQ->execute();
+            $vRow = $vQ->get_result()->fetch_assoc(); $vQ->close();
 
             if ($vRow) {
                 $oldAssigned = getAssignedStaff($conn, $ticketId);
@@ -217,9 +211,7 @@ $vRow = $vQ->get_result()->fetch_assoc(); $vQ->close();
                 } else {
                     $oldName = 'Unassigned';
                 }
-                $vendorDisplayName = !empty($vRow['pic_name'])
-    ? $vRow['company_name'] . ' (' . $vRow['pic_name'] . ')'
-    : $vRow['company_name'];
+                $vendorDisplayName = $vRow['company_name'];
 
                 // Clear staff assignment, set vendor, remove from queue
                 $updVendor = $conn->prepare("UPDATE complaints SET assigned_to=NULL, assigned_vendor_id=?, assigned_vendor_name=?, updated_at=NOW() WHERE ticket_id=? AND dept_id=4");
@@ -239,15 +231,18 @@ $vRow = $vQ->get_result()->fetch_assoc(); $vQ->close();
 
                 // ── Email: notify newly assigned vendor ───────────────────────────────
                 $vEmailQ = $conn->prepare("
-    SELECT vs.email, vs.full_name AS pic_name
-    FROM vendor_staff vs
-    WHERE vs.vendor_id = ? AND vs.is_primary = 1
-    LIMIT 1
+    SELECT v.email AS company_email, vs.full_name AS pic_name, vs.email AS pic_email
+    FROM vendors v
+    LEFT JOIN vendor_staff vs ON vs.vendor_id = v.vendor_id AND vs.is_primary = 1
+    WHERE v.vendor_id = ? LIMIT 1
 ");
 $vEmailQ->bind_param("i", $newVendorId); $vEmailQ->execute();
 $vEmailRow = $vEmailQ->get_result()->fetch_assoc(); $vEmailQ->close();
 
-                if (!empty($vEmailRow['email'])) {
+                $vendorToEmail = !empty($vEmailRow['pic_email']) ? $vEmailRow['pic_email'] : ($vEmailRow['company_email'] ?? '');
+                $vendorToName  = !empty($vEmailRow['pic_name'])  ? $vEmailRow['pic_name']  : $vRow['company_name'];
+
+                if (!empty($vendorToEmail)) {
                     $vendorMail = new PHPMailer(true);
                     try {
                         $vendorMail->isSMTP(); $vendorMail->Host='smtp.office365.com'; $vendorMail->SMTPAuth=true;
@@ -255,11 +250,11 @@ $vEmailRow = $vEmailQ->get_result()->fetch_assoc(); $vEmailQ->close();
                         $vendorMail->SMTPSecure=PHPMailer::ENCRYPTION_STARTTLS; $vendorMail->Port=587;
                         $vendorMail->SMTPDebug=0; $vendorMail->Debugoutput='error_log';
                         $vendorMail->setFrom('rush.rcmp@unikl.edu.my','UniKL RCMP Help Desk');
-                        $vendorMail->addAddress($vEmailRow['email'], $vRow['pic_name']);
+                        $vendorMail->addAddress($vendorToEmail, $vendorToName);
                         $vendorMail->isHTML(true); $vendorMail->CharSet='UTF-8';
                         $vendorMail->Subject="Ticket Assigned to Your Company — {$ticketId}";
                         $currentYear = date('Y'); $currentDate = date('d F Y');
-                        $escapedPicName = htmlspecialchars($vRow['pic_name']);
+                        $escapedPicName = htmlspecialchars($vendorToName);
                         $escapedCompany = htmlspecialchars($vRow['company_name']);
                         $escapedTicketId = htmlspecialchars($ticketId);
                         $escapedAssigner = htmlspecialchars($adminStaffName);

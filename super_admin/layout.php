@@ -141,7 +141,7 @@ function navIcon(string $name): string {
     .logout-btn:hover { background: rgba(255,255,255,.12); color: white; }
 
     /* ── MAIN CONTENT ── */
-    .main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
+    .main-content { margin-left: var(--sidebar-w); flex: 1; min-width: 0; min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
 
     /* ── TOP BAR — font sizes increased to match tickets.php ── */
     .topbar {

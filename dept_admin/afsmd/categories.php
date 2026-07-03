@@ -132,8 +132,15 @@ $currentPage = 'categories';
   <?php include __DIR__ . '/_head_assets.php'; ?>
   <style>
     /* ── Page grid ── */
-    .page-grid { display: grid; grid-template-columns: 1fr 340px; gap: 24px; align-items: start; }
-    @media (max-width: 900px) { .page-grid { grid-template-columns: 1fr; } }
+    .page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 1300px) {
+  .page-grid { grid-template-columns: 1fr; }
+}
 
     /* ── Alert animations ── */
     .alert { animation: fadeSlideIn .25s ease; }

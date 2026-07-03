@@ -1,6 +1,6 @@
 <?php
-// dept_admin/maintenance/vendors.php
-// Maintenance Admin — Manage Vendors (approve/suspend/delete vendors serving Maintenance dept)
+// dept_admin/afsmd/vendors.php
+// AFSMD Admin — Manage Vendors (approve/suspend/delete vendors serving AFSMD dept)
 require '_layout.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -22,14 +22,14 @@ function sendVendorDecisionEmail(string $toEmail, string $toName, string $compan
     if ($isApproved) {
         $statusLabel = 'Approved';
         $statBg = '#D1FAE5'; $statFg = '#059669';
-        $messageBody = '<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Congratulations! Your vendor application to serve the <strong>Maintenance Department</strong> has been reviewed and <strong>approved</strong>. You may now log in to the vendor portal using your registered email and password to receive and manage assigned tickets.</p>';
+        $messageBody = '<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">Congratulations! Your vendor application to serve the <strong>AFSMD</strong> has been reviewed and <strong>approved</strong>. You may now log in to the vendor portal using your registered email and password to receive and manage assigned tickets.</p>';
         $btnLabel = 'Login to Vendor Portal';
     } else {
         $statusLabel = 'Not Approved';
         $statBg = '#FEF2F2'; $statFg = '#DC2626';
-        $messageBody = '<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">We regret to inform you that your vendor application to serve the <strong>Maintenance Department</strong> was <strong>not approved</strong> at this time. If you believe this was in error or would like more information, please contact the Maintenance Department directly.</p>';
+        $messageBody = '<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">We regret to inform you that your vendor application to serve the <strong>AFSMD</strong> was <strong>not approved</strong> at this time. If you believe this was in error or would like more information, please contact the AFSMD Department directly.</p>';
         if ($stillServesOtherDepts) {
-            $messageBody .= '<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">This decision only affects your application to the <strong>Maintenance Department</strong>. Your account remains active for any other department(s) you currently serve, and you can continue to log in to the vendor portal as usual.</p>';
+            $messageBody .= '<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">This decision only affects your application to the <strong>AFSMD</strong>. Your account remains active for any other department(s) you currently serve, and you can continue to log in to the vendor portal as usual.</p>';
         } else {
             $messageBody .= '<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">As you do not currently serve any other department, your vendor account has been removed from the system.</p>';
         }
@@ -135,7 +135,7 @@ function sendVendorWelcomeEmail(string $toEmail, string $toName, string $company
     $escapedEmail   = htmlspecialchars($toEmail);
     $escapedPw      = htmlspecialchars($plainPassword);
 
-    $messageBody = '<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">An account has been created for <strong>' . $escapedCompany . '</strong> to serve the <strong>Maintenance Department</strong> on the UniKL RCMP Help Desk vendor portal. Your login credentials are below.</p>';
+    $messageBody = '<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">An account has been created for <strong>' . $escapedCompany . '</strong> to serve the <strong>AFSMD</strong> on the UniKL RCMP Help Desk vendor portal. Your login credentials are below.</p>';
 
     $htmlBody = <<<HTML
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/></head>
@@ -283,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $lnk = $conn->prepare("
                         INSERT INTO vendor_departments (vendor_id, dept_id, status, reviewed_by, reviewed_at, created_at)
-                        VALUES (?, 2, 'active', ?, NOW(), NOW())
+                        VALUES (?, 1, 'active', ?, NOW(), NOW())
                     ");
                     $lnk->bind_param("ii", $newVendorId, $_SESSION['staff_id']);
                     $lnk->execute();
@@ -314,7 +314,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // APPROVE: set vendor status → active AND set vendor_departments row for dept 2 → active
+    // APPROVE: set vendor status → active AND set vendor_departments row for dept 1 → active
     if ($action === 'approve' && $vendor_id) {
         $conn->begin_transaction();
         try {
@@ -323,11 +323,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $s1->execute();
             $s1->close();
 
-            // Mark the Maintenance dept link as active, record who reviewed it
+            // Mark the AFSMD dept link as active, record who reviewed it
             $s2 = $conn->prepare("
                 UPDATE vendor_departments
                 SET status = 'active', reviewed_by = ?, reviewed_at = NOW()
-                WHERE vendor_id = ? AND dept_id = 2
+                WHERE vendor_id = ? AND dept_id = 1
             ");
             $s2->bind_param("ii", $_SESSION['staff_id'], $vendor_id);
             $s2->execute();
@@ -379,7 +379,7 @@ $rInfo->close();
 
         $conn->begin_transaction();
         try {
-            $d1 = $conn->prepare("DELETE FROM vendor_departments WHERE vendor_id = ? AND dept_id = 2");
+            $d1 = $conn->prepare("DELETE FROM vendor_departments WHERE vendor_id = ? AND dept_id = 1");
             $d1->bind_param("i", $vendor_id);
             $d1->execute();
             $d1->close();
@@ -402,7 +402,7 @@ $rInfo->close();
 
             // Notify vendor by email (vendor row was captured before deletion)
             // $remaining > 0 means the vendor still serves other departments, so only
-            // the Maintenance link was rejected — not a full account removal.
+            // the AFSMD link was rejected — not a full account removal.
             if ($rVendorRow) {
     $toEmail = $rVendorRow['email'];
     $toName  = !empty($rVendorRow['pic_name']) ? $rVendorRow['pic_name'] : $rVendorRow['company_name'];
@@ -419,7 +419,7 @@ $rInfo->close();
 
     // SUSPEND
     if ($action === 'suspend' && $vendor_id) {
-    $s = $conn->prepare("UPDATE vendor_departments SET status = 'suspended' WHERE vendor_id = ? AND dept_id = 2");
+    $s = $conn->prepare("UPDATE vendor_departments SET status = 'suspended' WHERE vendor_id = ? AND dept_id = 1");
     $s->bind_param("i", $vendor_id);
     if ($s->execute()) {
         header('Location: vendors.php?success=suspended');
@@ -430,7 +430,7 @@ $rInfo->close();
 
     // ACTIVATE (un-suspend)
    if ($action === 'activate' && $vendor_id) {
-    $s = $conn->prepare("UPDATE vendor_departments SET status = 'active' WHERE vendor_id = ? AND dept_id = 2");
+    $s = $conn->prepare("UPDATE vendor_departments SET status = 'active' WHERE vendor_id = ? AND dept_id = 1");
     $s->bind_param("i", $vendor_id);
     if ($s->execute()) {
         header('Location: vendors.php?success=activated');
@@ -510,11 +510,13 @@ $rInfo->close();
         }
     }
 
+    
+
     // DELETE
     if ($action === 'delete' && $vendor_id) {
         $conn->begin_transaction();
         try {
-            $d1 = $conn->prepare("DELETE FROM vendor_departments WHERE vendor_id = ? AND dept_id = 2");
+            $d1 = $conn->prepare("DELETE FROM vendor_departments WHERE vendor_id = ? AND dept_id = 1");
             $d1->bind_param("i", $vendor_id);
             $d1->execute();
             $d1->close();
@@ -543,11 +545,11 @@ $rInfo->close();
     }
 }
 
-// ── Fetch vendors linked to Maintenance dept (dept_id = 2) ────────────────
+// ── Fetch vendors linked to AFSMD dept (dept_id = 1) ─────────────────────────
 $search  = trim($_GET['q']      ?? '');
 $statusF = $_GET['status']      ?? '';
 
-$where  = ["vd.dept_id = 2"];
+$where  = ["vd.dept_id = 1"];
 $params = [];
 $types  = '';
 
@@ -593,7 +595,7 @@ $kpiRes = $conn->query("
     SELECT vd.status, COUNT(*) AS n
     FROM vendors v
     JOIN vendor_departments vd ON vd.vendor_id = v.vendor_id
-    WHERE vd.dept_id = 2
+    WHERE vd.dept_id = 1
     GROUP BY vd.status
 ");
 while ($kpiRow = $kpiRes->fetch_assoc()) {
@@ -607,7 +609,7 @@ while ($kpiRow = $kpiRes->fetch_assoc()) {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Maintenance Admin — Manage Vendors | UniKL Help Desk</title>
+  <title>AFSMD Admin — Manage Vendors | UniKL Help Desk</title>
   <?php include '_head_assets.php'; ?>
   <style>
     /* Reuse icon-btn pattern from users.php */
@@ -756,7 +758,7 @@ while ($kpiRow = $kpiRes->fetch_assoc()) {
   <!-- Page Header -->
   <div class="page-header">
     <div>
-      <div class="page-eyebrow">Maintenance Department</div>
+      <div class="page-eyebrow">AFSMD Department</div>
       <h1 class="page-title">
         Manage Vendors
         <span class="title-count"><?= count($vendors) ?></span>
@@ -1240,12 +1242,12 @@ while ($kpiRow = $kpiRes->fetch_assoc()) {
     </div>
     <div class="modal-form">
       <p style="margin:0 0 10px;font-size:.9rem;color:#374151;">
-        Remove <strong id="deleteModalName" style="color:#ef4444;"></strong> from the Maintenance department?
+        Remove <strong id="deleteModalName" style="color:#ef4444;"></strong> from the AFSMD department?
       </p>
       <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
                   padding:10px 14px;font-size:.8rem;color:#991b1b;">
-        If this vendor serves only Maintenance, their account will be fully deleted.
-        If they serve other departments, only the Maintenance link is removed.
+        If this vendor serves only AFSMD, their account will be fully deleted.
+        If they serve other departments, only the AFSMD link is removed.
       </div>
     </div>
     <div class="modal-footer">
@@ -1280,7 +1282,7 @@ while ($kpiRow = $kpiRes->fetch_assoc()) {
       </p>
       <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
                   padding:10px 14px;font-size:.8rem;color:#991b1b;">
-        This will remove the pending application. If this vendor serves only Maintenance, their account will be fully deleted.
+        This will remove the pending application. If this vendor serves only AFSMD, their account will be fully deleted.
       </div>
     </div>
     <div class="modal-footer">
@@ -1316,7 +1318,7 @@ while ($kpiRow = $kpiRes->fetch_assoc()) {
 <script>
 // Eye icon SVG strings
 const eyeOpen = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
-const eyeShut = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22`;
+const eyeShut = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/>`;
 
 // Edit Vendor modal
 function openEditModal(id, company, email, phone, address, city, state, postcode) {

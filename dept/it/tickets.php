@@ -242,8 +242,8 @@ function staffInitials(string $name): string {
 
     /* ── Table card ── */
     .tbl-card{background:white;border-radius:12px;border:1px solid var(--g200);overflow:hidden;width:100%;}
-    .tbl-wrap{width:100%;}
-    table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;}
+.tbl-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{width:100%;min-width:960px;border-collapse:collapse;font-size:14px;table-layout:fixed;}
     thead th{background:var(--g100);padding:10px 12px;text-align:left;font-size:12px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--g200);white-space:nowrap;overflow:hidden;}
     tbody tr{border-bottom:1px solid var(--g200);transition:background .12s;}
     tbody tr:last-child{border-bottom:none;}
